@@ -21,3 +21,12 @@ coverage/
 linux/flutter/ephemeral/
 windows/flutter/ephemeral/
 web/.dart_tool/
+venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+uvicorn.log
+uvicorn_err.log
+.python-version
+.idea/.name

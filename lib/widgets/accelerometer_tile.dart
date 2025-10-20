@@ -21,7 +21,9 @@ class AccelerometerTile extends StatelessWidget {
 
     return ListTile(
       title: const Text('Accelerometer'),
-      subtitle: Text(text, style: textTheme.titleMedium?.copyWith(color: onSurface, fontWeight: FontWeight.w600)),
+      subtitle: Text(text,
+          style: textTheme.titleMedium
+              ?.copyWith(color: onSurface, fontWeight: FontWeight.w600)),
     );
   }
 }

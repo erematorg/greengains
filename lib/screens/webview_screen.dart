@@ -66,4 +66,3 @@ class _WebViewScreenState extends State<WebViewScreen> {
     );
   }
 }
-

@@ -23,7 +23,8 @@ class SensorTile extends StatelessWidget {
       title: Text(title),
       subtitle: Text(
         '$display$suffix',
-        style: textTheme.headlineSmall?.copyWith(color: onSurface, fontWeight: FontWeight.w600),
+        style: textTheme.headlineSmall
+            ?.copyWith(color: onSurface, fontWeight: FontWeight.w600),
       ),
     );
   }

@@ -27,8 +27,7 @@ class SensorManager {
 
   // Gyroscope
   final GyroscopeSensor _gyroscopeSensor = GyroscopeSensor();
-  late final Stream<List<double>> gyroscope$ =
-      _gyroscopeSensor.gyroscopeStream;
+  late final Stream<List<double>> gyroscope$ = _gyroscopeSensor.gyroscopeStream;
 
   // Magnetometer
   final MagnetometerSensor _magnetometerSensor = MagnetometerSensor();

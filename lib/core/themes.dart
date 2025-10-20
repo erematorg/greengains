@@ -11,8 +11,10 @@ class AppTheme {
   // Common layout tokens
   static const double ctaGapLink = 4; // gap between primary CTA and link below
   static const double bottomSafe = 16; // minimal space to bottom edges
-  static const EdgeInsets pagePadding = EdgeInsets.fromLTRB(24, 16, 24, bottomSafe);
-  static const double onboardingLinkBottomGap = 28; // space from Login link to bottom
+  static const EdgeInsets pagePadding =
+      EdgeInsets.fromLTRB(24, 16, 24, bottomSafe);
+  static const double onboardingLinkBottomGap =
+      28; // space from Login link to bottom
 
   // Radii
   static const double radiusLg = 24;
@@ -26,10 +28,9 @@ class AppTheme {
   static const double tileTrailingButtonHeight = 40;
   static const double authButtonHeight = 56;
 
-  static String googleButtonAsset(Brightness b) =>
-      b == Brightness.dark
-          ? 'assets/brands/google_button_dark.svg'
-          : 'assets/brands/google_button_light.svg';
+  static String googleButtonAsset(Brightness b) => b == Brightness.dark
+      ? 'assets/brands/google_button_dark.svg'
+      : 'assets/brands/google_button_light.svg';
 
   static ThemeData theme() {
     final base = ThemeData(useMaterial3: true);
@@ -85,7 +86,8 @@ class AppTheme {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: scheme.inverseSurface,
-        contentTextStyle: base.textTheme.bodyMedium?.copyWith(color: scheme.onInverseSurface),
+        contentTextStyle:
+            base.textTheme.bodyMedium?.copyWith(color: scheme.onInverseSurface),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       listTileTheme: ListTileThemeData(
@@ -149,13 +151,16 @@ class AppTheme {
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           visualDensity: VisualDensity.standard,
         ),
       ),
       textTheme: base.textTheme.copyWith(
-        headlineMedium: base.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
-        titleLarge: base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+        headlineMedium: base.textTheme.headlineMedium
+            ?.copyWith(fontWeight: FontWeight.w700),
+        titleLarge:
+            base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -164,7 +169,8 @@ class AppTheme {
 
   static ThemeData themeDark() {
     final base = ThemeData(useMaterial3: true);
-    final scheme = ColorScheme.fromSeed(seedColor: _seed, brightness: Brightness.dark);
+    final scheme =
+        ColorScheme.fromSeed(seedColor: _seed, brightness: Brightness.dark);
     return base.copyWith(
       colorScheme: scheme,
       pageTransitionsTheme: const PageTransitionsTheme(builders: {
@@ -217,7 +223,8 @@ class AppTheme {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: scheme.inverseSurface,
-        contentTextStyle: base.textTheme.bodyMedium?.copyWith(color: scheme.onInverseSurface),
+        contentTextStyle:
+            base.textTheme.bodyMedium?.copyWith(color: scheme.onInverseSurface),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       listTileTheme: ListTileThemeData(
@@ -281,13 +288,16 @@ class AppTheme {
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           visualDensity: VisualDensity.standard,
         ),
       ),
       textTheme: base.textTheme.copyWith(
-        headlineMedium: base.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
-        titleLarge: base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+        headlineMedium: base.textTheme.headlineMedium
+            ?.copyWith(fontWeight: FontWeight.w700),
+        titleLarge:
+            base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
       brightness: Brightness.dark,
     );

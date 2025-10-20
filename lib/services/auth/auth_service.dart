@@ -55,7 +55,8 @@ class AuthService {
 
     // PKCE code verifier/challenge
     final verifier = _randomUrlSafeString(64);
-    final challenge = base64Url.encode(sha256.convert(utf8.encode(verifier)).bytes)
+    final challenge = base64Url
+        .encode(sha256.convert(utf8.encode(verifier)).bytes)
         .replaceAll('=', '');
 
     final authUri = Uri.parse('https://accounts.google.com/o/oauth2/v2/auth')
@@ -82,7 +83,8 @@ class AuthService {
         req.response
           ..statusCode = 200
           ..headers.set('Content-Type', 'text/html; charset=utf-8')
-          ..write('<html><body><h2>Sign-in complete. You may close this window.</h2></body></html>');
+          ..write(
+              '<html><body><h2>Sign-in complete. You may close this window.</h2></body></html>');
         await req.response.close();
         await server.close(force: true);
         break;
@@ -96,8 +98,8 @@ class AuthService {
     }
 
     // Exchange the code for tokens.
-    final tokenReq = await HttpClient().postUrl(
-        Uri.parse('https://oauth2.googleapis.com/token'));
+    final tokenReq = await HttpClient()
+        .postUrl(Uri.parse('https://oauth2.googleapis.com/token'));
     final body = {
       'code': authCode,
       'client_id': clientId,
@@ -114,7 +116,8 @@ class AuthService {
     tokenReq.headers.contentType =
         ContentType('application', 'x-www-form-urlencoded', charset: 'utf-8');
     tokenReq.write(body.entries
-        .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+        .map((e) =>
+            '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
         .join('&'));
     final tokenResp = await tokenReq.close();
     final tokenRaw = await utf8.decodeStream(tokenResp);
@@ -134,7 +137,9 @@ class AuthService {
 
   static String _randomUrlSafeString(int length) {
     final rnd = Random.secure();
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~';
-    return List.generate(length, (_) => chars[rnd.nextInt(chars.length)]).join();
+    const chars =
+        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~';
+    return List.generate(length, (_) => chars[rnd.nextInt(chars.length)])
+        .join();
   }
 }

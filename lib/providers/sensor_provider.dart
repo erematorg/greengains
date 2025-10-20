@@ -22,7 +22,8 @@ class SensorProvider extends ChangeNotifier {
   List<double>? _magnetometer;
   List<double>? get magnetometer => _magnetometer;
 
-  SensorProvider({SensorManager? manager}) : _manager = manager ?? SensorManager.instance;
+  SensorProvider({SensorManager? manager})
+      : _manager = manager ?? SensorManager.instance;
 
   Future<void> start() async {
     final isMobile = defaultTargetPlatform == TargetPlatform.android ||

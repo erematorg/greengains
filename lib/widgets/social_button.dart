@@ -5,7 +5,8 @@ class SocialButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
 
-  const SocialButton({super.key, required this.icon, required this.label, this.onPressed});
+  const SocialButton(
+      {super.key, required this.icon, required this.label, this.onPressed});
 
   @override
   Widget build(BuildContext context) {

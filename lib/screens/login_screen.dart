@@ -34,7 +34,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const SizedBox(height: AppTheme.spaceXl),
-                        Text('Sign in', style: theme.textTheme.headlineMedium, textAlign: TextAlign.center),
+                        Text('Sign in',
+                            style: theme.textTheme.headlineMedium,
+                            textAlign: TextAlign.center),
                         const SizedBox(height: AppTheme.spaceLg),
                         GestureDetector(
                           onTap: _googleBusy
@@ -42,23 +44,31 @@ class _LoginScreenState extends State<LoginScreen> {
                               : () async {
                                   setState(() => _googleBusy = true);
                                   try {
-                                    await AuthService.signInWithGoogleUniversal();
+                                    await AuthService
+                                        .signInWithGoogleUniversal();
                                     // Ensure currentUser is fresh, then navigate as a fallback
-                                    await Future.delayed(const Duration(milliseconds: 100));
-                                    await FirebaseAuth.instance.currentUser?.reload();
+                                    await Future.delayed(
+                                        const Duration(milliseconds: 100));
+                                    await FirebaseAuth.instance.currentUser
+                                        ?.reload();
                                     if (!context.mounted) return;
-                                    if (FirebaseAuth.instance.currentUser != null) {
+                                    if (FirebaseAuth.instance.currentUser !=
+                                        null) {
                                       Navigator.of(context).pushReplacement(
-                                        MaterialPageRoute(builder: (_) => const AppShell()),
+                                        MaterialPageRoute(
+                                            builder: (_) => const AppShell()),
                                       );
                                     }
                                   } catch (e) {
                                     if (!context.mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Google sign-in failed: $e')),
+                                      SnackBar(
+                                          content: Text(
+                                              'Google sign-in failed: $e')),
                                     );
                                   } finally {
-                                    if (mounted) setState(() => _googleBusy = false);
+                                    if (mounted)
+                                      setState(() => _googleBusy = false);
                                   }
                                 },
                           child: SizedBox(
@@ -68,7 +78,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               alignment: Alignment.center,
                               children: [
                                 SvgPicture.asset(
-                                  AppTheme.googleButtonAsset(Theme.of(context).brightness),
+                                  AppTheme.googleButtonAsset(
+                                      Theme.of(context).brightness),
                                   fit: BoxFit.fitWidth,
                                   height: AppTheme.authButtonHeight,
                                   semanticsLabel: 'Sign in with Google',
@@ -77,7 +88,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   const SizedBox(
                                     width: 22,
                                     height: 22,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
                                   ),
                               ],
                             ),
@@ -88,8 +100,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           children: [
                             const Expanded(child: Divider()),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              child: Text('or', style: theme.textTheme.bodyMedium),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                              child:
+                                  Text('or', style: theme.textTheme.bodyMedium),
                             ),
                             const Expanded(child: Divider()),
                           ],
@@ -114,7 +128,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         FilledButton(
-                          onPressed: () {}, // Note: email/password (placeholder)
+                          onPressed:
+                              () {}, // Note: email/password (placeholder)
                           child: const Text('Log in'),
                         ),
                         const SizedBox(height: AppTheme.bottomSafe),

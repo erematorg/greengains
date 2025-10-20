@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+
 import '../providers/sensor_provider.dart';
 import '../widgets/sensor_tile.dart';
 import '../widgets/accelerometer_tile.dart';
@@ -6,6 +8,7 @@ import '../widgets/gyroscope_tile.dart';
 import '../widgets/magnetometer_tile.dart';
 import 'settings_screen.dart';
 import '../core/themes.dart';
+import '../services/network/sensor_uploader.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,18 +19,21 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late final SensorProvider _provider;
+  late final SensorUploader _uploader;
 
   @override
   void initState() {
     super.initState();
     _provider = SensorProvider();
     _provider.start();
-    // Note: Integrate sensor collection here (other sensors) when ready
-    // Note: Add data upload to server here when backend is ready
+
+    _uploader = SensorUploader(compressPayload: true);
+    unawaited(_uploader.start());
   }
 
   @override
   void dispose() {
+    unawaited(_uploader.dispose());
     _provider.dispose();
     super.dispose();
   }
@@ -93,7 +99,10 @@ class _SectionTitle extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceXs),
       child: Text(
         text,
-        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+        style: Theme.of(context)
+            .textTheme
+            .titleLarge
+            ?.copyWith(fontWeight: FontWeight.w700),
       ),
     );
   }
