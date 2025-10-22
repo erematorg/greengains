@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../core/app_preferences.dart';
 import '../sensors/sensor_manager.dart';
@@ -50,6 +51,9 @@ class SensorUploader {
   final List<Map<String, dynamic>> _buffer = [];
   DateTime? _batchStart;
   String? _deviceId;
+
+  final ValueNotifier<bool> _uploadingNotifier = ValueNotifier<bool>(false);
+  ValueListenable<bool> get uploading => _uploadingNotifier;
 
   Future<void> start() async {
     if (_started) {
@@ -130,6 +134,7 @@ class SensorUploader {
     }
 
     _uploadInFlight = true;
+    _uploadingNotifier.value = true;
     try {
       _deviceId ??= await AppPreferences.instance.getOrCreateDeviceId();
       final payload = {
@@ -167,6 +172,7 @@ class SensorUploader {
       }
     } finally {
       _uploadInFlight = false;
+      _uploadingNotifier.value = false;
     }
   }
 
@@ -185,5 +191,6 @@ class SensorUploader {
     await stop();
     await flushNow();
     _backendClient.dispose();
+    _uploadingNotifier.dispose();
   }
 }

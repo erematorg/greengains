@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/themes.dart';
 
 class SensorTile extends StatelessWidget {
   final String title;
@@ -14,17 +15,39 @@ class SensorTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final theme = Theme.of(context);
     final display = value != null ? value!.toStringAsFixed(1) : 'N/A';
     final suffix = unit != null ? ' $unit' : '';
 
-    return ListTile(
-      title: Text(title),
-      subtitle: Text(
-        '$display$suffix',
-        style: textTheme.headlineSmall
-            ?.copyWith(color: onSurface, fontWeight: FontWeight.w600),
+    return Padding(
+      padding: const EdgeInsets.all(AppTheme.spaceSm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.light_mode_outlined,
+                size: 20,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: AppTheme.spaceXs),
+              Text(
+                title,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$display$suffix',
+            style: theme.textTheme.headlineMedium?.copyWith(
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+        ],
       ),
     );
   }

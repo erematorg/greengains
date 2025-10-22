@@ -8,6 +8,7 @@ class PreferenceKeys {
   static const themeMode = 'theme_mode';
   static const useMobileUploads = 'use_mobile_data_uploads';
   static const deviceId = 'device_id';
+  static const foregroundServiceEnabled = 'foreground_service_enabled';
 }
 
 class AppPreferences {
@@ -50,6 +51,13 @@ class AppPreferences {
 
   Future<void> setUseMobileUploads(bool value) async {
     await _sp.setBool(PreferenceKeys.useMobileUploads, value);
+  }
+
+  bool get foregroundServiceEnabled =>
+      _sp.getBool(PreferenceKeys.foregroundServiceEnabled) ?? false;
+
+  Future<void> setForegroundServiceEnabled(bool value) async {
+    await _sp.setBool(PreferenceKeys.foregroundServiceEnabled, value);
   }
 
   Future<String> getOrCreateDeviceId() async {

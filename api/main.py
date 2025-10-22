@@ -9,6 +9,7 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from api.config import get_settings
 from api.middlewares.rate_limit import RateLimitMiddleware
+from api.routes.health import router as health_router
 from api.routes.upload import router as upload_router
 from db.session import close_db_pool, init_db_pool
 
@@ -32,6 +33,7 @@ def create_app(settings_override=None) -> FastAPI:
     app.add_middleware(GZipMiddleware, minimum_size=512)
     app.add_middleware(RateLimitMiddleware)
 
+    app.include_router(health_router)
     app.include_router(upload_router)
 
     @app.on_event("startup")

@@ -5,7 +5,8 @@
 - Run API: `uvicorn api.main:app --reload`.
 - Environment vars live in `.env`; Supabase session-pooler URL keeps local IPv4 machines happy.
 - Tests: `pytest backend_tests` (stubs the DB connection, so no network dependency).
-- Manual POST sanity check: `python scripts/send_sample.py` (adds a gzip batch); alternatively `Invoke-WebRequest … scripts\sample_payload.json`.
+- Manual POST sanity check: `python scripts/send_sample.py` (adds a gzip batch); alternatively `Invoke-WebRequest ... scripts\sample_payload.json`.
+- Full smoke test: `python scripts/run_checks.py` (pytest + sample ingest + cleanup dry-run).
 
 ### Database & Retention
 - Schema defined in `scripts/init_db.sql`; apply via Supabase SQL Editor (already done).
@@ -22,3 +23,5 @@
 - Monitor Supabase storage (30-day retention keeps cost low).
 - Convert to JWT auth when real users exist.
 - Add deployment config (Render/Railway/Fly) when ready to publish publicly.
+
+

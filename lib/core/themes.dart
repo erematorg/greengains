@@ -157,10 +157,27 @@ class AppTheme {
         ),
       ),
       textTheme: base.textTheme.copyWith(
+        // Headlines - bold and prominent
+        headlineLarge: base.textTheme.headlineLarge
+            ?.copyWith(fontWeight: FontWeight.w700),
         headlineMedium: base.textTheme.headlineMedium
             ?.copyWith(fontWeight: FontWeight.w700),
+        headlineSmall: base.textTheme.headlineSmall
+            ?.copyWith(fontWeight: FontWeight.w700),
+        // Titles - strong hierarchy
         titleLarge:
-            base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+            base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+        titleMedium:
+            base.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+        titleSmall:
+            base.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+        // Body text - minimum 16sp for readability
+        bodyLarge: base.textTheme.bodyLarge?.copyWith(fontSize: 16),
+        bodyMedium: base.textTheme.bodyMedium?.copyWith(fontSize: 16),
+        bodySmall: base.textTheme.bodySmall?.copyWith(fontSize: 14),
+        // Labels
+        labelLarge: base.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+        labelMedium: base.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -294,10 +311,27 @@ class AppTheme {
         ),
       ),
       textTheme: base.textTheme.copyWith(
+        // Headlines - bold and prominent
+        headlineLarge: base.textTheme.headlineLarge
+            ?.copyWith(fontWeight: FontWeight.w700),
         headlineMedium: base.textTheme.headlineMedium
             ?.copyWith(fontWeight: FontWeight.w700),
+        headlineSmall: base.textTheme.headlineSmall
+            ?.copyWith(fontWeight: FontWeight.w700),
+        // Titles - strong hierarchy
         titleLarge:
-            base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+            base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+        titleMedium:
+            base.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+        titleSmall:
+            base.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+        // Body text - minimum 16sp for readability
+        bodyLarge: base.textTheme.bodyLarge?.copyWith(fontSize: 16),
+        bodyMedium: base.textTheme.bodyMedium?.copyWith(fontSize: 16),
+        bodySmall: base.textTheme.bodySmall?.copyWith(fontSize: 14),
+        // Labels
+        labelLarge: base.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+        labelMedium: base.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w500),
       ),
       brightness: Brightness.dark,
     );

@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter doctor:*)",
+      "Bash(flutter clean:*)",
+      "Bash(flutter build:*)",
+      "Bash(adb devices:*)",
+      "Bash(adb install:*)",
+      "Bash(.venvScriptsactivate)",
+      "Bash(uvicorn:*)",
+      "Bash(.venvScriptspython.exe -m uvicorn api.main:app --reload --host 0.0.0.0 --port 8000)",
+      "Bash(flutter run:*)",
+      "Bash(cat:*)",
+      "Bash(flutter devices)",
+      "Bash(ipconfig:*)",
+      "Bash(findstr:*)",
+      "Read(//c/Users/mathi/Downloads/**)",
+      "Read(//c/Users/mathi/Documents/honeygain/**)",
+      "Bash(dir \"C:\\Users\\mathi\\Documents\\honeygain\" /s /b)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nImprove UI/UX and fix foreground service persistence\n\n- Redesign UI: 2-tab navigation, polished sensor displays, status indicators\n- Fix foreground service persistence across app updates\n- Fix state synchronization between Settings and Home screens\n- Improve notification: remove timestamp, better messaging\n- Fix dispose crashes and setState-after-dispose bugs\n- Enhanced typography: bold headers, 16sp minimum body text\n- All styling uses theme system (no hardcoded values)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

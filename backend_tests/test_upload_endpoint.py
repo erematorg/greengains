@@ -31,12 +31,18 @@ class FakeConnection:
 
     def __init__(self):
         self.queries: list[tuple[str, tuple]] = []
+        self.fetchval_calls: list[tuple[str, tuple]] = []
+        self.fetchval_result: int = 0
 
     def transaction(self):
         return FakeTransaction(self)
 
     async def execute(self, query: str, *params):
         self.queries.append((query, params))
+
+    async def fetchval(self, query: str, *params):
+        self.fetchval_calls.append((query, params))
+        return self.fetchval_result
 
 
 @pytest.fixture
@@ -137,3 +143,16 @@ async def test_upload_rejects_unsupported_encoding(test_app):
         )
 
     assert response.status_code == 415
+
+
+@pytest.mark.asyncio
+async def test_health_endpoint(test_app, fake_connection):
+    fake_connection.fetchval_result = 7
+
+    async with AsyncClient(app=test_app, base_url="http://testserver") as client:
+        response = await client.get("/health")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["batches_total"] == 7

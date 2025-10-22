@@ -61,11 +61,12 @@ class EnviroForegroundService : Service() {
         )
 
         return NotificationCompat.Builder(this@EnviroForegroundService, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_notify_sync)
-            .setContentTitle("GreenGains is running")
-            .setContentText("Collecting passive sensor data")
+            .setSmallIcon(android.R.drawable.ic_menu_compass)
+            .setContentTitle("Contributing to environmental research")
+            .setContentText("Sharing sensor data")
             .setContentIntent(pending)
             .setOngoing(true)
+            .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .build()
     }

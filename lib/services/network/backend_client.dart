@@ -26,6 +26,9 @@ class BackendClient {
   final String _baseUrl;
   final String _apiKey;
 
+  String get baseUrl => _baseUrl;
+  String get apiKey => _apiKey;
+
   Uri get _uploadUri => Uri.parse('$_baseUrl/upload');
 
   Future<void> uploadBatch(
