@@ -5,6 +5,18 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Location permissions: FINE + COARSE (like Nodle Cash, Silencio) -->
+    <!-- FINE: ~10-50m accuracy via GPS - needed for smart city street-level data -->
+    <!-- COARSE: ~100-500m via WiFi/cell - fallback if GPS unavailable -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- Phase 2 (Future): BACKGROUND location for 24/7 tracking (enterprise tier) -->
+    <!-- TODO: Add only if enterprise customers need continuous monitoring -->
+    <!-- <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" /> -->
+
     <application
         android:label="greengains"
         android:name="${applicationName}"
@@ -40,7 +52,7 @@
         <service
             android:name=".EnviroForegroundService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="dataSync|location" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

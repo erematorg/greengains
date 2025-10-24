@@ -9,8 +9,10 @@ import '../services/sensors/sensor_manager.dart';
 import '../services/system/notifications.dart';
 import '../services/network/backend_client.dart';
 import '../services/system/service_state_controller.dart';
+import '../services/location/location_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:geolocator/geolocator.dart';
 import '../main.dart';
 import '../core/app_preferences.dart';
 
@@ -25,10 +27,9 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool? _isExcluded;
-  bool _serviceRunning = false;
   bool _loading = false;
   bool _useMobileData = false;
-  bool _testingBackend = false;
+  bool _shareLocation = true;
   User? _user;
   final BackendClient _backendClient = BackendClient();
 
@@ -61,7 +62,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       developer.log('_refreshStatus: Getting preferences', name: _logTag);
       final prefs = AppPreferences.instance;
       final allowMobile = prefs.useMobileUploads;
-      developer.log('_refreshStatus: Mobile data=$allowMobile', name: _logTag);
+      final allowLocation = prefs.shareLocation;
+      developer.log('_refreshStatus: Mobile data=$allowMobile, Location=$allowLocation', name: _logTag);
 
       if (!mounted) {
         developer.log('_refreshStatus: Not mounted, returning early', name: _logTag);
@@ -70,10 +72,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       setState(() {
         _isExcluded = v;
-        _serviceRunning = running;
         _loading = false;
         _user = user;
         _useMobileData = allowMobile;
+        _shareLocation = allowLocation;
       });
       developer.log('_refreshStatus: Completed successfully', name: _logTag);
     } catch (e, stackTrace) {
@@ -92,11 +94,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     final opened = await PowerOptimizations.requestIgnoreBatteryOptimizations();
     if (opened) {
-      _showSnack('Opening system dialog…');
+      _showSnack('Opening system dialog… Come back and check status.');
+      // Don't call _refreshStatus() - causes crash on MIUI when returning from settings
+      // Status will be refreshed when user navigates back to this screen next time
     } else {
       _showSnack('Could not open settings.');
     }
-    await _refreshStatus();
   }
 
   void _showSnack(String msg) {
@@ -130,43 +133,83 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _testBackendConnection() async {
-    if (!mounted) return;
-    setState(() => _testingBackend = true);
+  Future<void> _setShareLocation(bool value) async {
+    developer.log('_setShareLocation: Setting to $value', name: _logTag);
+    try {
+      await AppPreferences.instance.setShareLocation(value);
+      developer.log('_setShareLocation: Preference saved', name: _logTag);
+      if (!mounted) {
+        developer.log('_setShareLocation: Not mounted, returning', name: _logTag);
+        return;
+      }
+      setState(() => _shareLocation = value);
+      developer.log('_setShareLocation: State updated', name: _logTag);
+
+      // Auto-request permission when toggled ON
+      if (value) {
+        developer.log('_setShareLocation: Auto-requesting permission', name: _logTag);
+        await _requestLocationPermission();
+      }
+    } catch (e, stackTrace) {
+      developer.log('_setShareLocation: ERROR', name: _logTag, error: e, stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> _requestLocationPermission() async {
+    developer.log('_requestLocationPermission: Starting', name: _logTag);
     final messenger = ScaffoldMessenger.of(context);
 
     try {
-      await AppPreferences.instance.ensureInitialized();
-      final deviceId = await AppPreferences.instance.getOrCreateDeviceId();
-      final timestamp = DateTime.now().toUtc().toIso8601String();
-      final payload = {
-        'device_id': deviceId,
-        'timestamp': timestamp,
-        'batch': [
-          {
-            't': timestamp,
-            'light': 0.0,
-            'accel': [0.0, 0.0, 9.81],
-            'gyro': [0.0, 0.0, 0.0],
-            'magnet': [0.0, 0.0, 0.0],
-          },
-        ],
-      };
-      await _backendClient.uploadBatch(payload, compress: true);
-      messenger
-          .showSnackBar(const SnackBar(content: Text('Backend reachable.')));
-    } on BackendException catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Backend test failed: ${e.message}')),
-      );
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Backend test error: $e')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _testingBackend = false);
+      // Check if location services are enabled first
+      final serviceEnabled = await LocationService.instance.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Please enable Location Services in device settings')),
+        );
+        developer.log('_requestLocationPermission: Location services disabled', name: _logTag);
+        // Open location settings
+        await LocationService.instance.openLocationSettings();
+        return;
       }
+
+      // Check current permission status
+      final permission = await LocationService.instance.checkPermission();
+      developer.log('_requestLocationPermission: Current permission=$permission', name: _logTag);
+
+      if (permission == LocationPermission.deniedForever) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Location permission permanently denied. Please enable in app settings.')),
+        );
+        await LocationService.instance.openAppSettings();
+        return;
+      }
+
+      if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Location permission already granted')),
+        );
+        return;
+      }
+
+      // Request permission (FINE + COARSE)
+      developer.log('_requestLocationPermission: Requesting FINE location permission', name: _logTag);
+      final granted = await LocationService.instance.requestLocation();
+      developer.log('_requestLocationPermission: Permission granted=$granted', name: _logTag);
+
+      if (granted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Location permission granted')),
+        );
+      } else {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Location permission denied')),
+        );
+      }
+    } catch (e, stackTrace) {
+      developer.log('_requestLocationPermission: ERROR', name: _logTag, error: e, stackTrace: stackTrace);
+      messenger.showSnackBar(
+        SnackBar(content: Text('Error requesting permission: $e')),
+      );
     }
   }
 
@@ -271,96 +314,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: AppTheme.spaceSm),
               Card(
-                child: ListTile(
-                  leading: const Icon(Icons.cloud_done_outlined),
-                  title: const Text('Test backend connection'),
-                  subtitle: Text(
-                    'Target: ${_backendClient.baseUrl}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: _testingBackend
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : SizedBox(
-                          width: AppTheme.tileTrailingButtonWidth,
-                          height: AppTheme.tileTrailingButtonHeight,
-                          child: FilledButton(
-                            onPressed: _testBackendConnection,
-                            child: const Text('Run'),
-                          ),
-                        ),
-                ),
-              ),
-              const SizedBox(height: AppTheme.spaceSm),
-              Card(
-                key: const ValueKey('service-card'),
                 child: SwitchListTile(
-                  key: const ValueKey('service-switch'),
-                  secondary: const Icon(Icons.play_circle_fill_outlined),
-                  title: const Text('Foreground service'),
-                  subtitle: Text(_serviceRunning ? 'Running' : 'Stopped'),
-                  value: _serviceRunning,
-                  onChanged: (v) async {
-                    developer.log('Foreground service: Toggle to ${v ? "start" : "stop"}', name: _logTag);
-                    bool ok;
-                    try {
-                      if (v) {
-                        // Check notifications permission (Android 13+) and open settings if disabled
-                        developer.log('Foreground service: Checking notifications permission', name: _logTag);
-                        final enabled = await AppNotifications.areEnabled();
-                        developer.log('Foreground service: Notifications enabled=$enabled', name: _logTag);
-
-                        if (!enabled) {
-                          developer.log('Foreground service: Opening notification settings', name: _logTag);
-                          _showSnack(
-                              'Enable notifications to run foreground service');
-                          await AppNotifications.openSettings();
-                        }
-
-                        developer.log('Foreground service: Starting service', name: _logTag);
-                        ok = await ForegroundService.start();
-                        developer.log('Foreground service: Service start result=$ok', name: _logTag);
-
-                        developer.log('Foreground service: Starting sensor manager', name: _logTag);
-                        await SensorManager.instance.start();
-                        developer.log('Foreground service: Sensor manager started', name: _logTag);
-                      } else {
-                        developer.log('Foreground service: Stopping service', name: _logTag);
-                        ok = await ForegroundService.stop();
-                        developer.log('Foreground service: Service stop result=$ok', name: _logTag);
-
-                        developer.log('Foreground service: Stopping sensor manager', name: _logTag);
-                        await SensorManager.instance.stop();
-                        developer.log('Foreground service: Sensor manager stopped', name: _logTag);
-                      }
-
-                      if (!mounted) {
-                        developer.log('Foreground service: Not mounted after operation', name: _logTag);
-                        return;
-                      }
-
-                      setState(() {
-                        _serviceRunning = v && ok;
-                      });
-                      developer.log('Foreground service: State updated to $_serviceRunning', name: _logTag);
-
-                      // Update shared controller so all screens stay in sync
-                      ServiceStateController.instance.setRunning(_serviceRunning);
-
-                      // Save preference so it persists across app restarts
-                      await AppPreferences.instance.setForegroundServiceEnabled(_serviceRunning);
-                      developer.log('Foreground service: Preference saved', name: _logTag);
-                    } catch (e, stackTrace) {
-                      developer.log('Foreground service: ERROR', name: _logTag, error: e, stackTrace: stackTrace);
-                      if (mounted) {
-                        _showSnack('Error: ${e.toString()}');
-                      }
-                    }
-                  },
+                  secondary: const Icon(Icons.location_on_outlined),
+                  title: const Text('Share location'),
+                  subtitle: const Text(
+                    'Include precise GPS location (~10-50m accuracy) for smart city environmental data. Helps urban planning with street-level air quality and light pollution analysis.',
+                  ),
+                  value: _shareLocation,
+                  onChanged: (value) => _setShareLocation(value),
                 ),
               ),
               const SizedBox(height: AppTheme.spaceSm),

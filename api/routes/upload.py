@@ -62,16 +62,20 @@ async def upload_sensor_batch(
         )
 
     stats = sanitized_payload["summary"]
-    logger.info(
-        "Stored sensor batch",
-        extra={
-            "device_hash": device_hash,
-            "batch_size": readings_count,
-            "period_start": stats["period_start"],
-            "period_end": stats["period_end"],
-            "avg_light": stats["light"]["avg"],
-        },
-    )
+    log_extra = {
+        "device_hash": device_hash,
+        "batch_size": readings_count,
+        "period_start": stats["period_start"],
+        "period_end": stats["period_end"],
+        "avg_light": stats["light"]["avg"],
+    }
+
+    # Include location in logs if present
+    if batch.location is not None:
+        log_extra["location"] = f"({batch.location.lat}, {batch.location.lon})"
+        log_extra["location_accuracy_m"] = batch.location.accuracy_m
+
+    logger.info("Stored sensor batch", extra=log_extra)
 
     return {"accepted_records": readings_count}
 
@@ -82,11 +86,17 @@ def _build_storage_payload(batch: UploadBatch) -> Dict[str, object]:
     summary = _summarise_batch(batch.batch)
     readings = [reading.model_dump() for reading in batch.batch]
 
-    return {
+    payload = {
         "timestamp": batch.timestamp,
         "summary": summary,
         "batch": readings,
     }
+
+    # Include optional location data for environmental heatmap generation
+    if batch.location is not None:
+        payload["location"] = batch.location.model_dump()
+
+    return payload
 
 
 def _summarise_batch(readings: List[SensorReading]) -> Dict[str, object]:

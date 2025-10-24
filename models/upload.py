@@ -1,9 +1,34 @@
 """Pydantic models describing upload payloads."""
 
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+class LocationData(BaseModel):
+    """Optional location data for smart city environmental analysis (like Nodle Cash)."""
+
+    lat: float = Field(description="Latitude (FINE: ~10-50m GPS accuracy, full precision).")
+    lon: float = Field(description="Longitude (FINE: ~10-50m GPS accuracy, full precision).")
+    altitude: float = Field(description="Altitude in meters above sea level (for elevation correlation).")
+    accuracy_m: float = Field(description="GPS accuracy estimate in meters.")
+
+    @field_validator("lat")
+    @classmethod
+    def _validate_latitude(cls, value: float) -> float:
+        """Ensure latitude is in valid range."""
+        if not -90 <= value <= 90:
+            raise ValueError("Latitude must be between -90 and 90 degrees.")
+        return value
+
+    @field_validator("lon")
+    @classmethod
+    def _validate_longitude(cls, value: float) -> float:
+        """Ensure longitude is in valid range."""
+        if not -180 <= value <= 180:
+            raise ValueError("Longitude must be between -180 and 180 degrees.")
+        return value
 
 
 class SensorReading(BaseModel):
@@ -36,4 +61,8 @@ class UploadBatch(BaseModel):
     timestamp: datetime = Field(description="Submission time recorded on device.")
     batch: List[SensorReading] = Field(
         description="Collection of sensor readings.", min_length=1
+    )
+    location: Optional[LocationData] = Field(
+        default=None,
+        description="Optional COARSE location for environmental heatmap generation."
     )

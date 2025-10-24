@@ -9,6 +9,7 @@ class PreferenceKeys {
   static const useMobileUploads = 'use_mobile_data_uploads';
   static const deviceId = 'device_id';
   static const foregroundServiceEnabled = 'foreground_service_enabled';
+  static const shareLocation = 'share_location';
 }
 
 class AppPreferences {
@@ -58,6 +59,15 @@ class AppPreferences {
 
   Future<void> setForegroundServiceEnabled(bool value) async {
     await _sp.setBool(PreferenceKeys.foregroundServiceEnabled, value);
+  }
+
+  /// Location sharing preference - defaults to FALSE, user must opt-in
+  /// COARSE location (~200m) is privacy-friendly but requires explicit consent
+  bool get shareLocation =>
+      _sp.getBool(PreferenceKeys.shareLocation) ?? false;
+
+  Future<void> setShareLocation(bool value) async {
+    await _sp.setBool(PreferenceKeys.shareLocation, value);
   }
 
   Future<String> getOrCreateDeviceId() async {

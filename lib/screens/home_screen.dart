@@ -6,11 +6,14 @@ import '../widgets/sensor_tile.dart';
 import '../widgets/accelerometer_tile.dart';
 import '../widgets/gyroscope_tile.dart';
 import '../widgets/magnetometer_tile.dart';
+import '../widgets/status_card.dart';
+import '../widgets/section_title.dart';
 import 'settings_screen.dart';
 import '../core/themes.dart';
 import '../services/network/sensor_uploader.dart';
 import '../services/system/foreground_service.dart';
 import '../services/system/service_state_controller.dart';
+import '../services/sensors/sensor_manager.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -49,6 +52,22 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onServiceStateChanged() {
     if (mounted) {
       setState(() => _isCollecting = ServiceStateController.instance.isRunning);
+    }
+  }
+
+  Future<void> _handleToggle() async {
+    if (_isCollecting) {
+      // Stop everything
+      await _uploader.stop();
+      await ForegroundService.stop();
+      await SensorManager.instance.stop();
+      ServiceStateController.instance.setRunning(false);
+    } else {
+      // Start everything
+      await ForegroundService.start();
+      await SensorManager.instance.start();
+      await _uploader.start();
+      ServiceStateController.instance.setRunning(true);
     }
   }
 
@@ -91,9 +110,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 horizontal: AppTheme.spaceSm,
               ),
               children: [
-                _StatusCard(isCollecting: _isCollecting, isUploading: _isUploading),
+                StatusCard(
+                  isCollecting: _isCollecting,
+                  isUploading: _isUploading,
+                  onToggle: _handleToggle,
+                ),
                 const SizedBox(height: AppTheme.spaceMd),
-                const _SectionTitle('Environment'),
+                const SectionTitle('Environment'),
                 Card(
                   child: SensorTile(
                     title: 'Light',
@@ -102,7 +125,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const Divider(height: AppTheme.spaceMd),
-                const _SectionTitle('Motion'),
+                const SectionTitle('Motion'),
                 Card(child: AccelerometerTile(values: _provider.accelerometer)),
                 Card(child: GyroscopeTile(values: _provider.gyroscope)),
                 Card(child: MagnetometerTile(values: _provider.magnetometer)),
@@ -112,105 +135,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       // Note: Rewards system entry point
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String text;
-  const _SectionTitle(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceXs),
-      child: Text(
-        text,
-        style: Theme.of(context)
-            .textTheme
-            .titleLarge
-            ?.copyWith(fontWeight: FontWeight.w700),
-      ),
-    );
-  }
-}
-
-class _StatusCard extends StatelessWidget {
-  final bool isCollecting;
-  final bool isUploading;
-  const _StatusCard({required this.isCollecting, required this.isUploading});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final statusColor = isCollecting
-        ? Colors.green
-        : theme.colorScheme.onSurfaceVariant;
-    final statusText = isCollecting ? 'Collecting data' : 'Paused';
-    final statusIcon = isCollecting ? Icons.sensors : Icons.pause_circle_outline;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spaceSm),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Icon(statusIcon, color: statusColor),
-                const SizedBox(width: AppTheme.spaceXs),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        statusText,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: statusColor,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        isCollecting
-                            ? 'Sensors are active and uploading data'
-                            : 'Enable in Settings to start collecting',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            if (isCollecting && isUploading) ...[
-              const SizedBox(height: AppTheme.spaceXs),
-              Row(
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        theme.colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppTheme.spaceXs),
-                  Text(
-                    'Uploading...',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }

@@ -1,12 +1,17 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../core/app_preferences.dart';
 import '../sensors/sensor_manager.dart';
+import '../location/location_service.dart';
 import 'backend_client.dart';
 import 'upload_manager.dart';
+
+const _logTag = 'SensorUploader';
 
 class SensorUploader {
   SensorUploader({
@@ -137,10 +142,39 @@ class SensorUploader {
     _uploadingNotifier.value = true;
     try {
       _deviceId ??= await AppPreferences.instance.getOrCreateDeviceId();
+
+      // Try to get location if user preferences allow (defaults to FALSE)
+      // Uses FINE location (~10-50m GPS accuracy) for smart city data
+      Map<String, dynamic>? location;
+      try {
+        if (AppPreferences.instance.shareLocation) {
+          // Automatically request permission if not granted yet
+          final hasPermission = await LocationService.instance.checkPermission();
+          if (hasPermission == LocationPermission.denied ||
+              hasPermission == LocationPermission.deniedForever) {
+            developer.log('Location permission not granted, trying to request', name: _logTag);
+            await LocationService.instance.requestLocation();
+          }
+
+          // Try to get location (silently fails if permission denied)
+          location = await LocationService.instance.getLocation();
+          if (location != null) {
+            developer.log(
+              'GPS location included: ${location['lat']}, ${location['lon']}, ${location['altitude']}m (accuracy: ${location['accuracy_m']}m)',
+              name: _logTag,
+            );
+          }
+        }
+      } catch (e) {
+        // Location fetch failed - continue upload without it
+        developer.log('Failed to get location, continuing without it: $e', name: _logTag);
+      }
+
       final payload = {
         'device_id': _deviceId,
         'timestamp': DateTime.now().toUtc().toIso8601String(),
         'batch': List<Map<String, dynamic>>.from(_buffer),
+        if (location != null) 'location': location,  // Optional field
       };
 
       final uploaded = await UploadManager.uploadPendingBatches(
