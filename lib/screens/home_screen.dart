@@ -1,5 +1,7 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:developer' as developer;
+
+import 'package:flutter/material.dart';
 
 import '../providers/sensor_provider.dart';
 import '../widgets/sensor_tile.dart';
@@ -56,18 +58,71 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _handleToggle() async {
-    if (_isCollecting) {
-      // Stop everything
-      await _uploader.stop();
-      await ForegroundService.stop();
-      await SensorManager.instance.stop();
-      ServiceStateController.instance.setRunning(false);
-    } else {
-      // Start everything
-      await ForegroundService.start();
-      await SensorManager.instance.start();
-      await _uploader.start();
-      ServiceStateController.instance.setRunning(true);
+    if (!mounted) {
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      if (_isCollecting) {
+        // Stop everything
+        await _uploader.stop();
+        final stopped = await ForegroundService.stop();
+        await SensorManager.instance.stop();
+
+        if (!stopped && mounted) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Could not stop background collection. Check system settings.'),
+            ),
+          );
+          await ServiceStateController.instance.refresh();
+          return;
+        }
+
+        ServiceStateController.instance.setRunning(false);
+      } else {
+        // Start everything with failure feedback
+        final started = await ForegroundService.start();
+        if (!started) {
+          if (mounted) {
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Text('Could not start background collection. Check battery optimisation settings.'),
+              ),
+            );
+          }
+          await ServiceStateController.instance.refresh();
+          return;
+        }
+
+        await SensorManager.instance.start();
+        await _uploader.start();
+        ServiceStateController.instance.setRunning(true);
+      }
+    } catch (error, stackTrace) {
+      developer.log(
+        'Failed to toggle collection',
+        name: 'HomeScreen',
+        error: error,
+        stackTrace: stackTrace,
+      );
+
+      if (mounted) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Something went wrong while toggling collection.'),
+          ),
+        );
+      }
+
+      if (!_isCollecting) {
+        // Rolling back to a safe state if starting failed halfway through.
+        await ForegroundService.stop();
+      }
+
+      await ServiceStateController.instance.refresh();
     }
   }
 
@@ -104,6 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: AnimatedBuilder(
           animation: _provider,
           builder: (context, _) {
+            final hasLiveData = _provider.hasLiveData;
             return ListView(
               padding: const EdgeInsets.symmetric(
                 vertical: AppTheme.spaceXs,
@@ -116,6 +172,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   onToggle: _handleToggle,
                 ),
                 const SizedBox(height: AppTheme.spaceMd),
+                if (!hasLiveData)
+                  _buildSensorHintCard(context, isCollecting: _isCollecting),
+                if (!hasLiveData) const SizedBox(height: AppTheme.spaceSm),
                 const SectionTitle('Environment'),
                 Card(
                   child: SensorTile(
@@ -135,6 +194,59 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       // Note: Rewards system entry point
+    );
+  }
+
+  Widget _buildSensorHintCard(BuildContext context, {required bool isCollecting}) {
+    final theme = Theme.of(context);
+    final title = isCollecting ? 'Warming up sensors' : 'Ready for the first readings';
+    final message = isCollecting
+        ? 'Give it a few seconds while we capture the first sample set. Live values appear as soon as the device streams data.'
+        : 'Tap “Collecting data” to start or review permissions if the tiles stay blank.';
+    final ctaLabel = isCollecting ? 'Open settings' : 'Review permissions';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spaceSm),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.insights_outlined,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: AppTheme.spaceSm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: AppTheme.spaceXs),
+                  Text(
+                    message,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: AppTheme.spaceXs),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                      ),
+                      child: Text(ctaLabel),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

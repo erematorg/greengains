@@ -52,8 +52,8 @@ class GyroscopeTile extends StatelessWidget {
             )
           else
             Text(
-              'N/A',
-              style: theme.textTheme.titleMedium?.copyWith(
+              'Waiting for sensor data',
+              style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),

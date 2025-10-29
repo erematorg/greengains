@@ -16,8 +16,7 @@ class SensorTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final display = value != null ? value!.toStringAsFixed(1) : 'N/A';
-    final suffix = unit != null ? ' $unit' : '';
+    final hasValue = value != null;
 
     return Padding(
       padding: const EdgeInsets.all(AppTheme.spaceSm),
@@ -41,11 +40,23 @@ class SensorTile extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          Text(
-            '$display$suffix',
-            style: theme.textTheme.headlineMedium?.copyWith(
-              color: theme.colorScheme.onSurface,
-            ),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: hasValue
+                ? Text(
+                    '${value!.toStringAsFixed(1)}${unit != null ? ' $unit' : ''}',
+                    key: ValueKey('${title}_value'),
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  )
+                : Text(
+                    'Waiting for sensor data',
+                    key: ValueKey('${title}_empty'),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
           ),
         ],
       ),

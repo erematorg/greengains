@@ -27,7 +27,19 @@ class Settings(BaseSettings):
         default=60,
         alias="GREENGAINS_RATE_LIMIT_PER_MINUTE",
         ge=1,
-        description="Number of requests allowed per key/IP per minute.",
+        description="Maximum requests allowed per identifier inside the sliding window.",
+    )
+    rate_limit_window_seconds: int = Field(
+        default=60,
+        alias="GREENGAINS_RATE_LIMIT_WINDOW_SECONDS",
+        ge=1,
+        description="Sliding window size in seconds for rate limiting.",
+    )
+    rate_limit_identifier_cache_size: int = Field(
+        default=2048,
+        alias="GREENGAINS_RATE_LIMIT_IDENTIFIER_CACHE_SIZE",
+        ge=10,
+        description="Maximum number of unique identifier buckets kept in memory.",
     )
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", populate_by_name=True)

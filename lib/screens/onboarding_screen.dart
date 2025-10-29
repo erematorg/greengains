@@ -63,7 +63,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     ),
                     const SizedBox(height: AppTheme.spaceXs),
                     Text(
-                      'Understand your surroundings with passive sensors — simple, private, and battery-friendly.',
+                      'Understand your surroundings with passive sensors - simple, private, and battery-friendly.',
                       style: theme.textTheme.bodyLarge,
                       textAlign: TextAlign.center,
                     ),
@@ -86,7 +86,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               setState(() => _busy = true);
                               await widget.onDone();
                               if (mounted) setState(() => _busy = false);
-                              // No navigation here; RootDecider rebuilds to AuthGate → Home/Login.
+                              // No navigation here; RootDecider rebuilds to AuthGate -> Home/Login.
                             },
                       child:
                           Text(_busy ? 'Please wait...' : 'Create an account'),

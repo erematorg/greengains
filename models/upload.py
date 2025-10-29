@@ -64,5 +64,20 @@ class UploadBatch(BaseModel):
     )
     location: Optional[LocationData] = Field(
         default=None,
-        description="Optional COARSE location for environmental heatmap generation."
+        description="Optional GPS location for environmental heatmap generation."
+    )
+    geohash: Optional[str] = Field(
+        default=None,
+        max_length=12,
+        description="Privacy-preserving geohash (6-char = ~1.2km grid, like Nodle Cash)."
+    )
+    battery_level: Optional[int] = Field(
+        default=None,
+        ge=-1,
+        le=100,
+        description="Battery level 0-100%, or -1 if charging (Nodle pattern)."
+    )
+    is_charging: Optional[bool] = Field(
+        default=None,
+        description="True if device is currently charging."
     )

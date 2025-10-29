@@ -68,8 +68,8 @@ class _GreenGainsAppState extends State<GreenGainsApp> {
           theme: AppTheme.theme(),
           darkTheme: AppTheme.themeDark(),
           themeMode: mode,
-          themeAnimationDuration: const Duration(milliseconds: 120),
-          themeAnimationCurve: Curves.easeInOut,
+          themeAnimationDuration: const Duration(milliseconds: 200),
+          themeAnimationCurve: Curves.easeOut,
           home: const RootDecider(),
         );
       },

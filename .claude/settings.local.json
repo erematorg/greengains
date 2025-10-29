@@ -24,7 +24,14 @@
       "Read(//c/Users/mathi/Documents/Silencio/**)",
       "Read(//c/Users/mathi/Documents/Nodle Cash/**)",
       "Bash(unzip:*)",
-      "Bash(flutter pub get:*)"
+      "Bash(flutter pub get:*)",
+      "WebSearch",
+      "Bash(.venvScriptspython scriptsrun_migration.py)",
+      "Bash(.venvScriptspython.exe scriptsrun_migration.py)",
+      "Bash(python scriptsrun_migration.py:*)",
+      "WebFetch(domain:192.168.126.96)",
+      "Bash(move:*)",
+      "Bash(python -m zipfile:*)"
     ],
     "deny": [],
     "ask": []

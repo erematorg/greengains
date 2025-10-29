@@ -11,6 +11,8 @@ from api.config import get_settings
 from api.middlewares.rate_limit import RateLimitMiddleware
 from api.routes.health import router as health_router
 from api.routes.upload import router as upload_router
+from api.routes.preferences import router as preferences_router
+from api.utils.firebase_auth import init_firebase_app
 from db.session import close_db_pool, init_db_pool
 
 
@@ -35,10 +37,12 @@ def create_app(settings_override=None) -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(upload_router)
+    app.include_router(preferences_router)
 
     @app.on_event("startup")
     async def _startup() -> None:
         await init_db_pool()
+        init_firebase_app()
 
     @app.on_event("shutdown")
     async def _shutdown() -> None:
@@ -68,7 +72,7 @@ def _configure_cors(app: FastAPI, allowed_origins: Optional[list[str]]) -> None:
         CORSMiddleware,
         allow_origins=origins,
         allow_credentials=False,
-        allow_methods=["POST", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "OPTIONS"],
         allow_headers=["*"],
         max_age=86400,
     )

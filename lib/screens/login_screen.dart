@@ -1,9 +1,12 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import '../core/themes.dart';
 import '../services/auth/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../shell/app_shell.dart';
+import '../services/preferences/preferences_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,6 +14,8 @@ class LoginScreen extends StatefulWidget {
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
+
+const _logTag = 'LoginScreen';
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _googleBusy = false;
@@ -51,6 +56,21 @@ class _LoginScreenState extends State<LoginScreen> {
                                         const Duration(milliseconds: 100));
                                     await FirebaseAuth.instance.currentUser
                                         ?.reload();
+
+                                    // Fetch preferences with timeout protection
+                                    try {
+                                      await PreferencesService.instance.fetchAndApplyPreferences()
+                                          .timeout(const Duration(seconds: 6));
+                                    } catch (e, stackTrace) {
+                                      // Timeout or error - continue anyway
+                                      developer.log(
+                                        'Preference sync failed',
+                                        name: _logTag,
+                                        error: e,
+                                        stackTrace: stackTrace,
+                                      );
+                                    }
+
                                     if (!context.mounted) return;
                                     if (FirebaseAuth.instance.currentUser !=
                                         null) {
@@ -67,8 +87,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                               'Google sign-in failed: $e')),
                                     );
                                   } finally {
-                                    if (mounted)
+                                    if (mounted) {
                                       setState(() => _googleBusy = false);
+                                    }
                                   }
                                 },
                           child: SizedBox(

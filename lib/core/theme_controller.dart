@@ -16,10 +16,12 @@ class ThemeController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setMode(ThemeMode m) async {
+  void setMode(ThemeMode m) {
     _mode = m;
-    notifyListeners();
+    notifyListeners(); // Instant UI update
+
+    // Save to SharedPreferences in background (non-blocking)
     final prefs = AppPreferences.instance;
-    await prefs.setThemeModeRaw(prefs.encodeThemeMode(m));
+    prefs.setThemeModeRaw(prefs.encodeThemeMode(m));
   }
 }

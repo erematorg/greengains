@@ -32,7 +32,7 @@ class AccelerometerTile extends StatelessWidget {
               ),
               const SizedBox(width: AppTheme.spaceXs),
               Text(
-                'm/s²',
+                'm/s^2',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -52,8 +52,8 @@ class AccelerometerTile extends StatelessWidget {
             )
           else
             Text(
-              'N/A',
-              style: theme.textTheme.titleMedium?.copyWith(
+              'Waiting for sensor data',
+              style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),

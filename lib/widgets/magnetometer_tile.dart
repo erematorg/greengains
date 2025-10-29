@@ -32,7 +32,7 @@ class MagnetometerTile extends StatelessWidget {
               ),
               const SizedBox(width: AppTheme.spaceXs),
               Text(
-                'µT',
+                'uT',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -52,8 +52,8 @@ class MagnetometerTile extends StatelessWidget {
             )
           else
             Text(
-              'N/A',
-              style: theme.textTheme.titleMedium?.copyWith(
+              'Waiting for sensor data',
+              style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),

@@ -8,8 +8,10 @@ import 'package:geolocator/geolocator.dart';
 import '../../core/app_preferences.dart';
 import '../sensors/sensor_manager.dart';
 import '../location/location_service.dart';
+import '../system/battery_service.dart';
 import 'backend_client.dart';
 import 'upload_manager.dart';
+import 'package:dart_geohash/dart_geohash.dart';
 
 const _logTag = 'SensorUploader';
 
@@ -146,6 +148,7 @@ class SensorUploader {
       // Try to get location if user preferences allow (defaults to FALSE)
       // Uses FINE location (~10-50m GPS accuracy) for smart city data
       Map<String, dynamic>? location;
+      String? geohash;
       try {
         if (AppPreferences.instance.shareLocation) {
           // Automatically request permission if not granted yet
@@ -163,6 +166,11 @@ class SensorUploader {
               'GPS location included: ${location['lat']}, ${location['lon']}, ${location['altitude']}m (accuracy: ${location['accuracy_m']}m)',
               name: _logTag,
             );
+
+            // Compute GeoHash for privacy (6 characters = ~1.2km grid, like Nodle Cash)
+            final geoHasher = GeoHasher();
+            geohash = geoHasher.encode(location['lon'] as double, location['lat'] as double, precision: 6);
+            developer.log('GeoHash computed: $geohash (~1.2km precision)', name: _logTag);
           }
         }
       } catch (e) {
@@ -170,11 +178,21 @@ class SensorUploader {
         developer.log('Failed to get location, continuing without it: $e', name: _logTag);
       }
 
+      // Collect battery telemetry (like Nodle Cash)
+      Map<String, dynamic>? battery;
+      try {
+        battery = await BatteryService.instance.getBatteryInfo();
+      } catch (e) {
+        developer.log('Failed to get battery info: $e', name: _logTag);
+      }
+
       final payload = {
         'device_id': _deviceId,
         'timestamp': DateTime.now().toUtc().toIso8601String(),
         'batch': List<Map<String, dynamic>>.from(_buffer),
-        if (location != null) 'location': location,  // Optional field
+        if (location != null) 'location': location,  // Optional: GPS location
+        if (geohash != null) 'geohash': geohash,  // Optional: Privacy-preserving grid
+        if (battery != null) ...battery,  // Optional: battery_level, is_charging
       };
 
       final uploaded = await UploadManager.uploadPendingBatches(

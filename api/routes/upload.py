@@ -96,6 +96,16 @@ def _build_storage_payload(batch: UploadBatch) -> Dict[str, object]:
     if batch.location is not None:
         payload["location"] = batch.location.model_dump()
 
+    # Include privacy-preserving geohash (like Nodle Cash)
+    if batch.geohash is not None:
+        payload["geohash"] = batch.geohash
+
+    # Include battery telemetry for fleet health monitoring
+    if batch.battery_level is not None:
+        payload["battery_level"] = batch.battery_level
+    if batch.is_charging is not None:
+        payload["is_charging"] = batch.is_charging
+
     return payload
 
 

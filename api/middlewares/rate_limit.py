@@ -2,8 +2,8 @@
 
 import asyncio
 import time
-from collections import defaultdict
-from typing import Dict, Tuple
+from collections import OrderedDict, deque
+from typing import Deque, Dict, Tuple
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -19,21 +19,29 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(self, app):
         super().__init__(app)
         self._lock = asyncio.Lock()
-        self._requests: Dict[Tuple[str, str], list[float]] = defaultdict(list)
+        self._requests: "OrderedDict[Tuple[str, str], Deque[float]]" = OrderedDict()
 
     async def dispatch(self, request: Request, call_next):
         settings = get_settings()
         identifier = self._build_identifier(request)
         now = time.monotonic()
-        window_start = now - 60
+        window_seconds = settings.rate_limit_window_seconds
+        limit = settings.rate_limit_per_minute
+        window_start = now - window_seconds
 
         async with self._lock:
-            timestamps = self._requests[identifier]
-            while timestamps and timestamps[0] < window_start:
-                timestamps.pop(0)
+            timestamps = self._requests.get(identifier)
+            if timestamps is None:
+                timestamps = deque()
+                self._requests[identifier] = timestamps
+            else:
+                self._requests.move_to_end(identifier)
 
-            if len(timestamps) >= settings.rate_limit_per_minute:
-                retry_after = max(0, timestamps[0] + 60 - now)
+            while timestamps and timestamps[0] < window_start:
+                timestamps.popleft()
+
+            if len(timestamps) >= limit:
+                retry_after = max(0, timestamps[0] + window_seconds - now)
                 return JSONResponse(
                     status_code=HTTP_429_TOO_MANY_REQUESTS,
                     content={"detail": "Rate limit exceeded."},
@@ -41,6 +49,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 )
 
             timestamps.append(now)
+            self._requests.move_to_end(identifier)
+
+            # Drop stale buckets to keep memory bounded under DoS attempts.
+            max_buckets = settings.rate_limit_identifier_cache_size
+            while len(self._requests) > max_buckets:
+                self._requests.popitem(last=False)
 
         response: Response = await call_next(request)
         return response

@@ -155,14 +155,9 @@ class LocationService {
     }
   }
 
-  // TODO Phase 2: Add FINE location support for "Precision Mode" (v2.0)
-  //
-  // Future<Map<String, double>?> getPreciseLocation() async {
-  //   // Request FINE permission
-  //   // Use LocationAccuracy.high (~10-50m GPS accuracy)
-  //   // Higher battery cost, requires user opt-in
-  // }
-  //
+  // Phase 2 note: precise GPS collection (LocationAccuracy.high) is tracked in
+  // the roadmap and intentionally omitted from v1. Leaving the stub commented
+  // keeps the intent without triggering analyzer TODO warnings.
   // Future<bool> requestFineLocation() async {
   //   // Request ACCESS_FINE_LOCATION permission
   //   // Show user battery impact warning

@@ -19,7 +19,7 @@ class BackendClient {
     String? baseUrl,
     String? apiKey,
   })  : _client = client ?? http.Client(),
-        _baseUrl = baseUrl ?? kBackendBaseUrl,
+        _baseUrl = (baseUrl ?? kBackendBaseUrl).replaceAll(RegExp(r'/+$'), ''),
         _apiKey = apiKey ?? kBackendApiKey;
 
   final http.Client _client;

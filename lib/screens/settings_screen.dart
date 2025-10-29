@@ -15,6 +15,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:geolocator/geolocator.dart';
 import '../main.dart';
 import '../core/app_preferences.dart';
+import '../services/preferences/preferences_service.dart';
 
 const _logTag = 'SettingsScreen';
 
@@ -29,7 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool? _isExcluded;
   bool _loading = false;
   bool _useMobileData = false;
-  bool _shareLocation = true;
+  bool _shareLocation = false;
   User? _user;
   final BackendClient _backendClient = BackendClient();
 
@@ -94,7 +95,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
     final opened = await PowerOptimizations.requestIgnoreBatteryOptimizations();
     if (opened) {
-      _showSnack('Opening system dialog… Come back and check status.');
+      _showSnack('Opening system dialog... Come back and check status.');
       // Don't call _refreshStatus() - causes crash on MIUI when returning from settings
       // Status will be refreshed when user navigates back to this screen next time
     } else {
@@ -128,6 +129,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
       setState(() => _useMobileData = value);
       developer.log('_setUseMobileData: State updated', name: _logTag);
+
+      // Sync to backend
+      PreferencesService.instance.savePreferences();
     } catch (e, stackTrace) {
       developer.log('_setUseMobileData: ERROR', name: _logTag, error: e, stackTrace: stackTrace);
     }
@@ -150,6 +154,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         developer.log('_setShareLocation: Auto-requesting permission', name: _logTag);
         await _requestLocationPermission();
       }
+
+      // Sync to backend
+      PreferencesService.instance.savePreferences();
     } catch (e, stackTrace) {
       developer.log('_setShareLocation: ERROR', name: _logTag, error: e, stackTrace: stackTrace);
     }
@@ -240,7 +247,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     developer.log('build called - loading=$_loading, user=${_user?.email ?? "null"}', name: _logTag);
     final subtitle = _loading
-        ? 'Checking status…'
+        ? 'Checking status...'
         : _isExcluded == true
             ? 'Excluded from power savings'
             : 'May be restricted by power savings';
@@ -276,6 +283,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ThemeController.instance
                               .setMode(v ? ThemeMode.dark : ThemeMode.light);
                           developer.log('Theme switch: Mode set successfully', name: _logTag);
+
+                          // Sync to backend
+                          PreferencesService.instance.savePreferences();
                         } catch (e, stackTrace) {
                           developer.log('Theme switch: ERROR', name: _logTag, error: e, stackTrace: stackTrace);
                         }

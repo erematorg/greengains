@@ -22,6 +22,13 @@ class SensorProvider extends ChangeNotifier {
   List<double>? _magnetometer;
   List<double>? get magnetometer => _magnetometer;
 
+  /// True when at least one sensor stream has delivered data.
+  bool get hasLiveData =>
+      _ambientLux != null ||
+      _accelerometer != null ||
+      _gyroscope != null ||
+      _magnetometer != null;
+
   SensorProvider({SensorManager? manager})
       : _manager = manager ?? SensorManager.instance;
 
@@ -29,7 +36,7 @@ class SensorProvider extends ChangeNotifier {
     final isMobile = defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
     if (!isMobile) {
-      // Desktop/Web — no sensors: leave values null and don't subscribe.
+      // Desktop/Web -> no sensors: leave values null and don't subscribe.
       return;
     }
     await _manager.start();
@@ -61,6 +68,11 @@ class SensorProvider extends ChangeNotifier {
     _gyroSub = null;
     await _magSub?.cancel();
     _magSub = null;
+    _ambientLux = null;
+    _accelerometer = null;
+    _gyroscope = null;
+    _magnetometer = null;
+    notifyListeners();
   }
 
   @override
