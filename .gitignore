@@ -34,3 +34,8 @@ uvicorn_err.log
 # Firebase Admin SDK credentials
 *-adminsdk-*.json
 firebase-key.json
+
+# Node.js backend dependencies
+backend/node_modules/
+backend/.env
+backend/dist/

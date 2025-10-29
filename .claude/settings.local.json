@@ -31,7 +31,15 @@
       "Bash(python scriptsrun_migration.py:*)",
       "WebFetch(domain:192.168.126.96)",
       "Bash(move:*)",
-      "Bash(python -m zipfile:*)"
+      "Bash(python -m zipfile:*)",
+      "Bash(git commit:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm install)",
+      "Bash(npm run dev:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill /F /PID 21768)",
+      "Bash(npx kill-port:*)",
+      "Bash(tasklist:*)"
     ],
     "deny": [],
     "ask": []
