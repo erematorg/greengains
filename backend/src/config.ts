@@ -22,8 +22,8 @@ const configSchema = z.object({
   rateLimitWindowSeconds: z.coerce.number().min(1).default(60),
   rateLimitCacheSize: z.coerce.number().min(10).default(2048),
 
-  // Firebase Admin SDK
-  googleApplicationCredentials: z.string().optional(),
+  // Firebase Admin SDK (JSON string)
+  firebaseServiceAccount: z.string().optional(),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -39,7 +39,7 @@ function loadConfig(): Config {
     rateLimitPerMinute: process.env.RATE_LIMIT_PER_MINUTE || process.env.GREENGAINS_RATE_LIMIT_PER_MINUTE,
     rateLimitWindowSeconds: process.env.GREENGAINS_RATE_LIMIT_WINDOW_SECONDS,
     rateLimitCacheSize: process.env.GREENGAINS_RATE_LIMIT_IDENTIFIER_CACHE_SIZE,
-    googleApplicationCredentials: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+    firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
   };
 
   const result = configSchema.safeParse(rawConfig);

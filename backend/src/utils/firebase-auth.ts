@@ -8,10 +8,18 @@ export function initFirebase(): void {
   if (app) return;
 
   try {
-    // Uses GOOGLE_APPLICATION_CREDENTIALS environment variable
-    app = admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-    });
+    // Read Firebase credentials from environment variable (JSON string)
+    if (config.firebaseServiceAccount) {
+      const serviceAccount = JSON.parse(config.firebaseServiceAccount);
+      app = admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    } else {
+      // Fallback to GOOGLE_APPLICATION_CREDENTIALS file path if available
+      app = admin.initializeApp({
+        credential: admin.credential.applicationDefault(),
+      });
+    }
     console.log('✅ Firebase Admin SDK initialized successfully');
   } catch (error) {
     console.warn('⚠️  Firebase Admin SDK initialization failed:', error);
