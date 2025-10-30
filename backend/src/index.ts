@@ -3,7 +3,7 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { config, getAllowedOrigins } from './config';
 import { initDatabase, closeDatabase } from './database';
-import { initFirebase } from './utils/firebase-auth';
+import { initFirebase, isFirebaseInitialized } from './utils/firebase-auth';
 import { uploadRoutes } from './routes/upload';
 import { preferencesRoutes } from './routes/preferences';
 
@@ -77,7 +77,7 @@ const start = async () => {
 🚀 GreenGains Backend (TypeScript) is running
 📍 Server: http://0.0.0.0:${config.port}
 🗄️  Database: Connected
-🔥 Firebase: ${process.env.GOOGLE_APPLICATION_CREDENTIALS ? 'Enabled' : 'Disabled'}
+🔥 Firebase: ${isFirebaseInitialized() ? 'Enabled' : 'Disabled'}
 🌍 Environment: ${config.nodeEnv}
     `);
   } catch (error) {

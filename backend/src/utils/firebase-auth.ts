@@ -3,6 +3,11 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { config } from '../config';
 
 let app: admin.app.App | null = null;
+let isInitialized = false;
+
+export function isFirebaseInitialized(): boolean {
+  return isInitialized;
+}
 
 export function initFirebase(): void {
   if (app) return;
@@ -12,13 +17,30 @@ export function initFirebase(): void {
     if (config.firebaseServiceAccount) {
       const serviceAccount = JSON.parse(config.firebaseServiceAccount);
 
-      // Fix newlines in private_key if they're escaped
+      // Normalize private_key format - ensure proper line breaks
       if (serviceAccount.private_key && typeof serviceAccount.private_key === 'string') {
-        serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+        let key = serviceAccount.private_key;
+
+        // If the key has literal \n strings, replace them with actual newlines
+        if (key.includes('\\n')) {
+          key = key.replace(/\\n/g, '\n');
+        }
+
+        // Ensure the key starts and ends correctly
+        key = key.trim();
+        if (!key.startsWith('-----BEGIN PRIVATE KEY-----')) {
+          throw new Error('Invalid private key format: missing BEGIN marker');
+        }
+        if (!key.endsWith('-----END PRIVATE KEY-----')) {
+          throw new Error('Invalid private key format: missing END marker');
+        }
+
+        serviceAccount.private_key = key;
       }
 
       app = admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
+        projectId: serviceAccount.project_id,
       });
     } else {
       // Fallback to GOOGLE_APPLICATION_CREDENTIALS file path if available
@@ -27,9 +49,11 @@ export function initFirebase(): void {
       });
     }
     console.log('✅ Firebase Admin SDK initialized successfully');
+    isInitialized = true;
   } catch (error) {
     console.warn('⚠️  Firebase Admin SDK initialization failed:', error);
     console.warn('⚠️  User authentication will not be available');
+    isInitialized = false;
   }
 }
 
