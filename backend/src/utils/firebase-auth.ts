@@ -11,6 +11,12 @@ export function initFirebase(): void {
     // Read Firebase credentials from environment variable (JSON string)
     if (config.firebaseServiceAccount) {
       const serviceAccount = JSON.parse(config.firebaseServiceAccount);
+
+      // Fix newlines in private_key if they're escaped
+      if (serviceAccount.private_key && typeof serviceAccount.private_key === 'string') {
+        serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+      }
+
       app = admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
       });
