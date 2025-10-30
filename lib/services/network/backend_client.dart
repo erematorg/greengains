@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 
 const String kBackendBaseUrl = String.fromEnvironment(
   'BACKEND_URL',
-  defaultValue: 'http://127.0.0.1:8000',
+  defaultValue: 'https://greengains.onrender.com',
 );
 
 const String kBackendApiKey = String.fromEnvironment(
