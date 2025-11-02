@@ -39,7 +39,11 @@
       "Bash(netstat:*)",
       "Bash(taskkill /F /PID 21768)",
       "Bash(npx kill-port:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(git push:*)",
+      "Bash(git rm:*)",
+      "Read(//c/Users/mathi/Documents/private/**)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

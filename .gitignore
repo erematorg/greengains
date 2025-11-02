@@ -30,6 +30,7 @@ uvicorn.log
 uvicorn_err.log
 .python-version
 .idea/.name
+tmp/
 
 # Firebase Admin SDK credentials
 *-adminsdk-*.json
