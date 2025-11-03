@@ -31,6 +31,14 @@ class BackendClient {
 
   Uri get _uploadUri => Uri.parse('$_baseUrl/upload');
 
+  Uri _analyticsUri(String path, Map<String, dynamic> query) {
+    final uri = Uri.parse('$_baseUrl$path');
+    return uri.replace(
+      queryParameters:
+          query.map((key, value) => MapEntry(key, value.toString())),
+    );
+  }
+
   Future<void> uploadBatch(
     Map<String, dynamic> payload, {
     bool compress = false,
@@ -63,6 +71,42 @@ class BackendClient {
   void dispose() {
     _client.close();
   }
+
+  Future<List<CoverageTile>> fetchCoverage({
+    int hours = 24,
+    int minDevices = 0,
+  }) async {
+    final uri = _analyticsUri('/analytics/coverage', {
+      'hours': hours,
+      'min_devices': minDevices,
+    });
+
+    final response = await _client.get(
+      uri,
+      headers: {
+        HttpHeaders.acceptHeader: 'application/json',
+        HttpHeaders.contentTypeHeader: 'application/json',
+        'X-API-Key': _apiKey,
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw BackendException(
+        'Coverage request failed with status ${response.statusCode}: ${response.body}',
+        statusCode: response.statusCode,
+      );
+    }
+
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    final items = decoded['items'];
+    if (items is! List) {
+      return const [];
+    }
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(CoverageTile.fromJson)
+        .toList();
+  }
 }
 
 class BackendException implements Exception {
@@ -74,4 +118,49 @@ class BackendException implements Exception {
   @override
   String toString() =>
       'BackendException(statusCode: $statusCode, message: $message)';
+}
+
+class CoverageTile {
+  const CoverageTile({
+    required this.geohash,
+    required this.samplesCount,
+    required this.deviceEvents,
+    required this.deviceHours,
+    this.avgLight,
+    this.avgAccelRms,
+    this.avgGyroRms,
+    this.movementScore,
+    this.locationShare,
+  });
+
+  final String geohash;
+  final double samplesCount;
+  final double deviceEvents;
+  final double deviceHours;
+  final double? avgLight;
+  final double? avgAccelRms;
+  final double? avgGyroRms;
+  final double? movementScore;
+  final double? locationShare;
+
+  factory CoverageTile.fromJson(Map<String, dynamic> json) {
+    double? toNum(dynamic value) {
+      if (value == null) return null;
+      if (value is num) return value.toDouble();
+      final parsed = double.tryParse(value.toString());
+      return parsed;
+    }
+
+    return CoverageTile(
+      geohash: json['geohash']?.toString() ?? '',
+      samplesCount: toNum(json['samples_count']) ?? 0,
+      deviceEvents: toNum(json['device_events']) ?? 0,
+      deviceHours: toNum(json['device_hours']) ?? 0,
+      avgLight: toNum(json['avg_light']),
+      avgAccelRms: toNum(json['avg_accel_rms']),
+      avgGyroRms: toNum(json['avg_gyro_rms']),
+      movementScore: toNum(json['movement_score']),
+      locationShare: toNum(json['location_share']),
+    );
+  }
 }

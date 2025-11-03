@@ -10,6 +10,7 @@ class PreferenceKeys {
   static const deviceId = 'device_id';
   static const foregroundServiceEnabled = 'foreground_service_enabled';
   static const shareLocation = 'share_location';
+  static const lastUploadAt = 'last_upload_at';
 }
 
 class AppPreferences {
@@ -63,11 +64,26 @@ class AppPreferences {
 
   /// Location sharing preference - defaults to FALSE, user must opt-in
   /// COARSE location (~200m) is privacy-friendly but requires explicit consent
-  bool get shareLocation =>
-      _sp.getBool(PreferenceKeys.shareLocation) ?? false;
+  bool get shareLocation => _sp.getBool(PreferenceKeys.shareLocation) ?? false;
 
   Future<void> setShareLocation(bool value) async {
     await _sp.setBool(PreferenceKeys.shareLocation, value);
+  }
+
+  DateTime? get lastUploadAt {
+    final raw = _sp.getString(PreferenceKeys.lastUploadAt);
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    final parsed = DateTime.tryParse(raw);
+    return parsed?.toLocal();
+  }
+
+  Future<void> setLastUploadAt(DateTime timestamp) async {
+    await _sp.setString(
+      PreferenceKeys.lastUploadAt,
+      timestamp.toUtc().toIso8601String(),
+    );
   }
 
   Future<String> getOrCreateDeviceId() async {

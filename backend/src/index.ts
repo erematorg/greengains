@@ -6,6 +6,8 @@ import { initDatabase, closeDatabase } from './database';
 import { initFirebase, isFirebaseInitialized } from './utils/firebase-auth';
 import { uploadRoutes } from './routes/upload';
 import { preferencesRoutes } from './routes/preferences';
+import { analyticsRoutes } from './routes/analytics';
+import { startAggregationJob, stopAggregationJob } from './jobs/aggregator';
 
 const fastify = Fastify({
   logger: {
@@ -15,9 +17,13 @@ const fastify = Fastify({
 });
 
 // Configure raw body parser for upload endpoint
-fastify.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
-  done(null, body);
-});
+fastify.addContentTypeParser(
+  'application/json',
+  { parseAs: 'buffer' },
+  (req, body, done) => {
+    done(null, body);
+  },
+);
 
 // Register CORS
 fastify.register(cors, {
@@ -40,12 +46,14 @@ fastify.get('/health', async () => {
 // Register routes
 fastify.register(uploadRoutes);
 fastify.register(preferencesRoutes);
+fastify.register(analyticsRoutes);
 
 // Graceful shutdown
 const shutdown = async (signal: string) => {
   console.log(`\nReceived ${signal}, shutting down gracefully...`);
   try {
     await fastify.close();
+    await stopAggregationJob();
     await closeDatabase();
     console.log('Server shut down successfully');
     process.exit(0);
@@ -67,19 +75,24 @@ const start = async () => {
     // Initialize Firebase
     initFirebase();
 
+    // Start aggregation job
+    startAggregationJob().catch((error) =>
+      fastify.log.error({ err: error }, 'Failed to start aggregation job'),
+    );
+
     // Start listening
     await fastify.listen({
       port: config.port,
       host: '0.0.0.0',
     });
 
-    console.log(`
-🚀 GreenGains Backend (TypeScript) is running
-📍 Server: http://0.0.0.0:${config.port}
-🗄️  Database: Connected
-🔥 Firebase: ${isFirebaseInitialized() ? 'Enabled' : 'Disabled'}
-🌍 Environment: ${config.nodeEnv}
-    `);
+    console.log('--------------------------------------------');
+    console.log('GreenGains backend is running');
+    console.log(`Server:      http://0.0.0.0:${config.port}`);
+    console.log('Database:    Connected');
+    console.log(`Firebase:    ${isFirebaseInitialized() ? 'Enabled' : 'Disabled'}`);
+    console.log(`Environment: ${config.nodeEnv}`);
+    console.log('--------------------------------------------');
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);

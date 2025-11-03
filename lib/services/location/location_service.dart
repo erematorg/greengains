@@ -6,11 +6,9 @@ const _logTag = 'LocationService';
 
 /// Manages location collection for smart city environmental data
 ///
-/// Uses FINE location by default (like Nodle Cash, Silencio)
-/// - ~10-50m accuracy via GPS satellites
-/// - Needed for street-level air quality, light pollution analysis
-/// - Smart cities require building-level precision for urban planning
-/// - Falls back to COARSE (~100-500m) if GPS unavailable
+/// Uses the best accuracy available while remaining battery-friendly:
+/// - Precise (GPS) when user granted high accuracy.
+/// - Coarse (network / Wi-Fi) fallback when only reduced accuracy is allowed.
 ///
 /// Battery impact: ~5-8% per day (comparable to competitors)
 class LocationService {
@@ -22,7 +20,8 @@ class LocationService {
     try {
       return await Geolocator.isLocationServiceEnabled();
     } catch (e) {
-      developer.log('Error checking location service: $e', name: _logTag, error: e);
+      developer.log('Error checking location service: $e',
+          name: _logTag, error: e);
       return false;
     }
   }
@@ -42,7 +41,8 @@ class LocationService {
   /// Shows Android permission dialog
   /// Requests FINE for GPS precision, falls back to COARSE if denied
   Future<bool> requestLocation() async {
-    developer.log('Requesting location permission (FINE+COARSE)', name: _logTag);
+    developer.log('Requesting location permission (coarse/fine)',
+        name: _logTag);
 
     try {
       LocationPermission permission = await checkPermission();
@@ -58,7 +58,7 @@ class LocationService {
       }
 
       final granted = permission == LocationPermission.always ||
-                      permission == LocationPermission.whileInUse;
+          permission == LocationPermission.whileInUse;
 
       developer.log('Location permission granted: $granted', name: _logTag);
       return granted;
@@ -80,9 +80,15 @@ class LocationService {
   Future<Map<String, double>?> getLocation() async {
     try {
       // Check permission first
-      final permission = await checkPermission();
-      if (permission != LocationPermission.always &&
-          permission != LocationPermission.whileInUse) {
+      var permission = await checkPermission();
+      if (permission == LocationPermission.denied) {
+        developer.log('Permission absent, requesting...', name: _logTag);
+        permission = await Geolocator.requestPermission();
+        developer.log('Permission request result: $permission', name: _logTag);
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
         developer.log('Location permission not granted', name: _logTag);
         return null;
       }
@@ -94,21 +100,51 @@ class LocationService {
         return null;
       }
 
-      // Get position with FINE accuracy (uses GPS satellites)
-      // Using HIGH for smart city-grade precision (~10-50m)
-      developer.log('Fetching precise location via GPS', name: _logTag);
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,  // FINE permission, GPS satellites, ~10-50m
-        forceAndroidLocationManager: false,
-        timeLimit: const Duration(seconds: 15),  // GPS needs more time than WiFi
-      );
+      // Determine available accuracy (Android 12+ can return "reduced" when only coarse granted)
+      LocationAccuracyStatus accuracyStatus = LocationAccuracyStatus.precise;
+      try {
+        accuracyStatus = await Geolocator.getLocationAccuracy();
+      } catch (e) {
+        developer.log('Failed to get location accuracy status: $e',
+            name: _logTag, error: e);
+      }
+
+      final bool hasPrecise = accuracyStatus == LocationAccuracyStatus.precise;
+      final desiredAccuracy =
+          hasPrecise ? LocationAccuracy.high : LocationAccuracy.low;
+      final Duration timeLimit =
+          hasPrecise ? const Duration(seconds: 15) : const Duration(seconds: 5);
+
+      Position? position;
+
+      try {
+        developer.log(
+          'Fetching location with ${hasPrecise ? 'precise' : 'coarse'} accuracy',
+          name: _logTag,
+        );
+        position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: desiredAccuracy,
+          forceAndroidLocationManager: false,
+          timeLimit: timeLimit,
+        );
+      } catch (e) {
+        developer.log('Primary location fetch failed: $e',
+            name: _logTag, error: e);
+        position = await Geolocator.getLastKnownPosition();
+      }
+
+      if (position == null) {
+        developer.log('Location unavailable (null position)', name: _logTag);
+        return null;
+      }
 
       developer.log(
-        'GPS location fetched: ${position.latitude}, ${position.longitude}, ${position.altitude}m (accuracy: ${position.accuracy}m)',
+        'Location fetched (${hasPrecise ? 'precise' : 'coarse'}): ${position.latitude}, ${position.longitude}, '
+        '${position.altitude}m (accuracy: ${position.accuracy}m)',
         name: _logTag,
       );
 
-      // Return full precision location data (like Nodle Cash)
+      // Return data (accuracy will indicate precision)
       return _buildLocationData(position);
     } catch (e) {
       developer.log('Error getting location: $e', name: _logTag, error: e);
@@ -126,10 +162,10 @@ class LocationService {
   /// No privacy rounding - smart cities need raw precision
   Map<String, double> _buildLocationData(Position position) {
     return {
-      'lat': position.latitude,           // Full precision (no rounding)
-      'lon': position.longitude,          // Full precision (no rounding)
-      'altitude': position.altitude,      // Meters above sea level
-      'accuracy_m': position.accuracy,    // GPS accuracy estimate
+      'lat': position.latitude, // Full precision (no rounding)
+      'lon': position.longitude, // Full precision (no rounding)
+      'altitude': position.altitude, // Meters above sea level
+      'accuracy_m': position.accuracy, // GPS accuracy estimate
     };
   }
 

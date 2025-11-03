@@ -77,7 +77,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
       preHandler: verifyApiKey,
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      console.log('📥 Upload request received');
+      console.log('Upload request received');
       try {
         // Decompress payload if needed
         const rawPayload = request.body as Buffer;

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class AppTheme {
   // Spacing scale (can be reused across screens)
@@ -34,7 +34,12 @@ class AppTheme {
 
   static ThemeData theme() {
     final base = ThemeData(useMaterial3: true);
-    final scheme = ColorScheme.fromSeed(seedColor: _seed);
+    final scheme = ColorScheme.fromSeed(
+      seedColor: _seed,
+      brightness: Brightness.light,
+    ).copyWith(
+      onSurfaceVariant: const Color(0xFF4E5A55),
+    );
     return base.copyWith(
       colorScheme: scheme,
       pageTransitionsTheme: const PageTransitionsTheme(builders: {
@@ -158,12 +163,12 @@ class AppTheme {
       ),
       textTheme: base.textTheme.copyWith(
         // Headlines - bold and prominent
-        headlineLarge: base.textTheme.headlineLarge
-            ?.copyWith(fontWeight: FontWeight.w700),
+        headlineLarge:
+            base.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.w700),
         headlineMedium: base.textTheme.headlineMedium
             ?.copyWith(fontWeight: FontWeight.w700),
-        headlineSmall: base.textTheme.headlineSmall
-            ?.copyWith(fontWeight: FontWeight.w700),
+        headlineSmall:
+            base.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
         // Titles - strong hierarchy
         titleLarge:
             base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
@@ -176,8 +181,10 @@ class AppTheme {
         bodyMedium: base.textTheme.bodyMedium?.copyWith(fontSize: 16),
         bodySmall: base.textTheme.bodySmall?.copyWith(fontSize: 14),
         // Labels
-        labelLarge: base.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-        labelMedium: base.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w500),
+        labelLarge:
+            base.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+        labelMedium:
+            base.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -187,7 +194,8 @@ class AppTheme {
   static ThemeData themeDark() {
     final base = ThemeData(useMaterial3: true);
     final scheme =
-        ColorScheme.fromSeed(seedColor: _seed, brightness: Brightness.dark);
+        ColorScheme.fromSeed(seedColor: _seed, brightness: Brightness.dark)
+            .copyWith(onSurfaceVariant: const Color(0xFF9DA7A2));
     return base.copyWith(
       colorScheme: scheme,
       pageTransitionsTheme: const PageTransitionsTheme(builders: {
@@ -312,12 +320,12 @@ class AppTheme {
       ),
       textTheme: base.textTheme.copyWith(
         // Headlines - bold and prominent
-        headlineLarge: base.textTheme.headlineLarge
-            ?.copyWith(fontWeight: FontWeight.w700),
+        headlineLarge:
+            base.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.w700),
         headlineMedium: base.textTheme.headlineMedium
             ?.copyWith(fontWeight: FontWeight.w700),
-        headlineSmall: base.textTheme.headlineSmall
-            ?.copyWith(fontWeight: FontWeight.w700),
+        headlineSmall:
+            base.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
         // Titles - strong hierarchy
         titleLarge:
             base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
@@ -330,10 +338,13 @@ class AppTheme {
         bodyMedium: base.textTheme.bodyMedium?.copyWith(fontSize: 16),
         bodySmall: base.textTheme.bodySmall?.copyWith(fontSize: 14),
         // Labels
-        labelLarge: base.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-        labelMedium: base.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w500),
+        labelLarge:
+            base.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+        labelMedium:
+            base.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w500),
       ),
       brightness: Brightness.dark,
     );
   }
 }
+

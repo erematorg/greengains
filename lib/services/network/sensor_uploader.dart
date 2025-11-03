@@ -60,13 +60,23 @@ class SensorUploader {
   String? _deviceId;
 
   final ValueNotifier<bool> _uploadingNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<DateTime?> _lastUploadNotifier =
+      ValueNotifier<DateTime?>(null);
+  final ValueNotifier<ConnectivityResult> _connectivityStatusNotifier =
+      ValueNotifier<ConnectivityResult>(ConnectivityResult.none);
+
   ValueListenable<bool> get uploading => _uploadingNotifier;
+  ValueListenable<DateTime?> get lastUpload => _lastUploadNotifier;
+  ValueListenable<ConnectivityResult> get connectivityStatus =>
+      _connectivityStatusNotifier;
 
   Future<void> start() async {
     if (_started) {
       return;
     }
     _started = true;
+    await AppPreferences.instance.ensureInitialized();
+    _lastUploadNotifier.value = AppPreferences.instance.lastUploadAt;
     await _sensorManager.start();
     await _primeConnectivity();
 
@@ -99,6 +109,7 @@ class SensorUploader {
   void _handleConnectivity(ConnectivityResult result) {
     _isWifiConnected = result == ConnectivityResult.wifi ||
         result == ConnectivityResult.ethernet;
+    _connectivityStatusNotifier.value = result;
   }
 
   Future<void> _collectReading() async {
@@ -152,10 +163,12 @@ class SensorUploader {
       try {
         if (AppPreferences.instance.shareLocation) {
           // Automatically request permission if not granted yet
-          final hasPermission = await LocationService.instance.checkPermission();
+          final hasPermission =
+              await LocationService.instance.checkPermission();
           if (hasPermission == LocationPermission.denied ||
               hasPermission == LocationPermission.deniedForever) {
-            developer.log('Location permission not granted, trying to request', name: _logTag);
+            developer.log('Location permission not granted, trying to request',
+                name: _logTag);
             await LocationService.instance.requestLocation();
           }
 
@@ -169,13 +182,17 @@ class SensorUploader {
 
             // Compute GeoHash for privacy (6 characters = ~1.2km grid, like Nodle Cash)
             final geoHasher = GeoHasher();
-            geohash = geoHasher.encode(location['lon'] as double, location['lat'] as double, precision: 6);
-            developer.log('GeoHash computed: $geohash (~1.2km precision)', name: _logTag);
+            geohash = geoHasher.encode(
+                location['lon'] as double, location['lat'] as double,
+                precision: 6);
+            developer.log('GeoHash computed: $geohash (~1.2km precision)',
+                name: _logTag);
           }
         }
       } catch (e) {
         // Location fetch failed - continue upload without it
-        developer.log('Failed to get location, continuing without it: $e', name: _logTag);
+        developer.log('Failed to get location, continuing without it: $e',
+            name: _logTag);
       }
 
       // Collect battery telemetry (like Nodle Cash)
@@ -190,9 +207,10 @@ class SensorUploader {
         'device_id': _deviceId,
         'timestamp': DateTime.now().toUtc().toIso8601String(),
         'batch': List<Map<String, dynamic>>.from(_buffer),
-        if (location != null) 'location': location,  // Optional: GPS location
-        if (geohash != null) 'geohash': geohash,  // Optional: Privacy-preserving grid
-        if (battery != null) ...battery,  // Optional: battery_level, is_charging
+        if (location != null) 'location': location, // Optional: GPS location
+        if (geohash != null)
+          'geohash': geohash, // Optional: Privacy-preserving grid
+        if (battery != null) ...battery, // Optional: battery_level, is_charging
       };
 
       final uploaded = await UploadManager.uploadPendingBatches(
@@ -208,6 +226,9 @@ class SensorUploader {
       if (uploaded) {
         _buffer.clear();
         _batchStart = null;
+        final now = DateTime.now();
+        _lastUploadNotifier.value = now;
+        await AppPreferences.instance.setLastUploadAt(now);
       } else {
         // Keep recent samples so memory stays bounded; older entries fall off.
         if (_buffer.length > _maxBatchSize) {
@@ -244,5 +265,7 @@ class SensorUploader {
     await flushNow();
     _backendClient.dispose();
     _uploadingNotifier.dispose();
+    _lastUploadNotifier.dispose();
+    _connectivityStatusNotifier.dispose();
   }
 }
