@@ -88,6 +88,69 @@ class ProfileScreen extends StatelessWidget {
             ),
           const SizedBox(height: 8),
           Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.group_add_outlined,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Referral preview',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceVariant,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          child: Text(
+                            'Coming soon',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Invite your friends to boost coverage multipliers '
+                    'and unlock partner perks as soon as the referral '
+                    'program launches.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: null,
+                      child: const Text('Invite friends'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
             color: theme.colorScheme.errorContainer,
             child: ListTile(
               leading: Icon(Icons.logout, color: theme.colorScheme.error),

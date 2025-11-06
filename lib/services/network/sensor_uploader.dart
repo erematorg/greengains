@@ -9,6 +9,7 @@ import '../../core/app_preferences.dart';
 import '../sensors/sensor_manager.dart';
 import '../location/location_service.dart';
 import '../system/battery_service.dart';
+import '../tracking/contribution_tracker.dart';
 import 'backend_client.dart';
 import 'upload_manager.dart';
 import 'package:dart_geohash/dart_geohash.dart';
@@ -187,6 +188,11 @@ class SensorUploader {
                 precision: 6);
             developer.log('GeoHash computed: $geohash (~1.2km precision)',
                 name: _logTag);
+
+            // Track tile for gamification (local only)
+            unawaited(
+              ContributionTracker.instance.recordTile(geohash!, DateTime.now())
+            );
           }
         }
       } catch (e) {

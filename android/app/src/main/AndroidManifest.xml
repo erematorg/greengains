@@ -17,6 +17,8 @@
     <!-- TODO: Add only if enterprise customers need continuous monitoring -->
     <!-- <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" /> -->
 
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <application
         android:label="greengains"
         android:name="${applicationName}"
@@ -50,7 +52,7 @@
             android:value="2" />
 
         <service
-            android:name=".EnviroForegroundService"
+            android:name="com.eremat.greengains.ForegroundService"
             android:exported="false"
             android:foregroundServiceType="dataSync|location" />
     </application>
@@ -66,3 +68,17 @@
         </intent>
     </queries>
 </manifest>
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -15,6 +15,13 @@ class MainActivity : FlutterActivity() {
     private val fgChannelName = "greengains/foreground"
     private val notifChannelName = "greengains/notifications"
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Handle notification tap when app is already running in background
+        // This prevents creating a new instance (already handled by singleTop)
+        // Just bring the existing activity to foreground
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -42,7 +49,7 @@ class MainActivity : FlutterActivity() {
                     result.success(ok)
                 }
                 "isForegroundServiceRunning" -> {
-                    result.success(EnviroForegroundService.running)
+                    result.success(ForegroundService.running)
                 }
                 else -> result.notImplemented()
             }
@@ -93,7 +100,7 @@ class MainActivity : FlutterActivity() {
 
     private fun startFgService(): Boolean {
         return try {
-            val intent = Intent(this, EnviroForegroundService::class.java)
+            val intent = Intent(this, ForegroundService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)
             } else {
@@ -107,7 +114,7 @@ class MainActivity : FlutterActivity() {
 
     private fun stopFgService(): Boolean {
         return try {
-            val intent = Intent(this, EnviroForegroundService::class.java)
+            val intent = Intent(this, ForegroundService::class.java)
             stopService(intent)
             true
         } catch (_: Exception) {

@@ -11,14 +11,15 @@ import '../core/app_preferences.dart';
 import '../core/themes.dart';
 import '../providers/sensor_provider.dart';
 import '../services/location/location_service.dart';
-import '../services/network/backend_client.dart';
 import '../services/network/sensor_uploader.dart';
 import '../services/sensors/sensor_manager.dart';
 import '../services/system/foreground_service.dart';
 import '../services/system/service_state_controller.dart';
 import '../widgets/accelerometer_tile.dart';
+import '../widgets/contribution_card.dart';
 import '../widgets/gyroscope_tile.dart';
 import '../widgets/magnetometer_tile.dart';
+import '../widgets/map_placeholder.dart';
 import '../widgets/section_title.dart';
 import '../widgets/sensor_tile.dart';
 import '../widgets/status_card.dart';
@@ -35,13 +36,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late final SensorProvider _provider;
   late final SensorUploader _uploader;
-  late final BackendClient _analyticsClient;
-
   bool _isCollecting = false;
   bool _isUploading = false;
-  bool _loadingCoverage = false;
-  List<CoverageTile>? _coverageTiles;
-  String? _coverageError;
 
   @override
   void initState() {
@@ -53,9 +49,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _uploader.uploading.addListener(_onUploadStatusChanged);
     unawaited(_uploader.start());
 
-    _analyticsClient = BackendClient();
-    _refreshCoverage(silent: true);
-
     _isCollecting = ServiceStateController.instance.isRunning;
     ServiceStateController.instance.addListener(_onServiceStateChanged);
   }
@@ -66,7 +59,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _uploader.uploading.removeListener(_onUploadStatusChanged);
     _provider.dispose();
     unawaited(_uploader.dispose());
-    _analyticsClient.dispose();
     super.dispose();
   }
 
@@ -149,40 +141,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _refreshCoverage({bool silent = false}) async {
-    if (!silent) {
-      setState(() => _loadingCoverage = true);
-    } else {
-      _loadingCoverage = true;
-    }
-
-    try {
-      final tiles = await _analyticsClient.fetchCoverage(
-        hours: 6,
-        minDevices: 1,
-      );
-      if (!mounted) return;
-      setState(() {
-        _coverageTiles = tiles;
-        _coverageError = null;
-      });
-    } catch (error, stackTrace) {
-      developer.log(
-        'Coverage fetch failed',
-        name: 'HomeScreen',
-        error: error,
-        stackTrace: stackTrace,
-      );
-      if (!mounted) return;
-      setState(() {
-        _coverageError = 'Coverage snapshot unavailable right now.';
-      });
-    } finally {
-      if (!mounted) return;
-      setState(() => _loadingCoverage = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -214,71 +172,92 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       body: SafeArea(
-        child: AnimatedBuilder(
-          animation: _provider,
-          builder: (context, _) {
-            final hasLiveData = _provider.hasLiveData;
-            return ListView(
-              padding: const EdgeInsets.symmetric(
-                vertical: AppTheme.spaceXs,
+        child: ListView(
+          padding: const EdgeInsets.symmetric(
+            vertical: AppTheme.spaceXs,
+          ),
+          children: [
+            // Today's contribution card
+            const Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: AppTheme.spaceSm,
               ),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.spaceSm,
-                  ),
-                  child: StatusCard(
-                    isCollecting: _isCollecting,
-                    isUploading: _isUploading,
-                    onToggle: _handleToggle,
-                  ),
+              child: ContributionCard(),
+            ),
+            const SizedBox(height: AppTheme.spaceSm),
+            // Status card
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spaceSm,
+              ),
+              child: StatusCard(
+                isCollecting: _isCollecting,
+                isUploading: _isUploading,
+                onToggle: _handleToggle,
+              ),
+            ),
+            // Only rebuild this part when sensors update
+            AnimatedBuilder(
+              animation: _provider,
+              builder: (context, _) {
+                final hasLiveData = _provider.hasLiveData;
+                if (!hasLiveData) {
+                  return Column(
+                    children: [
+                      const SizedBox(height: AppTheme.spaceSm),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.spaceSm,
+                        ),
+                        child: _buildSensorHintCard(
+                          context,
+                          isCollecting: _isCollecting,
+                        ),
+                      ),
+                    ],
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+            const SizedBox(height: AppTheme.spaceSm),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spaceSm,
+              ),
+              child: _buildTelemetryInsights(),
+            ),
+            const SizedBox(height: AppTheme.spaceSm),
+            // Map placeholder
+            const Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: AppTheme.spaceSm,
+              ),
+              child: MapPlaceholder(),
+            ),
+            const SizedBox(height: AppTheme.spaceSm),
+            if (shareLocation) ...[
+              const SizedBox(height: AppTheme.spaceSm),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spaceSm,
                 ),
-                if (!hasLiveData) ...[
-                  const SizedBox(height: AppTheme.spaceSm),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spaceSm,
-                    ),
-                    child: _buildSensorHintCard(
-                      context,
-                      isCollecting: _isCollecting,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppTheme.spaceSm),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.spaceSm,
-                  ),
-                  child: _buildTelemetryInsights(),
+                child: _buildLocationReminder(),
+              ),
+            ],
+            const SizedBox(height: AppTheme.spaceSm),
+            // Sensor expansion - only this needs to rebuild on sensor updates
+            AnimatedBuilder(
+              animation: _provider,
+              builder: (context, _) => Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spaceSm,
                 ),
-                const SizedBox(height: AppTheme.spaceSm),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.spaceSm,
-                  ),
-                  child: _buildCoverageCard(),
-                ),
-                if (shareLocation) ...[
-                  const SizedBox(height: AppTheme.spaceSm),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spaceSm,
-                    ),
-                    child: _buildLocationReminder(),
-                  ),
-                ],
-                const SizedBox(height: AppTheme.spaceSm),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.spaceSm,
-                  ),
-                  child: _buildSensorExpansion(context),
-                ),
-                const SizedBox(height: AppTheme.spaceLg),
-              ],
-            );
-          },
+                child: _buildSensorExpansion(context),
+              ),
+            ),
+            const SizedBox(height: AppTheme.spaceLg),
+          ],
         ),
       ),
     );
@@ -451,182 +430,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildCoverageCard() {
-    final theme = Theme.of(context);
-    final tiles = _coverageTiles;
-    final error = _coverageError;
-    final isLoading = _loadingCoverage;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spaceSm),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.public_outlined,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(width: AppTheme.spaceXs),
-                Expanded(
-                  child: Text(
-                    'Community activity snapshot',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.refresh_outlined),
-                  tooltip: 'Refresh snapshot',
-                  onPressed: isLoading ? null : () => _refreshCoverage(),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppTheme.spaceXs),
-            if (isLoading && (tiles == null || tiles.isEmpty))
-              const LinearProgressIndicator(minHeight: 2)
-            else if (error != null)
-              Text(
-                error,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
-              )
-            else if (tiles == null || tiles.isEmpty)
-              Text(
-                'No anonymised coverage tiles yet. Keep the app running to map your area.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              )
-            else
-              _buildCoverageDetails(theme, tiles, isLoading),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCoverageDetails(
-    ThemeData theme,
-    List<CoverageTile> tiles,
-    bool isLoading,
-  ) {
-    final top = tiles.first;
-    final others = tiles.skip(1).take(4).toList();
-
-    String format(double value, {int decimals = 1}) =>
-        value.toStringAsFixed(decimals);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (isLoading)
-          const Padding(
-            padding: EdgeInsets.only(bottom: AppTheme.spaceXs),
-            child: LinearProgressIndicator(minHeight: 2),
-          ),
-        Text(
-          'Top tile (last 6h): ${top.geohash}',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: AppTheme.spaceXs),
-        Wrap(
-          spacing: AppTheme.spaceSm,
-          runSpacing: AppTheme.spaceXs,
-          children: [
-            _buildInsightChip(
-              icon: Icons.devices_other_outlined,
-              label: 'Device events',
-              value: format(top.deviceEvents, decimals: 0),
-              theme: theme,
-            ),
-            _buildInsightChip(
-              icon: Icons.schedule_outlined,
-              label: 'Device hours',
-              value: format(top.deviceHours, decimals: 1),
-              theme: theme,
-            ),
-            if (top.avgLight != null)
-              _buildInsightChip(
-                icon: Icons.light_mode_outlined,
-                label: 'Avg light',
-                value: format(top.avgLight!),
-                theme: theme,
-              ),
-            if (top.movementScore != null)
-              _buildInsightChip(
-                icon: Icons.directions_walk_outlined,
-                label: 'Movement score',
-                value:
-                    '${format((top.movementScore ?? 0) * 100, decimals: 0)}%',
-                theme: theme,
-              ),
-          ],
-        ),
-        if (others.isNotEmpty) ...[
-          const SizedBox(height: AppTheme.spaceSm),
-          Text(
-            'Other active tiles',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: AppTheme.spaceXs),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: others
-                .map(
-                  (tile) => Text(
-                    '${tile.geohash} - ${format(tile.deviceEvents, decimals: 0)} events',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildInsightChip({
-    required IconData icon,
-    required String label,
-    required String value,
-    required ThemeData theme,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spaceSm,
-        vertical: AppTheme.spaceXs,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: theme.colorScheme.primary),
-          const SizedBox(width: 6),
-          Text(
-            '$label: $value',
-            style: theme.textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
     );
   }
 

@@ -4,16 +4,11 @@ import '../core/themes.dart';
 import '../core/theme_controller.dart';
 import 'webview_screen.dart';
 import '../services/system/power_optimizations.dart';
-import '../services/system/foreground_service.dart';
-import '../services/sensors/sensor_manager.dart';
-import '../services/system/notifications.dart';
 import '../services/network/backend_client.dart';
 import '../services/system/service_state_controller.dart';
 import '../services/location/location_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:geolocator/geolocator.dart';
-import '../main.dart';
 import '../core/app_preferences.dart';
 import '../services/preferences/preferences_service.dart';
 

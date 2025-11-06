@@ -18,8 +18,40 @@ class StatusCard extends StatefulWidget {
   State<StatusCard> createState() => _StatusCardState();
 }
 
-class _StatusCardState extends State<StatusCard> {
+class _StatusCardState extends State<StatusCard>
+    with SingleTickerProviderStateMixin {
   bool _isToggling = false;
+  late AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+
+    if (widget.isCollecting) {
+      _pulseController.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(StatusCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isCollecting && !oldWidget.isCollecting) {
+      _pulseController.repeat(reverse: true);
+    } else if (!widget.isCollecting && oldWidget.isCollecting) {
+      _pulseController.stop();
+      _pulseController.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
 
   Future<void> _toggleCollection() async {
     if (_isToggling) return;
@@ -53,7 +85,17 @@ class _StatusCardState extends State<StatusCard> {
             children: [
               Row(
                 children: [
-                  Icon(statusIcon, color: statusColor),
+                  AnimatedBuilder(
+                    animation: _pulseController,
+                    builder: (context, child) {
+                      return Opacity(
+                        opacity: widget.isCollecting
+                            ? 0.5 + (_pulseController.value * 0.5)
+                            : 1.0,
+                        child: Icon(statusIcon, color: statusColor),
+                      );
+                    },
+                  ),
                   const SizedBox(width: AppTheme.spaceXs),
                   Expanded(
                     child: Column(
