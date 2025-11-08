@@ -78,21 +78,25 @@ class ForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand")
 
+        startAsForegroundService()
+
+        // Check location permission before starting location updates
         val fineLocationPermission =
             PermissionChecker.checkSelfPermission(this, ACCESS_FINE_LOCATION)
         val coarseLocationPermission =
             PermissionChecker.checkSelfPermission(this, ACCESS_COARSE_LOCATION)
-        if (fineLocationPermission != PermissionChecker.PERMISSION_GRANTED &&
-            coarseLocationPermission != PermissionChecker.PERMISSION_GRANTED
+
+        if (fineLocationPermission == PermissionChecker.PERMISSION_GRANTED ||
+            coarseLocationPermission == PermissionChecker.PERMISSION_GRANTED
         ) {
-            // stop the service if we don't have the necessary permissions
-            Log.d(TAG, "Required permissions have not been granted! Stopping service.")
-            stopSelf()
-        } else {
-            startAsForegroundService()
+            // Permission granted, start location updates
             startLocationUpdates()
-            startSensors()
+        } else {
+            Log.d(TAG, "Location permission not granted, skipping location updates")
         }
+
+        // Always start sensors (they don't require location permission)
+        startSensors()
 
         return super.onStartCommand(intent, flags, startId)
     }

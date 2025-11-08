@@ -102,18 +102,15 @@ class ForegroundLocationService {
           final location = LocationData.fromMap(call.arguments as Map);
           _lastLocation = location;
           _locationController.add(location);
-          debugPrint('Location update: $location');
           break;
         case 'onLightUpdate':
           final light = LightData.fromMap(call.arguments as Map);
           _lastLight = light;
           _lightController.add(light);
-          debugPrint('Light update: $light');
           break;
         case 'collectSensors':
           // This is called periodically by the native service
           // We don't need to do anything here for now
-          debugPrint('Sensor collection trigger received');
           break;
       }
     });

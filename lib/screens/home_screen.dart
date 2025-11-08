@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/themes.dart';
+import '../core/app_preferences.dart';
 import '../services/location/foreground_location_service.dart';
 
 /// Home screen showing live sensor data and tracking status
@@ -13,7 +15,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const _fgChannel = MethodChannel('greengains/foreground');
   final _locationService = ForegroundLocationService.instance;
+  final _prefs = AppPreferences.instance;
   StreamSubscription<LocationData>? _locationSubscription;
   StreamSubscription<LightData>? _lightSubscription;
   LocationData? _currentLocation;
@@ -63,6 +67,16 @@ class _HomeScreenState extends State<HomeScreen> {
         _currentLight = null;
       });
     } else {
+      // Request location permission before starting service
+      // (only if Share Location is enabled)
+      if (_prefs.shareLocation) {
+        try {
+          await _fgChannel.invokeMethod('requestLocationPermission');
+        } catch (e) {
+          // Permission request failed, but continue to start service
+          // (service will skip location if permission not granted)
+        }
+      }
       await _locationService.start();
     }
   }
@@ -144,6 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
             listenable: _locationService.isRunning,
             builder: (context, _) {
               final isRunning = _locationService.isRunning.value;
+              final shareLocationEnabled = _prefs.shareLocation;
               return _SensorDataCard(
                 icon: Icons.location_on,
                 title: 'Location',
@@ -151,7 +166,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? '${_currentLocation!.latitude.toStringAsFixed(4)}, ${_currentLocation!.longitude.toStringAsFixed(4)}'
                     : null,
                 unit: _currentLocation != null ? '±${_currentLocation!.accuracy.toStringAsFixed(0)}m' : 'GPS',
-                enabled: isRunning,
+                enabled: isRunning && shareLocationEnabled,
               );
             },
           ),
