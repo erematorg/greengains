@@ -26,8 +26,17 @@ function summarizeBatch(readings: SensorReading[]): Summary {
     max: Math.max(...lights),
   };
 
-  const accelMagnitudes = readings.map(r => vectorMagnitude(r.accel));
-  const gyroMagnitudes = readings.map(r => vectorMagnitude(r.gyro));
+  // Handle optional accel data
+  const accelReadings = readings.filter(r => r.accel !== undefined);
+  const accelMagnitudes = accelReadings.length > 0
+    ? accelReadings.map(r => vectorMagnitude(r.accel!))
+    : [];
+
+  // Handle optional gyro data
+  const gyroReadings = readings.filter(r => r.gyro !== undefined);
+  const gyroMagnitudes = gyroReadings.length > 0
+    ? gyroReadings.map(r => vectorMagnitude(r.gyro!))
+    : [];
 
   const periodStart = new Date(Math.min(...readings.map(r => r.t.getTime())));
   const periodEnd = new Date(Math.max(...readings.map(r => r.t.getTime())));
@@ -37,8 +46,12 @@ function summarizeBatch(readings: SensorReading[]): Summary {
     period_start: periodStart,
     period_end: periodEnd,
     light: lightSummary,
-    accel_rms: accelMagnitudes.reduce((a, b) => a + b, 0) / accelMagnitudes.length,
-    gyro_rms: gyroMagnitudes.reduce((a, b) => a + b, 0) / gyroMagnitudes.length,
+    accel_rms: accelMagnitudes.length > 0
+      ? accelMagnitudes.reduce((a, b) => a + b, 0) / accelMagnitudes.length
+      : 0,
+    gyro_rms: gyroMagnitudes.length > 0
+      ? gyroMagnitudes.reduce((a, b) => a + b, 0) / gyroMagnitudes.length
+      : 0,
   };
 }
 

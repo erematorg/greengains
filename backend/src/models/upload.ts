@@ -3,16 +3,18 @@ import { z } from 'zod';
 export const LocationDataSchema = z.object({
   lat: z.number().min(-90).max(90),
   lon: z.number().min(-180).max(180),
-  altitude: z.number(),
+  altitude: z.number().optional(),
   accuracy_m: z.number(),
+  speed_mps: z.number().optional(),
+  bearing_deg: z.number().optional(),
 });
 
 export const SensorReadingSchema = z.object({
   t: z.coerce.date(),
   light: z.number(),
-  accel: z.array(z.number()).length(3),
-  gyro: z.array(z.number()).length(3),
-  magnet: z.array(z.number()).length(3),
+  accel: z.array(z.number()).length(3).optional(),
+  gyro: z.array(z.number()).length(3).optional(),
+  magnet: z.array(z.number()).length(3).optional(),
 });
 
 export const UploadBatchSchema = z.object({
