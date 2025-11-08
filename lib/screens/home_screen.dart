@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../core/themes.dart';
 import '../core/app_preferences.dart';
 import '../services/location/foreground_location_service.dart';
+import '../widgets/sensor_data_card.dart';
 
 /// Home screen showing live sensor data and tracking status
 class HomeScreen extends StatefulWidget {
@@ -140,7 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
               return Column(
                 children: [
                   // Light Sensor
-                  _SensorDataCard(
+                  SensorDataCard(
                     icon: Icons.light_mode,
                     title: 'Light',
                     value: _currentLight != null
@@ -152,7 +153,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: AppTheme.spaceSm),
 
                   // Accelerometer
-                  _SensorDataCard(
+                  SensorDataCard(
                     icon: Icons.vibration,
                     title: 'Accelerometer',
                     value: _currentAccelerometer != null
@@ -166,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: AppTheme.spaceSm),
 
                   // Gyroscope
-                  _SensorDataCard(
+                  SensorDataCard(
                     icon: Icons.rotate_90_degrees_ccw,
                     title: 'Gyroscope',
                     value: _currentGyroscope != null
@@ -180,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: AppTheme.spaceSm),
 
                   // Location
-                  _SensorDataCard(
+                  SensorDataCard(
                     icon: Icons.location_on,
                     title: 'Location',
                     value: _currentLocation != null
@@ -231,107 +232,3 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
-
-/// Sensor data display card with live values
-class _SensorDataCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String? value;
-  final String unit;
-  final bool enabled;
-
-  const _SensorDataCard({
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.unit,
-    required this.enabled,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isActive = enabled && value != null;
-
-    return Card(
-      color: isActive
-          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
-          : null,
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spaceMd),
-        child: Row(
-          children: [
-            // Icon
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isActive
-                    ? theme.colorScheme.primary.withValues(alpha: 0.1)
-                    : theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                icon,
-                size: 24,
-                color: isActive
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.outline,
-              ),
-            ),
-            const SizedBox(width: AppTheme.spaceMd),
-
-            // Title and status
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    enabled ? (value ?? 'Waiting...') : 'Disabled',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Value display
-            if (isActive) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  unit,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ] else ...[
-              Icon(
-                Icons.circle_outlined,
-                size: 20,
-                color: theme.colorScheme.outline,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
