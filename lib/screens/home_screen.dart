@@ -18,8 +18,12 @@ class _HomeScreenState extends State<HomeScreen> {
   final _prefs = AppPreferences.instance;
   StreamSubscription<LocationData>? _locationSubscription;
   StreamSubscription<LightData>? _lightSubscription;
+  StreamSubscription<AccelerometerData>? _accelerometerSubscription;
+  StreamSubscription<GyroscopeData>? _gyroscopeSubscription;
   LocationData? _currentLocation;
   LightData? _currentLight;
+  AccelerometerData? _currentAccelerometer;
+  GyroscopeData? _currentGyroscope;
 
   @override
   void initState() {
@@ -35,12 +39,24 @@ class _HomeScreenState extends State<HomeScreen> {
         _currentLight = light;
       });
     });
+    _accelerometerSubscription = _locationService.accelerometerStream.listen((accel) {
+      setState(() {
+        _currentAccelerometer = accel;
+      });
+    });
+    _gyroscopeSubscription = _locationService.gyroscopeStream.listen((gyro) {
+      setState(() {
+        _currentGyroscope = gyro;
+      });
+    });
   }
 
   @override
   void dispose() {
     _locationSubscription?.cancel();
     _lightSubscription?.cancel();
+    _accelerometerSubscription?.cancel();
+    _gyroscopeSubscription?.cancel();
     super.dispose();
   }
 
@@ -63,6 +79,8 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _currentLocation = null;
         _currentLight = null;
+        _currentAccelerometer = null;
+        _currentGyroscope = null;
       });
     } else {
       // Just start the service - no permission requests here
@@ -132,13 +150,43 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: AppTheme.spaceSm),
 
-          // Motion Sensors Card
-          _SensorDataCard(
-            icon: Icons.motion_photos_on,
-            title: 'Motion',
-            value: null, // Will be populated later
-            unit: 'm/s²',
-            enabled: false,
+          // Accelerometer Card
+          ListenableBuilder(
+            listenable: _locationService.isRunning,
+            builder: (context, _) {
+              final isRunning = _locationService.isRunning.value;
+              return _SensorDataCard(
+                icon: Icons.vibration,
+                title: 'Accelerometer',
+                value: _currentAccelerometer != null
+                    ? '${_currentAccelerometer!.magnitude.toStringAsFixed(1)} m/s²'
+                    : null,
+                unit: _currentAccelerometer != null
+                    ? '(${_currentAccelerometer!.x.toStringAsFixed(1)}, ${_currentAccelerometer!.y.toStringAsFixed(1)}, ${_currentAccelerometer!.z.toStringAsFixed(1)})'
+                    : 'm/s²',
+                enabled: isRunning,
+              );
+            },
+          ),
+          const SizedBox(height: AppTheme.spaceSm),
+
+          // Gyroscope Card
+          ListenableBuilder(
+            listenable: _locationService.isRunning,
+            builder: (context, _) {
+              final isRunning = _locationService.isRunning.value;
+              return _SensorDataCard(
+                icon: Icons.rotate_90_degrees_ccw,
+                title: 'Gyroscope',
+                value: _currentGyroscope != null
+                    ? '${_currentGyroscope!.magnitude.toStringAsFixed(2)} rad/s'
+                    : null,
+                unit: _currentGyroscope != null
+                    ? '(${_currentGyroscope!.x.toStringAsFixed(2)}, ${_currentGyroscope!.y.toStringAsFixed(2)}, ${_currentGyroscope!.z.toStringAsFixed(2)})'
+                    : 'rad/s',
+                enabled: isRunning,
+              );
+            },
           ),
           const SizedBox(height: AppTheme.spaceSm),
 

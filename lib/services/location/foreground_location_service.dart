@@ -70,6 +70,74 @@ class LightData {
   }
 }
 
+/// Model for accelerometer data (acceleration in m/s²)
+class AccelerometerData {
+  final double x;
+  final double y;
+  final double z;
+  final int timestamp;
+
+  AccelerometerData({
+    required this.x,
+    required this.y,
+    required this.z,
+    required this.timestamp,
+  });
+
+  factory AccelerometerData.fromMap(Map<dynamic, dynamic> map) {
+    return AccelerometerData(
+      x: (map['x'] as num).toDouble(),
+      y: (map['y'] as num).toDouble(),
+      z: (map['z'] as num).toDouble(),
+      timestamp: map['timestamp'] as int,
+    );
+  }
+
+  DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(timestamp);
+
+  /// Calculate magnitude (total acceleration)
+  double get magnitude => (x * x + y * y + z * z).sqrt();
+
+  @override
+  String toString() {
+    return 'AccelerometerData(${magnitude.toStringAsFixed(1)} m/s²)';
+  }
+}
+
+/// Model for gyroscope data (rotation rate in rad/s)
+class GyroscopeData {
+  final double x;
+  final double y;
+  final double z;
+  final int timestamp;
+
+  GyroscopeData({
+    required this.x,
+    required this.y,
+    required this.z,
+    required this.timestamp,
+  });
+
+  factory GyroscopeData.fromMap(Map<dynamic, dynamic> map) {
+    return GyroscopeData(
+      x: (map['x'] as num).toDouble(),
+      y: (map['y'] as num).toDouble(),
+      z: (map['z'] as num).toDouble(),
+      timestamp: map['timestamp'] as int,
+    );
+  }
+
+  DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(timestamp);
+
+  /// Calculate magnitude (total rotation rate)
+  double get magnitude => (x * x + y * y + z * z).sqrt();
+
+  @override
+  String toString() {
+    return 'GyroscopeData(${magnitude.toStringAsFixed(2)} rad/s)';
+  }
+}
+
 /// Service for managing the native Android foreground service for sensor data collection
 class ForegroundLocationService {
   static const _fgChannel = MethodChannel('greengains/foreground');
@@ -77,10 +145,14 @@ class ForegroundLocationService {
 
   final _locationController = StreamController<LocationData>.broadcast();
   final _lightController = StreamController<LightData>.broadcast();
+  final _accelerometerController = StreamController<AccelerometerData>.broadcast();
+  final _gyroscopeController = StreamController<GyroscopeData>.broadcast();
   final _isRunningNotifier = ValueNotifier<bool>(false);
 
   Stream<LocationData> get locationStream => _locationController.stream;
   Stream<LightData> get lightStream => _lightController.stream;
+  Stream<AccelerometerData> get accelerometerStream => _accelerometerController.stream;
+  Stream<GyroscopeData> get gyroscopeStream => _gyroscopeController.stream;
   ValueListenable<bool> get isRunning => _isRunningNotifier;
 
   LocationData? _lastLocation;
@@ -88,6 +160,12 @@ class ForegroundLocationService {
 
   LightData? _lastLight;
   LightData? get lastLight => _lastLight;
+
+  AccelerometerData? _lastAccelerometer;
+  AccelerometerData? get lastAccelerometer => _lastAccelerometer;
+
+  GyroscopeData? _lastGyroscope;
+  GyroscopeData? get lastGyroscope => _lastGyroscope;
 
   ForegroundLocationService._() {
     _setupMethodCallHandler();
@@ -107,6 +185,16 @@ class ForegroundLocationService {
           final light = LightData.fromMap(call.arguments as Map);
           _lastLight = light;
           _lightController.add(light);
+          break;
+        case 'onAccelerometerUpdate':
+          final accel = AccelerometerData.fromMap(call.arguments as Map);
+          _lastAccelerometer = accel;
+          _accelerometerController.add(accel);
+          break;
+        case 'onGyroscopeUpdate':
+          final gyro = GyroscopeData.fromMap(call.arguments as Map);
+          _lastGyroscope = gyro;
+          _gyroscopeController.add(gyro);
           break;
         case 'collectSensors':
           // This is called periodically by the native service

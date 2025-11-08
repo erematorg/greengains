@@ -238,6 +238,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
+
+          const SizedBox(height: AppTheme.spaceLg),
+
+          // Legal section
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppTheme.spaceMd),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Legal',
+                    style: theme.textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: AppTheme.spaceSm),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.privacy_tip_outlined),
+                    title: const Text('Privacy Policy'),
+                    trailing: const Icon(Icons.open_in_new),
+                    onTap: () {
+                      // TODO: Open privacy policy URL
+                    },
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.description_outlined),
+                    title: const Text('Terms of Service'),
+                    trailing: const Icon(Icons.open_in_new),
+                    onTap: () {
+                      // TODO: Open terms of service URL
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

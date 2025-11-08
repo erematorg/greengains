@@ -58,13 +58,21 @@ class ForegroundService : Service() {
     // Sensors
     private lateinit var sensorManager: SensorManager
     private var lightSensor: Sensor? = null
+    private var accelerometerSensor: Sensor? = null
+    private var gyroscopeSensor: Sensor? = null
     private val _lightFlow = MutableStateFlow<Float?>(null)
     var lightFlow: StateFlow<Float?> = _lightFlow
+    private val _accelerometerFlow = MutableStateFlow<FloatArray?>(null)
+    var accelerometerFlow: StateFlow<FloatArray?> = _accelerometerFlow
+    private val _gyroscopeFlow = MutableStateFlow<FloatArray?>(null)
+    var gyroscopeFlow: StateFlow<FloatArray?> = _gyroscopeFlow
 
     // Throttling for sensor data to reduce flooding
     private var lastLightValue: Float = 0f
     private var lastLightSentTime: Long = 0L
     private var lastLocationSentTime: Long = 0L
+    private var lastAccelerometerSentTime: Long = 0L
+    private var lastGyroscopeSentTime: Long = 0L
 
     inner class LocalBinder : Binder() {
         fun getService(): ForegroundService = this@ForegroundService
@@ -248,6 +256,22 @@ class ForegroundService : Service() {
         } else {
             Log.d(TAG, "Light sensor available: ${lightSensor?.name}")
         }
+
+        // Accelerometer (device acceleration in m/s²)
+        accelerometerSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        if (accelerometerSensor == null) {
+            Log.w(TAG, "Accelerometer not available on this device")
+        } else {
+            Log.d(TAG, "Accelerometer available: ${accelerometerSensor?.name}")
+        }
+
+        // Gyroscope (device rotation in rad/s)
+        gyroscopeSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+        if (gyroscopeSensor == null) {
+            Log.w(TAG, "Gyroscope not available on this device")
+        } else {
+            Log.d(TAG, "Gyroscope available: ${gyroscopeSensor?.name}")
+        }
     }
 
     /**
@@ -271,6 +295,28 @@ class ForegroundService : Service() {
                         lastLightSentTime = System.currentTimeMillis()
                     }
                 }
+                Sensor.TYPE_ACCELEROMETER -> {
+                    val values = event.values.clone()
+                    _accelerometerFlow.value = values
+
+                    // Throttle: only send at intervals to avoid flooding
+                    val timeDiff = System.currentTimeMillis() - lastAccelerometerSentTime
+                    if (timeDiff > SENSOR_SEND_INTERVAL_MS) {
+                        sendAccelerometerToFlutter(values)
+                        lastAccelerometerSentTime = System.currentTimeMillis()
+                    }
+                }
+                Sensor.TYPE_GYROSCOPE -> {
+                    val values = event.values.clone()
+                    _gyroscopeFlow.value = values
+
+                    // Throttle: only send at intervals to avoid flooding
+                    val timeDiff = System.currentTimeMillis() - lastGyroscopeSentTime
+                    if (timeDiff > SENSOR_SEND_INTERVAL_MS) {
+                        sendGyroscopeToFlutter(values)
+                        lastGyroscopeSentTime = System.currentTimeMillis()
+                    }
+                }
             }
         }
 
@@ -292,6 +338,24 @@ class ForegroundService : Service() {
                 SensorManager.SENSOR_DELAY_NORMAL
             )
             Log.d(TAG, "Light sensor listener registered")
+        }
+
+        accelerometerSensor?.let { sensor ->
+            sensorManager.registerListener(
+                sensorListener,
+                sensor,
+                SensorManager.SENSOR_DELAY_NORMAL
+            )
+            Log.d(TAG, "Accelerometer listener registered")
+        }
+
+        gyroscopeSensor?.let { sensor ->
+            sensorManager.registerListener(
+                sensorListener,
+                sensor,
+                SensorManager.SENSOR_DELAY_NORMAL
+            )
+            Log.d(TAG, "Gyroscope listener registered")
         }
     }
 
@@ -323,6 +387,58 @@ class ForegroundService : Service() {
                 channel.invokeMethod("onLightUpdate", lightData)
             } catch (e: Exception) {
                 Log.e(TAG, "Error sending light data to Flutter: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * Sends accelerometer data to Flutter via MethodChannel.
+     * Values represent acceleration in m/s² along x, y, z axes.
+     */
+    private fun sendAccelerometerToFlutter(values: FloatArray) {
+        coroutineScope.launch(Dispatchers.Main) {
+            val channel = methodChannel
+            if (channel == null) {
+                Log.w(TAG, "MethodChannel is null, cannot send accelerometer data")
+                return@launch
+            }
+
+            try {
+                val accelData = mapOf(
+                    "x" to values[0].toDouble(),
+                    "y" to values[1].toDouble(),
+                    "z" to values[2].toDouble(),
+                    "timestamp" to System.currentTimeMillis()
+                )
+                channel.invokeMethod("onAccelerometerUpdate", accelData)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending accelerometer data to Flutter: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * Sends gyroscope data to Flutter via MethodChannel.
+     * Values represent rotation rate in rad/s around x, y, z axes.
+     */
+    private fun sendGyroscopeToFlutter(values: FloatArray) {
+        coroutineScope.launch(Dispatchers.Main) {
+            val channel = methodChannel
+            if (channel == null) {
+                Log.w(TAG, "MethodChannel is null, cannot send gyroscope data")
+                return@launch
+            }
+
+            try {
+                val gyroData = mapOf(
+                    "x" to values[0].toDouble(),
+                    "y" to values[1].toDouble(),
+                    "z" to values[2].toDouble(),
+                    "timestamp" to System.currentTimeMillis()
+                )
+                channel.invokeMethod("onGyroscopeUpdate", gyroData)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending gyroscope data to Flutter: ${e.message}", e)
             }
         }
     }
