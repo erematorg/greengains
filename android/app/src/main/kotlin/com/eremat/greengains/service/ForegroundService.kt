@@ -1,22 +1,17 @@
-package com.eremat.greengains
+package com.eremat.greengains.service
 
 import android.Manifest.permission.ACCESS_COARSE_LOCATION
 import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.annotation.SuppressLint
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.location.Location
+import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
-import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.PermissionChecker
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -24,42 +19,60 @@ import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import com.eremat.greengains.notification.NotificationsHelper
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Foreground service that tracks location and sends updates to Flutter.
- *
+ * Simple foreground service that shows a notification to the user and provides location updates.
  * Based on: https://github.com/landomen/ForegroundServiceSample
- * Pattern: Promotes to foreground immediately, uses FusedLocationProviderClient,
- * cleans up resources in onDestroy.
  */
 class ForegroundService : Service() {
-
-    companion object {
-        const val TAG = "GreenGainsFGService"
-        const val CHANNEL_ID = "greengains.foreground"
-        const val CHANNEL_NAME = "Location Tracking"
-        const val NOTIFICATION_ID = 1001
-
-        @Volatile
-        var running: Boolean = false
-
-        @Volatile
-        var methodChannel: MethodChannel? = null
-
-        private val LOCATION_UPDATES_INTERVAL_MS = 1.seconds.inWholeMilliseconds
-    }
+    private val binder = LocalBinder()
 
     private val coroutineScope = CoroutineScope(Job())
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
-    private var lastLocation: Location? = null
+
+    private val _locationFlow = MutableStateFlow<Location?>(null)
+    var locationFlow: StateFlow<Location?> = _locationFlow
+
+    inner class LocalBinder : Binder() {
+        fun getService(): ForegroundService = this@ForegroundService
+    }
+
+    override fun onBind(intent: Intent?): IBinder {
+        Log.d(TAG, "onBind")
+        return binder
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "onStartCommand")
+
+        val fineLocationPermission =
+            PermissionChecker.checkSelfPermission(this, ACCESS_FINE_LOCATION)
+        val coarseLocationPermission =
+            PermissionChecker.checkSelfPermission(this, ACCESS_COARSE_LOCATION)
+        if (fineLocationPermission != PermissionChecker.PERMISSION_GRANTED &&
+            coarseLocationPermission != PermissionChecker.PERMISSION_GRANTED
+        ) {
+            // stop the service if we don't have the necessary permissions
+            Log.d(TAG, "Required permissions have not been granted! Stopping service.")
+            stopSelf()
+        } else {
+            startAsForegroundService()
+            startLocationUpdates()
+        }
+
+        return super.onStartCommand(intent, flags, startId)
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -68,52 +81,32 @@ class ForegroundService : Service() {
         setupLocationUpdates()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "onStartCommand")
-
-        // Check permissions - if not granted, stop the service
-        val fineLocationPermission = PermissionChecker.checkSelfPermission(this, ACCESS_FINE_LOCATION)
-        val coarseLocationPermission = PermissionChecker.checkSelfPermission(this, ACCESS_COARSE_LOCATION)
-
-        if (fineLocationPermission != PermissionChecker.PERMISSION_GRANTED &&
-            coarseLocationPermission != PermissionChecker.PERMISSION_GRANTED) {
-            // Stop the service if we don't have the necessary permissions
-            Log.d(TAG, "Required permissions have not been granted! Stopping service.")
-            stopSelf()
-        } else {
-            startAsForegroundService()
-            startLocationUpdates()
-        }
-
-        return START_STICKY
-    }
-
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "onDestroy")
 
-        // CRITICAL: Always clean up resources to prevent memory leaks
+        // CRITICAL: Always clean up resources to prevent memory leaks and ensure smooth app lifecycle
         running = false
         fusedLocationClient.removeLocationUpdates(locationCallback)
         coroutineScope.coroutineContext.cancelChildren()
     }
-
-    override fun onBind(intent: Intent?): IBinder? = null
 
     /**
      * Promotes the service to a foreground service, showing a notification to the user.
      *
      * CRITICAL: Must be called within 10 seconds of starting the service (onStartCommand) or the
      * system will throw ForegroundServiceDidNotStartInTimeException and kill the service.
+     * Calling this immediately in onStartCommand prevents ANR and ensures smooth lifecycle.
      */
     private fun startAsForegroundService() {
-        createChannel()
-        val notification = buildNotification()
+        // create the notification channel and notification
+        NotificationsHelper.createNotificationChannel(this)
+        val notification = NotificationsHelper.buildNotification(this)
 
-        // Promote service to foreground service
+        // promote service to foreground service
         ServiceCompat.startForeground(
             this,
-            NOTIFICATION_ID,
+            NotificationsHelper.NOTIFICATION_ID_SERVICE,
             notification,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
@@ -127,15 +120,23 @@ class ForegroundService : Service() {
     }
 
     /**
-     * Sets up the location updates using the FusedLocationProviderClient.
-     * Doesn't actually start them - call startLocationUpdates() for that.
+     * Stops the foreground service and removes the notification.
+     * Can be called from inside or outside the service.
+     */
+    fun stopForegroundService() {
+        stopSelf()
+    }
+
+    /**
+     * Sets up the location updates using the FusedLocationProviderClient, but doesn't actually start them.
+     * To start the location updates, call [startLocationUpdates].
      */
     private fun setupLocationUpdates() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 for (location in locationResult.locations) {
-                    lastLocation = location
+                    _locationFlow.value = location
                     sendLocationToFlutter(location)
                 }
             }
@@ -148,11 +149,10 @@ class ForegroundService : Service() {
     @SuppressLint("MissingPermission")
     private fun startLocationUpdates() {
         Log.d(TAG, "Starting location updates")
-
         fusedLocationClient.requestLocationUpdates(
-            LocationRequest.Builder(LOCATION_UPDATES_INTERVAL_MS).build(),
-            locationCallback,
-            Looper.getMainLooper()
+            LocationRequest.Builder(
+                LOCATION_UPDATES_INTERVAL_MS
+            ).build(), locationCallback, Looper.getMainLooper()
         )
     }
 
@@ -186,52 +186,14 @@ class ForegroundService : Service() {
         }
     }
 
-    private fun createChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_LOW,
-            ).apply {
-                setShowBadge(false)
-            }
-            manager.createNotificationChannel(channel)
-        }
-    }
+    companion object {
+        private const val TAG = "GreenGainsFGService"
+        private val LOCATION_UPDATES_INTERVAL_MS = 1.seconds.inWholeMilliseconds
 
-    private fun buildNotification(): Notification {
-        val launchIntent = Intent(this@ForegroundService, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
+        @Volatile
+        var running: Boolean = false
 
-        val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        } else {
-            PendingIntent.FLAG_UPDATE_CURRENT
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            this@ForegroundService,
-            0,
-            launchIntent,
-            pendingIntentFlags,
-        )
-
-        val contentText = if (lastLocation != null) {
-            "Tracking location (±${lastLocation?.accuracy?.toInt()}m)"
-        } else {
-            "Waiting for location..."
-        }
-
-        return NotificationCompat.Builder(this@ForegroundService, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_compass)
-            .setContentTitle("GreenGains Location Tracking")
-            .setContentText(contentText)
-            .setContentIntent(pendingIntent)
-            .setOngoing(true)
-            .setShowWhen(false)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
+        @Volatile
+        var methodChannel: MethodChannel? = null
     }
 }

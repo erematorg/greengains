@@ -52,7 +52,7 @@
             android:value="2" />
 
         <service
-            android:name="com.eremat.greengains.ForegroundService"
+            android:name="com.eremat.greengains.service.ForegroundService"
             android:exported="false"
             android:foregroundServiceType="dataSync|location" />
     </application>
