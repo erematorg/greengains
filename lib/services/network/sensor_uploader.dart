@@ -252,7 +252,14 @@ class SensorUploader {
             ? DateTime.parse(_buffer.first['t'] as String)
             : null;
       }
-    } catch (_) {
+    } catch (e, stackTrace) {
+      // Log upload errors so we can debug
+      developer.log(
+        'Upload failed: $e',
+        name: _logTag,
+        error: e,
+        stackTrace: stackTrace,
+      );
       // Keep buffer for retry on failure, but trim if it grows too large.
       if (_buffer.length > _maxBatchSize * 3) {
         _buffer.removeRange(0, _buffer.length - (_maxBatchSize * 3));
