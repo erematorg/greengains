@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import '../network/sensor_uploader.dart';
 
 /// Model for location data received from the native foreground service
 class LocationData {
@@ -168,6 +169,10 @@ class ForegroundLocationService {
   GyroscopeData? _lastGyroscope;
   GyroscopeData? get lastGyroscope => _lastGyroscope;
 
+  // Backend uploader (auto-started with service)
+  SensorUploader? _uploader;
+  SensorUploader? get uploader => _uploader;
+
   ForegroundLocationService._() {
     _setupMethodCallHandler();
   }
@@ -212,6 +217,11 @@ class ForegroundLocationService {
       if (result == true) {
         _isRunningNotifier.value = true;
         debugPrint('Foreground location service started');
+
+        // Start backend uploader
+        _uploader ??= SensorUploader();
+        await _uploader!.start();
+        debugPrint('Backend uploader started');
       }
       return result ?? false;
     } catch (e) {
@@ -223,6 +233,12 @@ class ForegroundLocationService {
   /// Stop the foreground service
   Future<bool> stop() async {
     try {
+      // Stop backend uploader first
+      if (_uploader != null) {
+        await _uploader!.stop();
+        debugPrint('Backend uploader stopped');
+      }
+
       final result = await _fgChannel.invokeMethod<bool>('stopForegroundService');
       if (result == true) {
         _isRunningNotifier.value = false;

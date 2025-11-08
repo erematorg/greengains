@@ -214,14 +214,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
-                  // Last Upload Status (placeholder - uploader not started yet)
+                  // Last Upload Status
                   const SizedBox(height: AppTheme.spaceSm),
-                  Text(
-                    'Backend uploads: Not configured',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.outline,
-                    ),
-                  ),
+                  _buildUploadStatus(theme),
                 ],
               );
             },
@@ -229,6 +224,65 @@ class _HomeScreenState extends State<HomeScreen> {
 
         ],
       ),
+    );
+  }
+
+  Widget _buildUploadStatus(ThemeData theme) {
+    final uploader = _locationService.uploader;
+    if (uploader == null) {
+      return Text(
+        'Backend: Not started',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.outline,
+        ),
+      );
+    }
+
+    return ValueListenableBuilder<DateTime?>(
+      valueListenable: uploader.lastUpload,
+      builder: (context, lastUpload, _) {
+        if (lastUpload == null) {
+          return ValueListenableBuilder<bool>(
+            valueListenable: uploader.uploading,
+            builder: (context, uploading, _) {
+              return Text(
+                uploading ? 'Uploading...' : 'Backend: Waiting for data',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
+              );
+            },
+          );
+        }
+
+        final now = DateTime.now();
+        final diff = now.difference(lastUpload);
+        final timeAgo = diff.inMinutes < 1
+            ? 'just now'
+            : diff.inMinutes < 60
+                ? '${diff.inMinutes}m ago'
+                : diff.inHours < 24
+                    ? '${diff.inHours}h ago'
+                    : '${diff.inDays}d ago';
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.cloud_upload,
+              size: 14,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'Last upload: $timeAgo',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
