@@ -43,7 +43,8 @@
       "Bash(git push:*)",
       "Bash(git rm:*)",
       "Read(//c/Users/mathi/Documents/private/**)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(adb logcat:*)"
     ],
     "deny": [],
     "ask": []

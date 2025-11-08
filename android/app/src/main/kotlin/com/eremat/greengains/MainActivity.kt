@@ -25,6 +25,10 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+        // Create sensor trigger channel and pass to ForegroundService
+        val sensorTriggerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "greengains/sensor_trigger")
+        ForegroundService.methodChannel = sensorTriggerChannel
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName).setMethodCallHandler { call, result ->
             when (call.method) {
                 "isIgnoringBatteryOptimizations" -> {
