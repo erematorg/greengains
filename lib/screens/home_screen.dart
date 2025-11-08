@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/themes.dart';
 import '../core/app_preferences.dart';
+import '../core/app_colors.dart';
 import '../services/location/foreground_location_service.dart';
 import '../widgets/sensor_data_card.dart';
 import '../widgets/contribution_stats_card.dart';
@@ -78,12 +79,12 @@ class _HomeScreenState extends State<HomeScreen> {
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.check_circle, color: Colors.white),
+            const Icon(Icons.check_circle, color: Colors.white),
             const SizedBox(width: 12),
-            Text('Contribution uploaded successfully!'),
+            const Text('Contribution uploaded successfully!'),
           ],
         ),
-        backgroundColor: Colors.green.shade600,
+        backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
@@ -137,6 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
@@ -177,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
               'Sensors',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: Colors.grey.shade700,
+                color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextSecondary,
               ),
             ),
           ),
@@ -261,25 +263,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: isRunning
-                            ? [const Color(0xFFE53935), const Color(0xFFD32F2F)] // Red gradient
-                            : [const Color(0xFF66BB6A), const Color(0xFF4CAF50)], // Green gradient
+                        colors: isRunning ? AppColors.gradientRed : AppColors.gradientGreen,
                       ),
-                      boxShadow: [
-                        // Top light
-                        BoxShadow(
-                          color: Colors.white.withOpacity(0.2),
-                          offset: const Offset(0, -1),
-                          blurRadius: 0,
-                        ),
-                        // Bottom shadow
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          offset: const Offset(0, 3),
-                          blurRadius: 8,
-                          spreadRadius: 0,
-                        ),
-                      ],
+                      boxShadow: AppColors.buttonShadow(isDark),
                     ),
                     child: FilledButton.icon(
                       onPressed: _toggleService,
@@ -344,19 +330,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? '${diff.inHours}h ago'
                     : '${diff.inDays}d ago';
 
+        final isDark = theme.brightness == Brightness.dark;
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.cloud_done,
               size: 14,
-              color: Colors.grey.shade600,
+              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
             ),
             const SizedBox(width: 4),
             Text(
               'Last upload: $timeAgo',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.grey.shade600,
+                color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
               ),
             ),
           ],

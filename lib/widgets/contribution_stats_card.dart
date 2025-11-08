@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/models/contribution_stats.dart';
 import '../data/repositories/contribution_repository.dart';
+import '../core/app_colors.dart';
 
 /// Compact horizontal contribution stats bar
 class ContributionStatsCard extends StatefulWidget {
@@ -41,15 +42,19 @@ class _ContributionStatsCardState extends State<ContributionStatsCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     if (_loading) {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        child: const Center(
+        child: Center(
           child: SizedBox(
             width: 16,
             height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.primary,
+            ),
           ),
         ),
       );
@@ -58,24 +63,11 @@ class _ContributionStatsCardState extends State<ContributionStatsCard> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAFAFA), // Neutral surface (hsl(0, 0%, 98%))
+        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          // Inner light shadow (top) - simulate light from above
-          BoxShadow(
-            color: Colors.white.withOpacity(0.8),
-            offset: const Offset(0, -1),
-            blurRadius: 1,
-            spreadRadius: 0,
-          ),
-          // Outer darker shadow (bottom) - depth
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            offset: const Offset(0, 2),
-            blurRadius: 8,
-            spreadRadius: 0,
-          ),
-        ],
+        boxShadow: isDark
+            ? AppColors.elevationDark(active: false)
+            : AppColors.elevationLight(active: false),
       ),
       child: Row(
         children: [
@@ -83,12 +75,12 @@ class _ContributionStatsCardState extends State<ContributionStatsCard> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color.fromRGBO(76, 175, 80, 0.1), // Primary green with low opacity
+              color: AppColors.primaryAlpha(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               Icons.eco,
-              color: const Color(0xFF4CAF50), // Primary green
+              color: AppColors.primary,
               size: 20,
             ),
           ),
@@ -101,23 +93,26 @@ class _ContributionStatsCardState extends State<ContributionStatsCard> {
               children: [
                 _buildCompactStat(
                   theme,
+                  isDark,
                   label: 'Total',
                   value: '${_stats.totalUploads}',
                 ),
-                _buildDivider(),
+                _buildDivider(isDark),
                 _buildCompactStat(
                   theme,
+                  isDark,
                   label: 'Today',
                   value: '${_stats.uploadsToday}',
                 ),
                 if (_stats.currentStreak > 0) ...[
-                  _buildDivider(),
+                  _buildDivider(isDark),
                   _buildCompactStat(
                     theme,
+                    isDark,
                     label: 'Streak',
                     value: '${_stats.currentStreak}d',
                     icon: Icons.local_fire_department,
-                    iconColor: const Color(0xFFFF9800), // Semantic warning/orange
+                    iconColor: AppColors.warning,
                   ),
                 ],
               ],
@@ -129,7 +124,7 @@ class _ContributionStatsCardState extends State<ContributionStatsCard> {
           IconButton(
             icon: const Icon(Icons.refresh, size: 18),
             onPressed: _loadStats,
-            color: Colors.grey.shade600,
+            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(
               minWidth: 32,
@@ -141,16 +136,17 @@ class _ContributionStatsCardState extends State<ContributionStatsCard> {
     );
   }
 
-  Widget _buildDivider() {
+  Widget _buildDivider(bool isDark) {
     return Container(
       width: 1,
       height: 24,
-      color: Colors.grey.shade300,
+      color: isDark ? AppColors.darkDivider : AppColors.lightDivider,
     );
   }
 
   Widget _buildCompactStat(
-    ThemeData theme, {
+    ThemeData theme,
+    bool isDark, {
     required String label,
     required String value,
     IconData? icon,
@@ -159,13 +155,12 @@ class _ContributionStatsCardState extends State<ContributionStatsCard> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (icon != null)
-          Icon(icon, size: 14, color: iconColor ?? const Color(0xFF4CAF50)),
+        if (icon != null) Icon(icon, size: 14, color: iconColor ?? AppColors.primary),
         Text(
           value,
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
-            color: Colors.grey.shade800, // High contrast for primary info
+            color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
             height: 1.2,
           ),
         ),
@@ -173,7 +168,7 @@ class _ContributionStatsCardState extends State<ContributionStatsCard> {
         Text(
           label,
           style: theme.textTheme.bodySmall?.copyWith(
-            color: Colors.grey.shade600, // Softer gray for secondary info
+            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
             fontSize: 11,
           ),
         ),
