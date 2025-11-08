@@ -175,24 +175,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Share Location'),
-                    subtitle: const Text('Enable GPS heatmap contributions'),
+                    subtitle: const Text('Allow location data collection for heatmaps'),
                     value: _prefs.shareLocation,
-                    onChanged: (value) async {
-                      if (value) {
-                        // Start service when enabling
-                        try {
-                          await _fgChannel.invokeMethod<bool>('startForegroundService');
-                        } catch (e) {
-                          debugPrint('Error starting service: $e');
-                        }
-                      } else {
-                        // Stop service when disabling
-                        try {
-                          await _fgChannel.invokeMethod<bool>('stopForegroundService');
-                        } catch (e) {
-                          debugPrint('Error stopping service: $e');
-                        }
-                      }
+                    onChanged: (value) {
                       setState(() {
                         _prefs.setShareLocation(value);
                       });
