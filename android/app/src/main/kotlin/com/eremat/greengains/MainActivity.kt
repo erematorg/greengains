@@ -59,7 +59,6 @@ class MainActivity : FlutterActivity() {
                 }
                 "requestLocationPermission" -> {
                     // Request location permission from Flutter (Settings screen)
-                    Log.d("MainActivity", "requestLocationPermission called from Flutter")
                     requestLocationPermissions()
                     result.success(true)
                 }
@@ -101,19 +100,15 @@ class MainActivity : FlutterActivity() {
         val fineGranted = ContextCompat.checkSelfPermission(this, ACCESS_FINE_LOCATION)
         val coarseGranted = ContextCompat.checkSelfPermission(this, ACCESS_COARSE_LOCATION)
 
-        Log.d("MainActivity", "Permission check: fine=$fineGranted, coarse=$coarseGranted")
-
         if (fineGranted != PackageManager.PERMISSION_GRANTED &&
             coarseGranted != PackageManager.PERMISSION_GRANTED) {
             // Request permissions
-            Log.d("MainActivity", "Requesting location permissions via dialog")
             ActivityCompat.requestPermissions(
                 this,
                 arrayOf(ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION),
                 LOCATION_PERMISSION_REQUEST_CODE
             )
         } else {
-            Log.d("MainActivity", "Permissions already granted, skipping request")
             Toast.makeText(this, "Location permission already granted", Toast.LENGTH_SHORT).show()
         }
     }
