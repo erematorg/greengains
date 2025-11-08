@@ -177,7 +177,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: const Text('Share Location'),
                     subtitle: const Text('Allow location data collection for heatmaps'),
                     value: _prefs.shareLocation,
-                    onChanged: (value) {
+                    onChanged: (value) async {
+                      if (value) {
+                        // Request location permission when enabling
+                        try {
+                          await _fgChannel.invokeMethod('requestLocationPermission');
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Permission request failed: $e')),
+                            );
+                          }
+                        }
+                      }
                       setState(() {
                         _prefs.setShareLocation(value);
                       });

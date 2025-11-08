@@ -46,8 +46,8 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "greengains/foreground").setMethodCallHandler { call, result ->
             when (call.method) {
                 "startForegroundService" -> {
-                    // Request location permission first (like their sample)
-                    requestLocationPermissions()
+                    // Just start the service, don't request permissions here
+                    startForegroundService()
                     result.success(true)
                 }
                 "stopForegroundService" -> {
@@ -56,6 +56,18 @@ class MainActivity : FlutterActivity() {
                 }
                 "isForegroundServiceRunning" -> {
                     result.success(ForegroundService.running)
+                }
+                "requestLocationPermission" -> {
+                    // Request location permission from Flutter (Settings screen)
+                    requestLocationPermissions()
+                    result.success(true)
+                }
+                "hasLocationPermission" -> {
+                    val fineGranted = ContextCompat.checkSelfPermission(this, ACCESS_FINE_LOCATION)
+                    val coarseGranted = ContextCompat.checkSelfPermission(this, ACCESS_COARSE_LOCATION)
+                    val hasPermission = fineGranted == PackageManager.PERMISSION_GRANTED ||
+                                       coarseGranted == PackageManager.PERMISSION_GRANTED
+                    result.success(hasPermission)
                 }
                 else -> result.notImplemented()
             }
@@ -89,16 +101,14 @@ class MainActivity : FlutterActivity() {
     /**
      * Request location permissions (FINE + COARSE)
      * Using older API since FlutterActivity doesn't support ActivityResultContracts
+     * Note: This only requests permissions, doesn't start the service
      */
     private fun requestLocationPermissions() {
         val fineGranted = ContextCompat.checkSelfPermission(this, ACCESS_FINE_LOCATION)
         val coarseGranted = ContextCompat.checkSelfPermission(this, ACCESS_COARSE_LOCATION)
 
-        if (fineGranted == PackageManager.PERMISSION_GRANTED ||
-            coarseGranted == PackageManager.PERMISSION_GRANTED) {
-            // At least one permission granted, start service
-            startForegroundService()
-        } else {
+        if (fineGranted != PackageManager.PERMISSION_GRANTED &&
+            coarseGranted != PackageManager.PERMISSION_GRANTED) {
             // Request permissions
             ActivityCompat.requestPermissions(
                 this,
@@ -106,11 +116,12 @@ class MainActivity : FlutterActivity() {
                 LOCATION_PERMISSION_REQUEST_CODE
             )
         }
+        // If permissions already granted, do nothing (don't start service)
     }
 
     /**
      * Handle permission request results
-     * Following their pattern: show Toast on denial, start service on grant
+     * Note: This doesn't start the service, just shows feedback
      */
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -125,18 +136,13 @@ class MainActivity : FlutterActivity() {
                 val coarseGranted = grantResults.getOrNull(1) == PackageManager.PERMISSION_GRANTED
 
                 when {
-                    fineGranted -> {
-                        // Precise location access granted, service can run
-                        startForegroundService()
-                    }
-                    coarseGranted -> {
-                        // Only approximate location access granted, service can still run
-                        startForegroundService()
+                    fineGranted || coarseGranted -> {
+                        // Location access granted
+                        Toast.makeText(this, "Location permission granted", Toast.LENGTH_SHORT).show()
                     }
                     else -> {
-                        // No location access granted, service can't be started as it will crash
-                        // Following their pattern: show Toast (not dialog, not forced Settings)
-                        Toast.makeText(this, "Location permission is required!", Toast.LENGTH_SHORT).show()
+                        // No location access granted
+                        Toast.makeText(this, "Location permission denied", Toast.LENGTH_SHORT).show()
                     }
                 }
             }

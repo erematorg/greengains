@@ -64,6 +64,7 @@ class ForegroundService : Service() {
     // Throttling for sensor data to reduce flooding
     private var lastLightValue: Float = 0f
     private var lastLightSentTime: Long = 0L
+    private var lastLocationSentTime: Long = 0L
 
     inner class LocalBinder : Binder() {
         fun getService(): ForegroundService = this@ForegroundService
@@ -161,7 +162,13 @@ class ForegroundService : Service() {
             override fun onLocationResult(locationResult: LocationResult) {
                 for (location in locationResult.locations) {
                     _locationFlow.value = location
-                    sendLocationToFlutter(location)
+
+                    // Batch location: only send every LOCATION_SEND_INTERVAL_MS
+                    val timeDiff = System.currentTimeMillis() - lastLocationSentTime
+                    if (timeDiff > LOCATION_SEND_INTERVAL_MS) {
+                        sendLocationToFlutter(location)
+                        lastLocationSentTime = System.currentTimeMillis()
+                    }
                 }
             }
         }
@@ -182,8 +189,18 @@ class ForegroundService : Service() {
 
     /**
      * Sends location update to Flutter via MethodChannel.
+     * Only sends if user has enabled Share Location in settings.
      */
     private fun sendLocationToFlutter(location: Location) {
+        // Check Share Location preference before sending
+        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        val shareLocation = prefs.getBoolean("flutter.share_location", false)
+
+        if (!shareLocation) {
+            // User has disabled location sharing, don't send
+            return
+        }
+
         coroutineScope.launch(Dispatchers.Main) {
             val channel = methodChannel
             if (channel == null) {
@@ -202,7 +219,6 @@ class ForegroundService : Service() {
                     "timestamp" to location.time,
                     "provider" to location.provider
                 )
-                Log.d(TAG, "Sending location to Flutter: lat=${location.latitude}, lon=${location.longitude}, accuracy=${location.accuracy}m")
                 channel.invokeMethod("onLocationUpdate", locationData)
             } catch (e: Exception) {
                 Log.e(TAG, "Error sending location to Flutter: ${e.message}", e)
@@ -300,7 +316,6 @@ class ForegroundService : Service() {
                     "lux" to lux,
                     "timestamp" to System.currentTimeMillis()
                 )
-                Log.d(TAG, "Sending light data to Flutter: ${lux.toInt()} lux")
                 channel.invokeMethod("onLightUpdate", lightData)
             } catch (e: Exception) {
                 Log.e(TAG, "Error sending light data to Flutter: ${e.message}", e)
@@ -313,8 +328,9 @@ class ForegroundService : Service() {
         private val LOCATION_UPDATES_INTERVAL_MS = 1.seconds.inWholeMilliseconds
 
         // Sensor throttling to reduce flooding
-        private const val LIGHT_THRESHOLD_LUX = 5.0f  // Only send if change > 5 lux
-        private const val SENSOR_SEND_INTERVAL_MS = 2000L  // Or every 2 seconds
+        private const val LIGHT_THRESHOLD_LUX = 10.0f  // Only send if change > 10 lux
+        private const val SENSOR_SEND_INTERVAL_MS = 5000L  // Or every 5 seconds
+        private const val LOCATION_SEND_INTERVAL_MS = 10000L  // Send location every 10 seconds
 
         @Volatile
         var running: Boolean = false

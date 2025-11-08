@@ -175,41 +175,6 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
 
-          const SizedBox(height: AppTheme.spaceLg),
-
-          // Contribution Stats (placeholder for backend data)
-          Text(
-            'Your Contributions',
-            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: AppTheme.spaceMd),
-
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppTheme.spaceMd),
-              child: Column(
-                children: [
-                  _StatRow(
-                    label: 'Data Points',
-                    value: '---',
-                    icon: Icons.scatter_plot,
-                  ),
-                  const Divider(height: AppTheme.spaceMd),
-                  _StatRow(
-                    label: 'Uptime',
-                    value: '---',
-                    icon: Icons.timer,
-                  ),
-                  const Divider(height: AppTheme.spaceMd),
-                  _StatRow(
-                    label: 'Last Sync',
-                    value: '---',
-                    icon: Icons.sync,
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -319,37 +284,3 @@ class _SensorDataCard extends StatelessWidget {
   }
 }
 
-/// Stat row for contribution stats
-class _StatRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-
-  const _StatRow({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: theme.colorScheme.primary),
-        const SizedBox(width: AppTheme.spaceSm),
-        Text(
-          label,
-          style: theme.textTheme.bodyMedium,
-        ),
-        const Spacer(),
-        Text(
-          value,
-          style: theme.textTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-}
