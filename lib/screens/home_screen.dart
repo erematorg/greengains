@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/themes.dart';
 import '../core/app_preferences.dart';
@@ -15,7 +14,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const _fgChannel = MethodChannel('greengains/foreground');
   final _locationService = ForegroundLocationService.instance;
   final _prefs = AppPreferences.instance;
   StreamSubscription<LocationData>? _locationSubscription;
