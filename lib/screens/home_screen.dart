@@ -48,54 +48,43 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _currentLocation = null;
       });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location tracking stopped'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     } else {
-      // Request location permissions before starting
+      // Request location permissions
       final hasPermission = await _permissionService.requestLocationPermission();
 
       if (!hasPermission) {
+        // Just show a simple toast
         if (mounted) {
-          _showPermissionDeniedDialog();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Location permission denied'),
+              duration: Duration(seconds: 2),
+            ),
+          );
         }
         return;
       }
 
       // Start the foreground service
       final started = await _locationService.start();
-      if (!started && mounted) {
+      if (started && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Failed to start location service'),
-            duration: Duration(seconds: 3),
+            content: Text('Location tracking started'),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.green,
           ),
         );
       }
     }
-  }
-
-  void _showPermissionDeniedDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Location Permission Required'),
-        content: const Text(
-          'GreenGains needs location permission to track your contributions.\n\n'
-          'Please grant location permission in settings.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              await _permissionService.openLocationSettings();
-            },
-            child: const Text('Open Settings'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
