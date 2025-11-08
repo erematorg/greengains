@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -96,7 +97,7 @@ class AccelerometerData {
   DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(timestamp);
 
   /// Calculate magnitude (total acceleration)
-  double get magnitude => (x * x + y * y + z * z).sqrt();
+  double get magnitude => sqrt(x * x + y * y + z * z);
 
   @override
   String toString() {
@@ -130,7 +131,7 @@ class GyroscopeData {
   DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(timestamp);
 
   /// Calculate magnitude (total rotation rate)
-  double get magnitude => (x * x + y * y + z * z).sqrt();
+  double get magnitude => sqrt(x * x + y * y + z * z);
 
   @override
   String toString() {
