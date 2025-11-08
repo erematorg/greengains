@@ -54,6 +54,19 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Very Bright';
   }
 
+  Future<void> _toggleService() async {
+    final isRunning = _locationService.isRunning.value;
+    if (isRunning) {
+      await _locationService.stop();
+      setState(() {
+        _currentLocation = null;
+        _currentLight = null;
+      });
+    } else {
+      await _locationService.start();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -139,6 +152,25 @@ class _HomeScreenState extends State<HomeScreen> {
                     : null,
                 unit: _currentLocation != null ? '±${_currentLocation!.accuracy.toStringAsFixed(0)}m' : 'GPS',
                 enabled: isRunning,
+              );
+            },
+          ),
+
+          const SizedBox(height: AppTheme.spaceLg),
+
+          // Service Control Button
+          ListenableBuilder(
+            listenable: _locationService.isRunning,
+            builder: (context, _) {
+              final isRunning = _locationService.isRunning.value;
+              return FilledButton.icon(
+                onPressed: _toggleService,
+                icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
+                label: Text(isRunning ? 'Stop Tracking' : 'Start Tracking'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: isRunning ? Colors.red : theme.colorScheme.primary,
+                  minimumSize: const Size.fromHeight(48),
+                ),
               );
             },
           ),

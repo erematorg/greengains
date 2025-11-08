@@ -61,6 +61,10 @@ class ForegroundService : Service() {
     private val _lightFlow = MutableStateFlow<Float?>(null)
     var lightFlow: StateFlow<Float?> = _lightFlow
 
+    // Throttling for sensor data to reduce flooding
+    private var lastLightValue: Float = 0f
+    private var lastLightSentTime: Long = 0L
+
     inner class LocalBinder : Binder() {
         fun getService(): ForegroundService = this@ForegroundService
     }
@@ -236,7 +240,16 @@ class ForegroundService : Service() {
                 Sensor.TYPE_LIGHT -> {
                     val lux = event.values[0]
                     _lightFlow.value = lux
-                    sendLightToFlutter(lux)
+
+                    // Throttle: only send if value changed significantly OR enough time passed
+                    val luxDiff = kotlin.math.abs(lux - lastLightValue)
+                    val timeDiff = System.currentTimeMillis() - lastLightSentTime
+
+                    if (luxDiff > LIGHT_THRESHOLD_LUX || timeDiff > SENSOR_SEND_INTERVAL_MS) {
+                        sendLightToFlutter(lux)
+                        lastLightValue = lux
+                        lastLightSentTime = System.currentTimeMillis()
+                    }
                 }
             }
         }
@@ -298,6 +311,10 @@ class ForegroundService : Service() {
     companion object {
         private const val TAG = "GreenGainsFGService"
         private val LOCATION_UPDATES_INTERVAL_MS = 1.seconds.inWholeMilliseconds
+
+        // Sensor throttling to reduce flooding
+        private const val LIGHT_THRESHOLD_LUX = 5.0f  // Only send if change > 5 lux
+        private const val SENSOR_SEND_INTERVAL_MS = 2000L  // Or every 2 seconds
 
         @Volatile
         var running: Boolean = false
