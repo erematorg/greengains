@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/models/contribution_stats.dart';
 import '../data/repositories/contribution_repository.dart';
 
-/// Card displaying contribution statistics
+/// Compact horizontal contribution stats bar
 class ContributionStatsCard extends StatefulWidget {
   const ContributionStatsCard({super.key});
 
@@ -22,6 +22,7 @@ class _ContributionStatsCardState extends State<ContributionStatsCard> {
   }
 
   Future<void> _loadStats() async {
+    setState(() => _loading = true);
     try {
       final stats = await _repository.getStats();
       if (mounted) {
@@ -32,9 +33,7 @@ class _ContributionStatsCardState extends State<ContributionStatsCard> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _loading = false;
-        });
+        setState(() => _loading = false);
       }
     }
   }
@@ -44,168 +43,141 @@ class _ContributionStatsCardState extends State<ContributionStatsCard> {
     final theme = Theme.of(context);
 
     if (_loading) {
-      return const Card(
-        margin: EdgeInsets.all(16),
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Center(
-            child: CircularProgressIndicator(),
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        child: const Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
           ),
         ),
       );
     }
 
-    return Card(
-      margin: const EdgeInsets.all(16),
-      elevation: 4,
-      shadowColor: Colors.green.withOpacity(0.3),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.green.shade50,
-              Colors.white,
-            ],
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade100,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.eco,
-                      color: Colors.green.shade700,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Your Impact',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green.shade800,
-                    ),
-                  ),
-                ],
-              ),
-            const SizedBox(height: 20),
-
-            // Total contributions
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatItem(
-                    theme,
-                    icon: Icons.upload,
-                    label: 'Total',
-                    value: _stats.totalUploads.toString(),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildStatItem(
-                    theme,
-                    icon: Icons.today,
-                    label: 'Today',
-                    value: _stats.uploadsToday.toString(),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Streak
-            if (_stats.currentStreak > 0)
-              _buildStatItem(
-                theme,
-                icon: Icons.local_fire_department,
-                label: 'Current Streak',
-                value: '${_stats.currentStreak} day${_stats.currentStreak != 1 ? 's' : ''}',
-                iconColor: Colors.orange.shade600,
-              ),
-
-            // Refresh button
-            const SizedBox(height: 12),
-            Center(
-              child: TextButton.icon(
-                onPressed: _loadStats,
-                icon: Icon(Icons.refresh, size: 16, color: Colors.green.shade700),
-                label: Text('Refresh', style: TextStyle(color: Colors.green.shade700)),
-              ),
-            ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatItem(
-    ThemeData theme, {
-    required IconData icon,
-    required String label,
-    required String value,
-    Color? iconColor,
-  }) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.green.shade100),
+        color: const Color(0xFFFAFAFA), // Neutral surface (hsl(0, 0%, 98%))
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          // Inner light shadow (top) - simulate light from above
+          BoxShadow(
+            color: Colors.white.withOpacity(0.8),
+            offset: const Offset(0, -1),
+            blurRadius: 1,
+            spreadRadius: 0,
+          ),
+          // Outer darker shadow (bottom) - depth
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            offset: const Offset(0, 2),
+            blurRadius: 8,
+            spreadRadius: 0,
+          ),
+        ],
       ),
       child: Row(
         children: [
+          // Icon
           Container(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: (iconColor ?? Colors.green.shade600).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
+              color: const Color.fromRGBO(76, 175, 80, 0.1), // Primary green with low opacity
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
-              icon,
+              Icons.eco,
+              color: const Color(0xFF4CAF50), // Primary green
               size: 20,
-              color: iconColor ?? Colors.green.shade600,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
+
+          // Stats in horizontal row
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  label,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
-                  ),
+                _buildCompactStat(
+                  theme,
+                  label: 'Total',
+                  value: '${_stats.totalUploads}',
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green.shade800,
-                  ),
+                _buildDivider(),
+                _buildCompactStat(
+                  theme,
+                  label: 'Today',
+                  value: '${_stats.uploadsToday}',
                 ),
+                if (_stats.currentStreak > 0) ...[
+                  _buildDivider(),
+                  _buildCompactStat(
+                    theme,
+                    label: 'Streak',
+                    value: '${_stats.currentStreak}d',
+                    icon: Icons.local_fire_department,
+                    iconColor: const Color(0xFFFF9800), // Semantic warning/orange
+                  ),
+                ],
               ],
+            ),
+          ),
+
+          // Refresh button
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.refresh, size: 18),
+            onPressed: _loadStats,
+            color: Colors.grey.shade600,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(
+              minWidth: 32,
+              minHeight: 32,
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDivider() {
+    return Container(
+      width: 1,
+      height: 24,
+      color: Colors.grey.shade300,
+    );
+  }
+
+  Widget _buildCompactStat(
+    ThemeData theme, {
+    required String label,
+    required String value,
+    IconData? icon,
+    Color? iconColor,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null)
+          Icon(icon, size: 14, color: iconColor ?? const Color(0xFF4CAF50)),
+        Text(
+          value,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Colors.grey.shade800, // High contrast for primary info
+            height: 1.2,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: Colors.grey.shade600, // Softer gray for secondary info
+            fontSize: 11,
+          ),
+        ),
+      ],
     );
   }
 }

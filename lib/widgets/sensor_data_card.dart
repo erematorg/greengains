@@ -24,30 +24,48 @@ class SensorDataCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isActive = enabled && value != null;
 
-    return Card(
-      elevation: isActive ? 3 : 1,
-      color: isActive
-          ? Colors.green.shade50
-          : null,
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spaceMd),
-        child: Row(
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppTheme.spaceSm),
+      padding: const EdgeInsets.all(AppTheme.spaceMd),
+      decoration: BoxDecoration(
+        color: isActive
+            ? const Color(0xFFF1F8F4) // Subtle green tint (hsl(140, 30%, 96%))
+            : const Color(0xFFFAFAFA), // Neutral surface
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          // Inner light shadow (top)
+          BoxShadow(
+            color: Colors.white.withOpacity(0.8),
+            offset: const Offset(0, -1),
+            blurRadius: 1,
+            spreadRadius: 0,
+          ),
+          // Outer darker shadow (bottom)
+          BoxShadow(
+            color: Colors.black.withOpacity(isActive ? 0.12 : 0.06),
+            offset: const Offset(0, 2),
+            blurRadius: isActive ? 10 : 6,
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Row(
           children: [
             // Icon
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isActive
-                    ? Colors.green.shade100
-                    : theme.colorScheme.surfaceContainerHighest,
+                    ? const Color.fromRGBO(76, 175, 80, 0.15) // Primary green with alpha
+                    : const Color(0xFFF0F0F0), // Neutral elevated
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
                 icon,
                 size: 24,
                 color: isActive
-                    ? Colors.green.shade700
-                    : theme.colorScheme.outline,
+                    ? const Color(0xFF4CAF50) // Primary green
+                    : Colors.grey.shade500,
               ),
             ),
             const SizedBox(width: AppTheme.spaceMd),
@@ -83,15 +101,20 @@ class SensorDataCard extends StatelessWidget {
 
             // Status indicator
             Container(
-              width: 12,
-              height: 12,
+              width: 10,
+              height: 10,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isActive ? Colors.green.shade600 : Colors.transparent,
-                border: Border.all(
-                  color: isActive ? Colors.green.shade600 : theme.colorScheme.outline,
-                  width: 2,
-                ),
+                color: isActive ? const Color(0xFF4CAF50) : Colors.grey.shade400,
+                boxShadow: isActive
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF4CAF50).withOpacity(0.4),
+                          blurRadius: 4,
+                          spreadRadius: 1,
+                        )
+                      ]
+                    : null,
               ),
             ),
           ],

@@ -171,11 +171,16 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
 
           // Sensor Data Section
-          Text(
-            'Live Sensor Data',
-            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppTheme.spaceSm),
+            child: Text(
+              'Sensors',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade700,
+              ),
+            ),
           ),
-          const SizedBox(height: AppTheme.spaceMd),
 
           // All sensor cards in one ListenableBuilder to reduce duplication
           ListenableBuilder(
@@ -194,7 +199,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     unit: _currentLight != null ? _getLightDescription(_currentLight!.lux) : 'lux',
                     enabled: isRunning,
                   ),
-                  const SizedBox(height: AppTheme.spaceSm),
 
                   // Accelerometer
                   SensorDataCard(
@@ -208,7 +212,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         : 'm/s²',
                     enabled: isRunning,
                   ),
-                  const SizedBox(height: AppTheme.spaceSm),
 
                   // Gyroscope
                   SensorDataCard(
@@ -222,7 +225,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         : 'rad/s',
                     enabled: isRunning,
                   ),
-                  const SizedBox(height: AppTheme.spaceSm),
 
                   // Location
                   SensorDataCard(
@@ -239,12 +241,12 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
 
-          const SizedBox(height: AppTheme.spaceLg),
+          const SizedBox(height: AppTheme.spaceMd),
 
           // Contribution Statistics
           const ContributionStatsCard(),
 
-          const SizedBox(height: AppTheme.spaceLg),
+          const SizedBox(height: AppTheme.spaceMd),
 
           // Service Control Button
           ListenableBuilder(
@@ -253,13 +255,41 @@ class _HomeScreenState extends State<HomeScreen> {
               final isRunning = _locationService.isRunning.value;
               return Column(
                 children: [
-                  FilledButton.icon(
-                    onPressed: _toggleService,
-                    icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
-                    label: Text(isRunning ? 'Stop Tracking' : 'Start Tracking'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: isRunning ? Colors.red : theme.colorScheme.primary,
-                      minimumSize: const Size.fromHeight(48),
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: isRunning
+                            ? [const Color(0xFFE53935), const Color(0xFFD32F2F)] // Red gradient
+                            : [const Color(0xFF66BB6A), const Color(0xFF4CAF50)], // Green gradient
+                      ),
+                      boxShadow: [
+                        // Top light
+                        BoxShadow(
+                          color: Colors.white.withOpacity(0.2),
+                          offset: const Offset(0, -1),
+                          blurRadius: 0,
+                        ),
+                        // Bottom shadow
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          offset: const Offset(0, 3),
+                          blurRadius: 8,
+                          spreadRadius: 0,
+                        ),
+                      ],
+                    ),
+                    child: FilledButton.icon(
+                      onPressed: _toggleService,
+                      icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
+                      label: Text(isRunning ? 'Stop Tracking' : 'Start Tracking'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        minimumSize: const Size.fromHeight(48),
+                      ),
                     ),
                   ),
 
@@ -314,31 +344,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? '${diff.inHours}h ago'
                     : '${diff.inDays}d ago';
 
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.green.shade50,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.green.shade200),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.cloud_done,
-                size: 16,
-                color: Colors.green.shade700,
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.cloud_done,
+              size: 14,
+              color: Colors.grey.shade600,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'Last upload: $timeAgo',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: Colors.grey.shade600,
               ),
-              const SizedBox(width: 6),
-              Text(
-                'Last upload: $timeAgo',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.green.shade700,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );
