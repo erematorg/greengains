@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import '../core/themes.dart';
@@ -180,10 +181,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onChanged: (value) async {
                       if (value) {
                         // Request location permission when enabling
+                        debugPrint('Requesting location permission from Flutter...');
                         try {
                           await _fgChannel.invokeMethod('requestLocationPermission');
+                          debugPrint('Permission request completed');
                         } catch (e) {
-                          // Permission request handled by native code
+                          debugPrint('Permission request error: $e');
                         }
                       }
                       setState(() {
