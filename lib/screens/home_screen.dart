@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../core/themes.dart';
 import '../services/location/foreground_location_service.dart';
 
-/// Home screen showing sensor status and contribution info
+/// Home screen showing live sensor data and tracking status
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -15,7 +15,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _locationService = ForegroundLocationService.instance;
   StreamSubscription<LocationData>? _locationSubscription;
+  StreamSubscription<LightData>? _lightSubscription;
   LocationData? _currentLocation;
+  LightData? _currentLight;
 
   @override
   void initState() {
@@ -26,11 +28,17 @@ class _HomeScreenState extends State<HomeScreen> {
         _currentLocation = location;
       });
     });
+    _lightSubscription = _locationService.lightStream.listen((light) {
+      setState(() {
+        _currentLight = light;
+      });
+    });
   }
 
   @override
   void dispose() {
     _locationSubscription?.cancel();
+    _lightSubscription?.cancel();
     super.dispose();
   }
 
@@ -38,19 +46,12 @@ class _HomeScreenState extends State<HomeScreen> {
     await _locationService.isServiceRunning();
   }
 
-  Future<void> _toggleService() async {
-    final isRunning = _locationService.isRunning.value;
-    if (isRunning) {
-      // Stop the service
-      await _locationService.stop();
-      setState(() {
-        _currentLocation = null;
-      });
-    } else {
-      // Start the foreground service
-      // Permission request handled by MainActivity (their pattern)
-      await _locationService.start();
-    }
+  String _getLightDescription(double lux) {
+    if (lux < 10) return 'Dark';
+    if (lux < 50) return 'Dim';
+    if (lux < 500) return 'Normal';
+    if (lux < 10000) return 'Bright';
+    return 'Very Bright';
   }
 
   @override
@@ -61,335 +62,262 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('GreenGains'),
-      ),
-      body: ListView(
-        padding: AppTheme.pagePadding,
-        children: [
-          // User info card
-          if (user != null)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppTheme.spaceMd),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundImage: user.photoURL != null
-                          ? NetworkImage(user.photoURL!)
-                          : null,
-                      child: user.photoURL == null
-                          ? const Icon(Icons.person)
-                          : null,
-                    ),
-                    const SizedBox(width: AppTheme.spaceMd),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user.displayName ?? 'User',
-                            style: theme.textTheme.titleMedium,
-                          ),
-                          Text(
-                            user.email ?? '',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          const SizedBox(height: AppTheme.spaceLg),
-
-          // Test Button
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppTheme.spaceMd),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Location Service Test',
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppTheme.spaceSm),
-                  Text(
-                    'Test the foreground service under various scenarios: background, screen lock, app switching',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: AppTheme.spaceMd),
-                  ListenableBuilder(
-                    listenable: _locationService.isRunning,
-                    builder: (context, _) {
-                      final isRunning = _locationService.isRunning.value;
-                      return FilledButton.icon(
-                        onPressed: _toggleService,
-                        icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
-                        label: Text(isRunning ? 'Stop Tracking' : 'Start Tracking'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: isRunning ? Colors.red : theme.colorScheme.primary,
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: AppTheme.spaceLg),
-
-          // Location Display
-          if (_currentLocation != null)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppTheme.spaceMd),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.location_on, color: theme.colorScheme.primary),
-                        const SizedBox(width: AppTheme.spaceXs),
-                        Text(
-                          'Live Location',
-                          style: theme.textTheme.titleLarge,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppTheme.spaceMd),
-                    _LocationItem(
-                      label: 'Latitude',
-                      value: _currentLocation!.latitude.toStringAsFixed(6),
-                    ),
-                    const SizedBox(height: AppTheme.spaceXs),
-                    _LocationItem(
-                      label: 'Longitude',
-                      value: _currentLocation!.longitude.toStringAsFixed(6),
-                    ),
-                    const SizedBox(height: AppTheme.spaceXs),
-                    _LocationItem(
-                      label: 'Accuracy',
-                      value: '±${_currentLocation!.accuracy.toStringAsFixed(1)}m',
-                    ),
-                    if (_currentLocation!.altitude != null) ...[
-                      const SizedBox(height: AppTheme.spaceXs),
-                      _LocationItem(
-                        label: 'Altitude',
-                        value: '${_currentLocation!.altitude!.toStringAsFixed(1)}m',
-                      ),
-                    ],
-                    if (_currentLocation!.speed != null) ...[
-                      const SizedBox(height: AppTheme.spaceXs),
-                      _LocationItem(
-                        label: 'Speed',
-                        value: '${_currentLocation!.speed!.toStringAsFixed(1)} m/s',
-                      ),
-                    ],
-                    const SizedBox(height: AppTheme.spaceXs),
-                    _LocationItem(
-                      label: 'Provider',
-                      value: _currentLocation!.provider ?? 'unknown',
-                    ),
-                    const SizedBox(height: AppTheme.spaceXs),
-                    _LocationItem(
-                      label: 'Time',
-                      value: _formatTime(_currentLocation!.dateTime),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          const SizedBox(height: AppTheme.spaceLg),
-
-          // Status card
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppTheme.spaceMd),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Status',
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppTheme.spaceMd),
-                  _StatusItem(
-                    icon: Icons.check_circle_outline,
-                    label: 'Backend Services',
-                    value: 'Ready',
-                    color: Colors.green,
-                  ),
-                  const SizedBox(height: AppTheme.spaceXs),
-                  ListenableBuilder(
-                    listenable: _locationService.isRunning,
-                    builder: (context, _) {
-                      final isRunning = _locationService.isRunning.value;
-                      return _StatusItem(
-                        icon: isRunning ? Icons.location_on : Icons.location_off,
-                        label: 'Location Tracking',
-                        value: isRunning ? 'Active' : 'Stopped',
-                        color: isRunning ? Colors.green : Colors.grey,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: AppTheme.spaceLg),
-
-          // Sensor placeholders
-          Text(
-            'Sensors (Coming Soon)',
-            style: theme.textTheme.titleLarge,
-          ),
-          const SizedBox(height: AppTheme.spaceSm),
-          _SensorCard(
-            icon: Icons.light_mode,
-            title: 'Light Sensor',
-            subtitle: 'Ambient light detection',
-            enabled: false,
-          ),
-          const SizedBox(height: AppTheme.spaceSm),
-          _SensorCard(
-            icon: Icons.motion_photos_on,
-            title: 'Motion Sensors',
-            subtitle: 'Accelerometer & gyroscope',
-            enabled: false,
-          ),
-          const SizedBox(height: AppTheme.spaceSm),
+        actions: [
+          // Quick status indicator in app bar
           ListenableBuilder(
             listenable: _locationService.isRunning,
             builder: (context, _) {
-              return _SensorCard(
-                icon: Icons.location_on,
-                title: 'Location',
-                subtitle: 'GPS for heatmap generation',
-                enabled: _locationService.isRunning.value,
+              final isRunning = _locationService.isRunning.value;
+              return Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: Icon(
+                  isRunning ? Icons.sensors : Icons.sensors_off,
+                  color: isRunning ? Colors.green : theme.colorScheme.outline,
+                ),
               );
             },
           ),
         ],
       ),
+      body: ListView(
+        padding: AppTheme.pagePadding,
+        children: [
+          // User greeting (compact)
+          if (user != null) ...[
+            Text(
+              'Hello, ${user.displayName?.split(' ').first ?? 'User'}!',
+              style: theme.textTheme.headlineSmall,
+            ),
+            const SizedBox(height: AppTheme.spaceSm),
+          ],
+
+          // Sensor Data Section
+          Text(
+            'Live Sensor Data',
+            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: AppTheme.spaceMd),
+
+          // Light Sensor Card
+          ListenableBuilder(
+            listenable: _locationService.isRunning,
+            builder: (context, _) {
+              final isRunning = _locationService.isRunning.value;
+              return _SensorDataCard(
+                icon: Icons.light_mode,
+                title: 'Light',
+                value: _currentLight != null
+                    ? '${_currentLight!.lux.toStringAsFixed(0)} lux'
+                    : null,
+                unit: _currentLight != null ? _getLightDescription(_currentLight!.lux) : 'lux',
+                enabled: isRunning,
+              );
+            },
+          ),
+          const SizedBox(height: AppTheme.spaceSm),
+
+          // Motion Sensors Card
+          _SensorDataCard(
+            icon: Icons.motion_photos_on,
+            title: 'Motion',
+            value: null, // Will be populated later
+            unit: 'm/s²',
+            enabled: false,
+          ),
+          const SizedBox(height: AppTheme.spaceSm),
+
+          // Location Card
+          ListenableBuilder(
+            listenable: _locationService.isRunning,
+            builder: (context, _) {
+              final isRunning = _locationService.isRunning.value;
+              return _SensorDataCard(
+                icon: Icons.location_on,
+                title: 'Location',
+                value: _currentLocation != null
+                    ? '${_currentLocation!.latitude.toStringAsFixed(4)}, ${_currentLocation!.longitude.toStringAsFixed(4)}'
+                    : null,
+                unit: _currentLocation != null ? '±${_currentLocation!.accuracy.toStringAsFixed(0)}m' : 'GPS',
+                enabled: isRunning,
+              );
+            },
+          ),
+
+          const SizedBox(height: AppTheme.spaceLg),
+
+          // Contribution Stats (placeholder for backend data)
+          Text(
+            'Your Contributions',
+            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: AppTheme.spaceMd),
+
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppTheme.spaceMd),
+              child: Column(
+                children: [
+                  _StatRow(
+                    label: 'Data Points',
+                    value: '---',
+                    icon: Icons.scatter_plot,
+                  ),
+                  const Divider(height: AppTheme.spaceMd),
+                  _StatRow(
+                    label: 'Uptime',
+                    value: '---',
+                    icon: Icons.timer,
+                  ),
+                  const Divider(height: AppTheme.spaceMd),
+                  _StatRow(
+                    label: 'Last Sync',
+                    value: '---',
+                    icon: Icons.sync,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
-  }
-
-  String _formatTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final diff = now.difference(dateTime);
-
-    if (diff.inSeconds < 60) {
-      return '${diff.inSeconds}s ago';
-    } else if (diff.inMinutes < 60) {
-      return '${diff.inMinutes}m ago';
-    } else {
-      return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
-    }
   }
 }
 
-class _StatusItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatusItem({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: color),
-        const SizedBox(width: AppTheme.spaceXs),
-        Text(label, style: theme.textTheme.bodyMedium),
-        const Spacer(),
-        Text(
-          value,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: color,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _LocationItem extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _LocationItem({
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-          ),
-        ),
-        Text(
-          value,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            fontFeatures: [const FontFeature.tabularFigures()],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SensorCard extends StatelessWidget {
+/// Sensor data display card with live values
+class _SensorDataCard extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String subtitle;
+  final String? value;
+  final String unit;
   final bool enabled;
 
-  const _SensorCard({
+  const _SensorDataCard({
     required this.icon,
     required this.title,
-    required this.subtitle,
+    required this.value,
+    required this.unit,
     required this.enabled,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isActive = enabled && value != null;
+
     return Card(
-      child: ListTile(
-        leading: Icon(
-          icon,
-          size: 32,
-          color: enabled ? theme.colorScheme.primary : theme.colorScheme.outline,
+      color: isActive
+          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
+          : null,
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spaceMd),
+        child: Row(
+          children: [
+            // Icon
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isActive
+                    ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                    : theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                size: 24,
+                color: isActive
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.outline,
+              ),
+            ),
+            const SizedBox(width: AppTheme.spaceMd),
+
+            // Title and status
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    enabled ? (value ?? 'Waiting...') : 'Disabled',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Value display
+            if (isActive) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  unit,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ] else ...[
+              Icon(
+                Icons.circle_outlined,
+                size: 20,
+                color: theme.colorScheme.outline,
+              ),
+            ],
+          ],
         ),
-        title: Text(title),
-        subtitle: Text(subtitle),
-        trailing: enabled
-            ? Icon(Icons.check_circle, color: theme.colorScheme.primary)
-            : Icon(Icons.circle_outlined, color: theme.colorScheme.outline),
       ),
+    );
+  }
+}
+
+/// Stat row for contribution stats
+class _StatRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _StatRow({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: theme.colorScheme.primary),
+        const SizedBox(width: AppTheme.spaceSm),
+        Text(
+          label,
+          style: theme.textTheme.bodyMedium,
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: theme.textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }

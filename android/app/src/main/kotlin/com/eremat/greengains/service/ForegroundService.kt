@@ -4,8 +4,13 @@ import android.Manifest.permission.ACCESS_COARSE_LOCATION
 import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.annotation.SuppressLint
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Location
 import android.os.Binder
 import android.os.Build
@@ -31,18 +36,30 @@ import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Simple foreground service that shows a notification to the user and provides location updates.
+ * Simple foreground service that shows a notification to the user and provides sensor data.
  * Based on: https://github.com/landomen/ForegroundServiceSample
+ *
+ * Sensors:
+ * - Location (GPS/Network via FusedLocationProviderClient)
+ * - Light (ambient light in lux via SensorManager)
+ * - Motion sensors coming soon (accelerometer, gyroscope, magnetometer)
  */
 class ForegroundService : Service() {
     private val binder = LocalBinder()
 
     private val coroutineScope = CoroutineScope(Job())
+
+    // Location
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
-
     private val _locationFlow = MutableStateFlow<Location?>(null)
     var locationFlow: StateFlow<Location?> = _locationFlow
+
+    // Sensors
+    private lateinit var sensorManager: SensorManager
+    private var lightSensor: Sensor? = null
+    private val _lightFlow = MutableStateFlow<Float?>(null)
+    var lightFlow: StateFlow<Float?> = _lightFlow
 
     inner class LocalBinder : Binder() {
         fun getService(): ForegroundService = this@ForegroundService
@@ -69,6 +86,7 @@ class ForegroundService : Service() {
         } else {
             startAsForegroundService()
             startLocationUpdates()
+            startSensors()
         }
 
         return super.onStartCommand(intent, flags, startId)
@@ -79,6 +97,7 @@ class ForegroundService : Service() {
         Log.d(TAG, "onCreate")
 
         setupLocationUpdates()
+        setupSensors()
     }
 
     override fun onDestroy() {
@@ -88,6 +107,7 @@ class ForegroundService : Service() {
         // CRITICAL: Always clean up resources to prevent memory leaks and ensure smooth app lifecycle
         running = false
         fusedLocationClient.removeLocationUpdates(locationCallback)
+        stopSensors()
         coroutineScope.coroutineContext.cancelChildren()
     }
 
@@ -182,6 +202,95 @@ class ForegroundService : Service() {
                 channel.invokeMethod("onLocationUpdate", locationData)
             } catch (e: Exception) {
                 Log.e(TAG, "Error sending location to Flutter: ${e.message}", e)
+            }
+        }
+    }
+
+    // ============================================
+    // SENSOR MANAGEMENT (Light, Motion, etc.)
+    // ============================================
+
+    /**
+     * Sets up the sensors but doesn't register listeners yet.
+     * To start receiving sensor data, call [startSensors].
+     */
+    private fun setupSensors() {
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+
+        // Light sensor (ambient light in lux)
+        lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT)
+        if (lightSensor == null) {
+            Log.w(TAG, "Light sensor not available on this device")
+        } else {
+            Log.d(TAG, "Light sensor available: ${lightSensor?.name}")
+        }
+    }
+
+    /**
+     * Sensor event listener for all sensors.
+     * Following Android best practices: do minimal work in onSensorChanged to avoid blocking.
+     */
+    private val sensorListener = object : SensorEventListener {
+        override fun onSensorChanged(event: SensorEvent) {
+            when (event.sensor.type) {
+                Sensor.TYPE_LIGHT -> {
+                    val lux = event.values[0]
+                    _lightFlow.value = lux
+                    sendLightToFlutter(lux)
+                }
+            }
+        }
+
+        override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
+            // Optional: track sensor accuracy changes
+            Log.d(TAG, "Sensor accuracy changed: ${sensor.name}, accuracy=$accuracy")
+        }
+    }
+
+    /**
+     * Starts receiving sensor updates.
+     * Uses SENSOR_DELAY_NORMAL (~200ms) for good battery life.
+     */
+    private fun startSensors() {
+        lightSensor?.let { sensor ->
+            sensorManager.registerListener(
+                sensorListener,
+                sensor,
+                SensorManager.SENSOR_DELAY_NORMAL
+            )
+            Log.d(TAG, "Light sensor listener registered")
+        }
+    }
+
+    /**
+     * Stops all sensor listeners.
+     * CRITICAL for battery life - always unregister when service stops.
+     */
+    private fun stopSensors() {
+        sensorManager.unregisterListener(sensorListener)
+        Log.d(TAG, "All sensor listeners unregistered")
+    }
+
+    /**
+     * Sends light sensor data to Flutter via MethodChannel.
+     */
+    private fun sendLightToFlutter(lux: Float) {
+        coroutineScope.launch(Dispatchers.Main) {
+            val channel = methodChannel
+            if (channel == null) {
+                Log.w(TAG, "MethodChannel is null, cannot send light data")
+                return@launch
+            }
+
+            try {
+                val lightData = mapOf(
+                    "lux" to lux,
+                    "timestamp" to System.currentTimeMillis()
+                )
+                Log.d(TAG, "Sending light data to Flutter: ${lux.toInt()} lux")
+                channel.invokeMethod("onLightUpdate", lightData)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error sending light data to Flutter: ${e.message}", e)
             }
         }
     }

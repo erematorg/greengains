@@ -45,19 +45,49 @@ class LocationData {
   }
 }
 
-/// Service for managing the native Android foreground service for location tracking
+/// Model for light sensor data (ambient light in lux)
+class LightData {
+  final double lux;
+  final int timestamp;
+
+  LightData({
+    required this.lux,
+    required this.timestamp,
+  });
+
+  factory LightData.fromMap(Map<dynamic, dynamic> map) {
+    return LightData(
+      lux: (map['lux'] as num).toDouble(),
+      timestamp: map['timestamp'] as int,
+    );
+  }
+
+  DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(timestamp);
+
+  @override
+  String toString() {
+    return 'LightData(${lux.toStringAsFixed(0)} lux)';
+  }
+}
+
+/// Service for managing the native Android foreground service for sensor data collection
 class ForegroundLocationService {
   static const _fgChannel = MethodChannel('greengains/foreground');
   static const _sensorTriggerChannel = MethodChannel('greengains/sensor_trigger');
 
   final _locationController = StreamController<LocationData>.broadcast();
+  final _lightController = StreamController<LightData>.broadcast();
   final _isRunningNotifier = ValueNotifier<bool>(false);
 
   Stream<LocationData> get locationStream => _locationController.stream;
+  Stream<LightData> get lightStream => _lightController.stream;
   ValueListenable<bool> get isRunning => _isRunningNotifier;
 
   LocationData? _lastLocation;
   LocationData? get lastLocation => _lastLocation;
+
+  LightData? _lastLight;
+  LightData? get lastLight => _lastLight;
 
   ForegroundLocationService._() {
     _setupMethodCallHandler();
@@ -74,9 +104,15 @@ class ForegroundLocationService {
           _locationController.add(location);
           debugPrint('Location update: $location');
           break;
+        case 'onLightUpdate':
+          final light = LightData.fromMap(call.arguments as Map);
+          _lastLight = light;
+          _lightController.add(light);
+          debugPrint('Light update: $light');
+          break;
         case 'collectSensors':
           // This is called periodically by the native service
-          // We don't need to do anything here for location-only tracking
+          // We don't need to do anything here for now
           debugPrint('Sensor collection trigger received');
           break;
       }
@@ -128,6 +164,7 @@ class ForegroundLocationService {
 
   void dispose() {
     _locationController.close();
+    _lightController.close();
     _isRunningNotifier.dispose();
   }
 }
