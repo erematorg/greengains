@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/themes.dart';
 import '../services/location/foreground_location_service.dart';
-import '../services/location/permission_service.dart';
 
 /// Home screen showing sensor status and contribution info
 class HomeScreen extends StatefulWidget {
@@ -15,7 +14,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _locationService = ForegroundLocationService.instance;
-  final _permissionService = PermissionService.instance;
   StreamSubscription<LocationData>? _locationSubscription;
   LocationData? _currentLocation;
 
@@ -48,42 +46,10 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _currentLocation = null;
       });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Location tracking stopped'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
     } else {
-      // Request location permissions
-      final hasPermission = await _permissionService.requestLocationPermission();
-
-      if (!hasPermission) {
-        // Just show a simple toast
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Location permission denied'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-        return;
-      }
-
       // Start the foreground service
-      final started = await _locationService.start();
-      if (started && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Location tracking started'),
-            duration: Duration(seconds: 2),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      // Permission request handled by MainActivity (their pattern)
+      await _locationService.start();
     }
   }
 
