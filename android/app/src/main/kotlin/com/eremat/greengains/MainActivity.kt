@@ -67,6 +67,13 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        super.cleanUpFlutterEngine(flutterEngine)
+        // CRITICAL: Clear the method channel when Flutter engine is destroyed
+        // This prevents crashes when app is backgrounded/locked/swiped
+        ForegroundService.methodChannel = null
+    }
+
     /**
      * Check for notification permission before starting the service so that the notification is visible
      */
