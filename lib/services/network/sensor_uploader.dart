@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../core/app_preferences.dart';
@@ -17,6 +18,7 @@ import 'package:dart_geohash/dart_geohash.dart';
 const _logTag = 'SensorUploader';
 
 class SensorUploader {
+  static const _sensorTriggerChannel = MethodChannel('greengains/sensor_trigger');
   SensorUploader({
     SensorManager? sensorManager,
     BackendClient? backendClient,
@@ -41,7 +43,6 @@ class SensorUploader {
   final Duration _maxBatchAge;
   final bool _compressPayload;
 
-  Timer? _ticker;
   StreamSubscription<List<double>>? _accelSub;
   StreamSubscription<List<double>>? _gyroSub;
   StreamSubscription<List<double>>? _magSub;
@@ -97,9 +98,15 @@ class SensorUploader {
     _connectivitySub =
         _connectivity.onConnectivityChanged.listen(_handleConnectivity);
 
-    _ticker = Timer.periodic(_sampleInterval, (_) {
-      unawaited(_collectReading());
+    // Listen for sensor collection triggers from Kotlin ForegroundService
+    _sensorTriggerChannel.setMethodCallHandler((call) async {
+      if (call.method == 'collectSensors') {
+        developer.log('Received collectSensors trigger from Kotlin', name: _logTag);
+        await _collectReading();
+      }
     });
+
+    developer.log('Started listening for Kotlin sensor triggers', name: _logTag);
   }
 
   Future<void> _primeConnectivity() async {
@@ -256,8 +263,8 @@ class SensorUploader {
   }
 
   Future<void> stop() async {
-    _ticker?.cancel();
-    _ticker = null;
+    // Clear MethodChannel handler
+    _sensorTriggerChannel.setMethodCallHandler(null);
     await _accelSub?.cancel();
     await _gyroSub?.cancel();
     await _magSub?.cancel();
