@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../core/themes.dart';
 import '../core/theme_controller.dart';
 import '../core/app_preferences.dart';
 import '../services/auth/auth_service.dart';
+import 'webview_screen.dart';
 
 /// Settings screen for app configuration
 class SettingsScreen extends StatefulWidget {
@@ -258,15 +258,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.privacy_tip_outlined),
                     title: const Text('Privacy Policy'),
-                    trailing: const Icon(Icons.open_in_new),
-                    onTap: () => _openUrl('https://greengains.app/privacy'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _openWebView(
+                      context,
+                      'https://greengains.app/privacy',
+                      'Privacy Policy',
+                    ),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.description_outlined),
                     title: const Text('Terms of Service'),
-                    trailing: const Icon(Icons.open_in_new),
-                    onTap: () => _openUrl('https://greengains.app/terms'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _openWebView(
+                      context,
+                      'https://greengains.app/terms',
+                      'Terms of Service',
+                    ),
                   ),
                 ],
               ),
@@ -313,27 +321,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _openUrl(String urlString) async {
-    final uri = Uri.parse(urlString);
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not open $urlString')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error opening link: $e')),
-        );
-      }
-    }
+  void _openWebView(BuildContext context, String url, String title) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => WebViewScreen(
+          url: url,
+          title: title,
+        ),
+      ),
+    );
   }
 }

@@ -176,63 +176,92 @@ class _HomeScreenState extends State<HomeScreen> {
 
           const SizedBox(height: AppTheme.spaceLg),
 
-          // Sensor Data Section
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppTheme.spaceSm),
-            child: Text(
-              'Sensors',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-
-          // All sensor cards in one ListenableBuilder to reduce duplication
+          // Collapsible Sensor Details
           ListenableBuilder(
             listenable: _locationService.isRunning,
             builder: (context, _) {
               final isRunning = _locationService.isRunning.value;
-              return Column(
-                children: [
-                  // Light Sensor
-                  SensorDataCard(
-                    icon: Icons.light_mode,
-                    title: 'Light',
-                    value: _currentLight != null
-                        ? '${_currentLight!.lux.toStringAsFixed(0)} lux'
-                        : null,
-                    unit: _currentLight != null ? _getLightDescription(_currentLight!.lux) : 'lux',
-                    enabled: isRunning,
+              return Card(
+                child: ExpansionTile(
+                  title: Text(
+                    'Live sensor readings',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-
-                  // Accelerometer
-                  SensorDataCard(
-                    icon: Icons.vibration,
-                    title: 'Accelerometer',
-                    value: _currentAccelerometer != null
-                        ? '${_currentAccelerometer!.magnitude.toStringAsFixed(1)} m/s²'
-                        : null,
-                    unit: _currentAccelerometer != null
-                        ? '(${_currentAccelerometer!.x.toStringAsFixed(1)}, ${_currentAccelerometer!.y.toStringAsFixed(1)}, ${_currentAccelerometer!.z.toStringAsFixed(1)})'
-                        : 'm/s²',
-                    enabled: isRunning,
+                  subtitle: Text(
+                    'Use these values to verify the device is streaming correctly',
+                    style: theme.textTheme.bodySmall,
                   ),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Environment Section
+                          Text(
+                            'Environment',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
 
-                  // Gyroscope
-                  SensorDataCard(
-                    icon: Icons.rotate_90_degrees_ccw,
-                    title: 'Gyroscope',
-                    value: _currentGyroscope != null
-                        ? '${_currentGyroscope!.magnitude.toStringAsFixed(2)} rad/s'
-                        : null,
-                    unit: _currentGyroscope != null
-                        ? '(${_currentGyroscope!.x.toStringAsFixed(2)}, ${_currentGyroscope!.y.toStringAsFixed(2)}, ${_currentGyroscope!.z.toStringAsFixed(2)})'
-                        : 'rad/s',
-                    enabled: isRunning,
-                  ),
+                          // Light Sensor
+                          SensorDataCard(
+                            icon: Icons.light_mode,
+                            title: 'Light',
+                            value: _currentLight != null
+                                ? '${_currentLight!.lux.toStringAsFixed(0)} lux'
+                                : null,
+                            unit: _currentLight != null ? _getLightDescription(_currentLight!.lux) : 'lux',
+                            enabled: isRunning,
+                          ),
 
-                  // Location tracking in background (no UI card)
-                ],
+                          const SizedBox(height: 16),
+
+                          // Motion Section
+                          Text(
+                            'Motion',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Accelerometer
+                          SensorDataCard(
+                            icon: Icons.vibration,
+                            title: 'Accelerometer',
+                            value: _currentAccelerometer != null
+                                ? '${_currentAccelerometer!.magnitude.toStringAsFixed(1)} m/s²'
+                                : null,
+                            unit: _currentAccelerometer != null
+                                ? '(${_currentAccelerometer!.x.toStringAsFixed(1)}, ${_currentAccelerometer!.y.toStringAsFixed(1)}, ${_currentAccelerometer!.z.toStringAsFixed(1)})'
+                                : 'm/s²',
+                            enabled: isRunning,
+                          ),
+
+                          // Gyroscope
+                          SensorDataCard(
+                            icon: Icons.rotate_90_degrees_ccw,
+                            title: 'Gyroscope',
+                            value: _currentGyroscope != null
+                                ? '${_currentGyroscope!.magnitude.toStringAsFixed(2)} rad/s'
+                                : null,
+                            unit: _currentGyroscope != null
+                                ? '(${_currentGyroscope!.x.toStringAsFixed(2)}, ${_currentGyroscope!.y.toStringAsFixed(2)}, ${_currentGyroscope!.z.toStringAsFixed(2)})'
+                                : 'rad/s',
+                            enabled: isRunning,
+                          ),
+
+                          // Location tracking in background (no UI card)
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               );
             },
           ),
