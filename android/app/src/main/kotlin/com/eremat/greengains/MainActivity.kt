@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -62,13 +61,6 @@ class MainActivity : FlutterActivity() {
                     // Request location permission from Flutter (Settings screen)
                     requestLocationPermissions()
                     result.success(true)
-                }
-                "hasLocationPermission" -> {
-                    val fineGranted = ContextCompat.checkSelfPermission(this, ACCESS_FINE_LOCATION)
-                    val coarseGranted = ContextCompat.checkSelfPermission(this, ACCESS_COARSE_LOCATION)
-                    val hasPermission = fineGranted == PackageManager.PERMISSION_GRANTED ||
-                                       coarseGranted == PackageManager.PERMISSION_GRANTED
-                    result.success(hasPermission)
                 }
                 else -> result.notImplemented()
             }
