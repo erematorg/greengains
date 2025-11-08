@@ -264,11 +264,16 @@ class _HomeScreenState extends State<HomeScreen> {
             enabled: false,
           ),
           const SizedBox(height: AppTheme.spaceSm),
-          _SensorCard(
-            icon: Icons.location_on,
-            title: 'Location',
-            subtitle: 'GPS for heatmap generation',
-            enabled: false,
+          ListenableBuilder(
+            listenable: _locationService.isRunning,
+            builder: (context, _) {
+              return _SensorCard(
+                icon: Icons.location_on,
+                title: 'Location',
+                subtitle: 'GPS for heatmap generation',
+                enabled: _locationService.isRunning.value,
+              );
+            },
           ),
         ],
       ),

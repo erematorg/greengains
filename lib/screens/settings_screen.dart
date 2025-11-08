@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 import '../core/themes.dart';
 import '../core/theme_controller.dart';
 import '../core/app_preferences.dart';
@@ -16,6 +17,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _prefs = AppPreferences.instance;
   final _themeController = ThemeController.instance;
+  static const _fgChannel = MethodChannel('greengains/foreground');
 
   @override
   Widget build(BuildContext context) {
@@ -175,7 +177,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: const Text('Share Location'),
                     subtitle: const Text('Enable GPS heatmap contributions'),
                     value: _prefs.shareLocation,
-                    onChanged: (value) {
+                    onChanged: (value) async {
+                      if (value) {
+                        // Request location permission when enabling
+                        try {
+                          await _fgChannel.invokeMethod<bool>('startForegroundService');
+                        } catch (e) {
+                          debugPrint('Error requesting location permission: $e');
+                        }
+                      }
                       setState(() {
                         _prefs.setShareLocation(value);
                       });
