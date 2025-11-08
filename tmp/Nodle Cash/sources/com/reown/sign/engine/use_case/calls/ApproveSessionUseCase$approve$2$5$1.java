@@ -1,0 +1,108 @@
+package com.reown.sign.engine.use_case.calls;
+
+import com.reown.android.pulse.domain.InsertTelemetryEventUseCase;
+import com.reown.android.pulse.model.EventType;
+import com.reown.android.pulse.model.properties.Properties;
+import com.reown.android.pulse.model.properties.Props;
+import com.reown.foundation.common.model.Topic;
+import com.reown.foundation.util.Logger;
+import java.util.List;
+import kotlin.Metadata;
+import kotlin.ResultKt;
+import kotlin.Unit;
+import kotlin.coroutines.Continuation;
+import kotlin.coroutines.intrinsics.IntrinsicsKt;
+import kotlin.coroutines.jvm.internal.DebugMetadata;
+import kotlin.coroutines.jvm.internal.SuspendLambda;
+import kotlin.jvm.functions.Function2;
+import kotlin.jvm.internal.DefaultConstructorMarker;
+import kotlin.jvm.internal.SourceDebugExtension;
+import kotlinx.coroutines.CoroutineScope;
+import kotlinx.coroutines.SupervisorKt;
+
+@Metadata(d1 = {"\u0000\n\n\u0000\n\u0002\u0010\u0002\n\u0002\u0018\u0002\u0010\u0000\u001a\u00020\u0001*\u00020\u0002H\n"}, d2 = {"<anonymous>", "", "Lkotlinx/coroutines/CoroutineScope;"}, k = 3, mv = {2, 2, 0}, xi = 48)
+@DebugMetadata(c = "com.reown.sign.engine.use_case.calls.ApproveSessionUseCase$approve$2$5$1", f = "ApproveSessionUseCase.kt", i = {}, l = {129}, m = "invokeSuspend", n = {}, s = {})
+public final class ApproveSessionUseCase$approve$2$5$1 extends SuspendLambda implements Function2<CoroutineScope, Continuation<? super Unit>, Object> {
+    final /* synthetic */ Topic $sessionTopic;
+    final /* synthetic */ List<String> $trace;
+    int label;
+    final /* synthetic */ ApproveSessionUseCase this$0;
+
+    @SourceDebugExtension({"SMAP\nApproveSessionUseCase.kt\nKotlin\n*S Kotlin\n*F\n+ 1 ApproveSessionUseCase.kt\ncom/reown/sign/engine/use_case/calls/ApproveSessionUseCase$approve$2$5$1$1\n+ 2 fake.kt\nkotlin/jvm/internal/FakeKt\n*L\n1#1,161:1\n1#2:162\n*E\n"})
+    @Metadata(d1 = {"\u0000\n\n\u0000\n\u0002\u0010\u0002\n\u0002\u0018\u0002\u0010\u0000\u001a\u00020\u0001*\u00020\u0002H\n"}, d2 = {"<anonymous>", "", "Lkotlinx/coroutines/CoroutineScope;"}, k = 3, mv = {2, 2, 0}, xi = 48)
+    @DebugMetadata(c = "com.reown.sign.engine.use_case.calls.ApproveSessionUseCase$approve$2$5$1$1", f = "ApproveSessionUseCase.kt", i = {}, l = {130}, m = "invokeSuspend", n = {}, s = {})
+    /* renamed from: com.reown.sign.engine.use_case.calls.ApproveSessionUseCase$approve$2$5$1$1  reason: invalid class name */
+    public static final class AnonymousClass1 extends SuspendLambda implements Function2<CoroutineScope, Continuation<? super Unit>, Object> {
+        int label;
+
+        public final Continuation<Unit> create(Object obj, Continuation<?> continuation) {
+            return new AnonymousClass1(approveSessionUseCase, list, topic, continuation);
+        }
+
+        public final Object invokeSuspend(Object obj) {
+            Object coroutine_suspended = IntrinsicsKt.getCOROUTINE_SUSPENDED();
+            int i3 = this.label;
+            if (i3 == 0) {
+                ResultKt.throwOnFailure(obj);
+                InsertTelemetryEventUseCase access$getInsertEventUseCase$p = approveSessionUseCase.insertEventUseCase;
+                Props props = new Props((String) null, EventType.Error.SESSION_APPROVE_FAILURE, new Properties((String) null, (String) null, (String) null, (Boolean) null, (String) null, (String) null, list, topic.getValue(), (Long) null, (String) null, (String) null, (String) null, 3903, (DefaultConstructorMarker) null), 1, (DefaultConstructorMarker) null);
+                this.label = 1;
+                if (access$getInsertEventUseCase$p.invoke(props, this) == coroutine_suspended) {
+                    return coroutine_suspended;
+                }
+            } else if (i3 == 1) {
+                ResultKt.throwOnFailure(obj);
+            } else {
+                throw new IllegalStateException("call to 'resume' before 'invoke' with coroutine");
+            }
+            Unit unit = Unit.INSTANCE;
+            ApproveSessionUseCase approveSessionUseCase = approveSessionUseCase;
+            Topic topic = topic;
+            Logger access$getLogger$p = approveSessionUseCase.logger;
+            String value = topic.getValue();
+            access$getLogger$p.error("Session approve failure, topic: " + value);
+            return Unit.INSTANCE;
+        }
+
+        public final Object invoke(CoroutineScope coroutineScope, Continuation<? super Unit> continuation) {
+            return ((AnonymousClass1) create(coroutineScope, continuation)).invokeSuspend(Unit.INSTANCE);
+        }
+    }
+
+    /* JADX INFO: super call moved to the top of the method (can break code semantics) */
+    public ApproveSessionUseCase$approve$2$5$1(ApproveSessionUseCase approveSessionUseCase, List<String> list, Topic topic, Continuation<? super ApproveSessionUseCase$approve$2$5$1> continuation) {
+        super(2, continuation);
+        this.this$0 = approveSessionUseCase;
+        this.$trace = list;
+        this.$sessionTopic = topic;
+    }
+
+    public final Continuation<Unit> create(Object obj, Continuation<?> continuation) {
+        return new ApproveSessionUseCase$approve$2$5$1(this.this$0, this.$trace, this.$sessionTopic, continuation);
+    }
+
+    public final Object invokeSuspend(Object obj) {
+        Object coroutine_suspended = IntrinsicsKt.getCOROUTINE_SUSPENDED();
+        int i3 = this.label;
+        if (i3 == 0) {
+            ResultKt.throwOnFailure(obj);
+            final ApproveSessionUseCase approveSessionUseCase = this.this$0;
+            final List<String> list = this.$trace;
+            final Topic topic = this.$sessionTopic;
+            AnonymousClass1 r7 = new AnonymousClass1((Continuation<? super AnonymousClass1>) null);
+            this.label = 1;
+            if (SupervisorKt.supervisorScope(r7, this) == coroutine_suspended) {
+                return coroutine_suspended;
+            }
+        } else if (i3 == 1) {
+            ResultKt.throwOnFailure(obj);
+        } else {
+            throw new IllegalStateException("call to 'resume' before 'invoke' with coroutine");
+        }
+        return Unit.INSTANCE;
+    }
+
+    public final Object invoke(CoroutineScope coroutineScope, Continuation<? super Unit> continuation) {
+        return ((ApproveSessionUseCase$approve$2$5$1) create(coroutineScope, continuation)).invokeSuspend(Unit.INSTANCE);
+    }
+}

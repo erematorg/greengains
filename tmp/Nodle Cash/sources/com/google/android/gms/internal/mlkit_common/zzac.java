@@ -1,0 +1,33 @@
+package com.google.android.gms.internal.mlkit_common;
+
+import java.util.Arrays;
+
+public final class zzac extends zzz {
+    public zzac() {
+        super(4);
+    }
+
+    public final zzac zzb(Object obj) {
+        obj.getClass();
+        int i3 = this.zzb + 1;
+        Object[] objArr = this.zza;
+        int length = objArr.length;
+        if (length < i3) {
+            this.zza = Arrays.copyOf(objArr, zzaa.zza(length, i3));
+            this.zzc = false;
+        } else if (this.zzc) {
+            this.zza = (Object[]) objArr.clone();
+            this.zzc = false;
+        }
+        Object[] objArr2 = this.zza;
+        int i4 = this.zzb;
+        this.zzb = i4 + 1;
+        objArr2[i4] = obj;
+        return this;
+    }
+
+    public final zzaf zzc() {
+        this.zzc = true;
+        return zzaf.zzg(this.zza, this.zzb);
+    }
+}

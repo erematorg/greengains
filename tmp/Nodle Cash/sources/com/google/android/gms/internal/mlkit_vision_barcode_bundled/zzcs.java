@@ -1,0 +1,117 @@
+package com.google.android.gms.internal.mlkit_vision_barcode_bundled;
+
+import java.util.AbstractList;
+import java.util.Collection;
+import java.util.List;
+import java.util.RandomAccess;
+
+abstract class zzcs extends AbstractList implements zzeo {
+    private boolean zza;
+
+    public zzcs(boolean z2) {
+        this.zza = z2;
+    }
+
+    public void add(int i3, Object obj) {
+        zza();
+        super.add(i3, obj);
+    }
+
+    public final boolean addAll(int i3, Collection collection) {
+        zza();
+        return super.addAll(i3, collection);
+    }
+
+    public final void clear() {
+        zza();
+        super.clear();
+    }
+
+    public boolean equals(Object obj) {
+        if (obj == this) {
+            return true;
+        }
+        if (!(obj instanceof List)) {
+            return false;
+        }
+        if (!(obj instanceof RandomAccess)) {
+            return super.equals(obj);
+        }
+        List list = (List) obj;
+        int size = size();
+        if (size != list.size()) {
+            return false;
+        }
+        for (int i3 = 0; i3 < size; i3++) {
+            if (!get(i3).equals(list.get(i3))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public int hashCode() {
+        int size = size();
+        int i3 = 1;
+        for (int i4 = 0; i4 < size; i4++) {
+            i3 = (i3 * 31) + get(i4).hashCode();
+        }
+        return i3;
+    }
+
+    public Object remove(int i3) {
+        zza();
+        return super.remove(i3);
+    }
+
+    public final boolean removeAll(Collection collection) {
+        zza();
+        return super.removeAll(collection);
+    }
+
+    public final boolean retainAll(Collection collection) {
+        zza();
+        return super.retainAll(collection);
+    }
+
+    public Object set(int i3, Object obj) {
+        zza();
+        return super.set(i3, obj);
+    }
+
+    public final void zza() {
+        if (!this.zza) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    public final void zzb() {
+        if (this.zza) {
+            this.zza = false;
+        }
+    }
+
+    public final boolean zzc() {
+        return this.zza;
+    }
+
+    public boolean add(Object obj) {
+        zza();
+        return super.add(obj);
+    }
+
+    public boolean addAll(Collection collection) {
+        zza();
+        return super.addAll(collection);
+    }
+
+    public final boolean remove(Object obj) {
+        zza();
+        int indexOf = indexOf(obj);
+        if (indexOf == -1) {
+            return false;
+        }
+        remove(indexOf);
+        return true;
+    }
+}

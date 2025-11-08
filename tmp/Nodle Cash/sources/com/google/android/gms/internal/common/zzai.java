@@ -1,0 +1,48 @@
+package com.google.android.gms.internal.common;
+
+import com.google.firebase.analytics.FirebaseAnalytics;
+import org.jspecify.nullness.NullMarked;
+
+@NullMarked
+final class zzai extends zzag {
+    static final zzag zza = new zzai(new Object[0], 0);
+    final transient Object[] zzb;
+    private final transient int zzc;
+
+    public zzai(Object[] objArr, int i3) {
+        this.zzb = objArr;
+        this.zzc = i3;
+    }
+
+    public final Object get(int i3) {
+        zzs.zza(i3, this.zzc, FirebaseAnalytics.Param.INDEX);
+        Object obj = this.zzb[i3];
+        obj.getClass();
+        return obj;
+    }
+
+    public final int size() {
+        return this.zzc;
+    }
+
+    public final int zza(Object[] objArr, int i3) {
+        System.arraycopy(this.zzb, 0, objArr, 0, this.zzc);
+        return this.zzc;
+    }
+
+    public final int zzb() {
+        return this.zzc;
+    }
+
+    public final int zzc() {
+        return 0;
+    }
+
+    public final boolean zzf() {
+        return false;
+    }
+
+    public final Object[] zzg() {
+        return this.zzb;
+    }
+}
