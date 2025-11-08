@@ -1,25 +1,38 @@
 package com.eremat.greengains
 
-import android.content.Context
+import android.Manifest.permission.ACCESS_COARSE_LOCATION
+import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.content.Intent
-import android.net.Uri
+import android.content.pm.PackageManager
 import android.os.Build
-import android.os.PowerManager
-import android.provider.Settings
+import android.os.Bundle
+import android.widget.Toast
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import com.eremat.greengains.service.ForegroundService
 
+/**
+ * MainActivity - based on ForegroundServiceSamples pattern
+ * Handles permission requests and service lifecycle
+ *
+ * Pattern differences from ComponentActivity sample:
+ * - FlutterActivity doesn't support ActivityResultContracts
+ * - Uses older requestPermissions() API for compatibility
+ * - MethodChannel for Flutter communication instead of Binder/ServiceConnection
+ */
 class MainActivity : FlutterActivity() {
-    private val channelName = "greengains/power"
-    private val fgChannelName = "greengains/foreground"
-    private val notifChannelName = "greengains/notifications"
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        // Handle notification tap when app is already running in background
-        // This prevents creating a new instance (already handled by singleTop)
-        // Just bring the existing activity to foreground
+    companion object {
+        private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
+        private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1002
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        checkAndRequestNotificationPermission()
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -29,24 +42,13 @@ class MainActivity : FlutterActivity() {
         val sensorTriggerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "greengains/sensor_trigger")
         ForegroundService.methodChannel = sensorTriggerChannel
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "isIgnoringBatteryOptimizations" -> {
-                    result.success(isIgnoringBatteryOptimizations())
-                }
-                "requestIgnoreBatteryOptimizations" -> {
-                    val ok = requestIgnoreBatteryOptimizations()
-                    result.success(ok)
-                }
-                else -> result.notImplemented()
-            }
-        }
-
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, fgChannelName).setMethodCallHandler { call, result ->
+        // Flutter → Native: Start/Stop foreground service
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "greengains/foreground").setMethodCallHandler { call, result ->
             when (call.method) {
                 "startForegroundService" -> {
-                    val ok = startFgService()
-                    result.success(ok)
+                    // Just start the service, don't request permissions here
+                    startForegroundService()
+                    result.success(true)
                 }
                 "stopForegroundService" -> {
                     val ok = stopFgService()
@@ -55,64 +57,112 @@ class MainActivity : FlutterActivity() {
                 "isForegroundServiceRunning" -> {
                     result.success(ForegroundService.running)
                 }
-                else -> result.notImplemented()
-            }
-        }
-
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, notifChannelName).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "areNotificationsEnabled" -> {
-                    result.success(areNotificationsEnabled())
-                }
-                "openNotificationSettings" -> {
-                    val ok = openNotificationSettings()
-                    result.success(ok)
+                "requestLocationPermission" -> {
+                    // Request location permission from Flutter (Settings screen)
+                    requestLocationPermissions()
+                    result.success(true)
                 }
                 else -> result.notImplemented()
             }
         }
     }
 
-    private fun isIgnoringBatteryOptimizations(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        return pm.isIgnoringBatteryOptimizations(packageName)
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        super.cleanUpFlutterEngine(flutterEngine)
+        // CRITICAL: Clear the method channel when Flutter engine is destroyed
+        // This prevents crashes when app is backgrounded/locked/swiped
+        ForegroundService.methodChannel = null
     }
 
-    private fun requestIgnoreBatteryOptimizations(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
-        return try {
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:$packageName")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            startActivity(intent)
-            true
-        } catch (_: Exception) {
-            // Fallback to the general Ignore Battery Optimization settings page
-            return try {
-                val fallback = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+    /**
+     * Check for notification permission before starting the service so that the notification is visible
+     */
+    private fun checkAndRequestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            when (ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.POST_NOTIFICATIONS
+            )) {
+                PackageManager.PERMISSION_GRANTED -> {
+                    // permission already granted
                 }
-                startActivity(fallback)
-                true
-            } catch (_: Exception) {
-                false
+
+                else -> {
+                    ActivityCompat.requestPermissions(
+                        this,
+                        arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                        NOTIFICATION_PERMISSION_REQUEST_CODE
+                    )
+                }
             }
         }
     }
 
-    private fun startFgService(): Boolean {
-        return try {
-            val intent = Intent(this, ForegroundService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
-            } else {
-                startService(intent)
+    /**
+     * Request location permissions (FINE + COARSE)
+     * Using older API since FlutterActivity doesn't support ActivityResultContracts
+     * Note: This only requests permissions, doesn't start the service
+     */
+    private fun requestLocationPermissions() {
+        val fineGranted = ContextCompat.checkSelfPermission(this, ACCESS_FINE_LOCATION)
+        val coarseGranted = ContextCompat.checkSelfPermission(this, ACCESS_COARSE_LOCATION)
+
+        if (fineGranted != PackageManager.PERMISSION_GRANTED &&
+            coarseGranted != PackageManager.PERMISSION_GRANTED) {
+            // Request permissions
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION),
+                LOCATION_PERMISSION_REQUEST_CODE
+            )
+        } else {
+            Toast.makeText(this, "Location permission already granted", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Handle permission request results
+     * Note: This doesn't start the service, just shows feedback
+     */
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        when (requestCode) {
+            LOCATION_PERMISSION_REQUEST_CODE -> {
+                val fineGranted = grantResults.getOrNull(0) == PackageManager.PERMISSION_GRANTED
+                val coarseGranted = grantResults.getOrNull(1) == PackageManager.PERMISSION_GRANTED
+
+                when {
+                    fineGranted || coarseGranted -> {
+                        // Location access granted
+                        Toast.makeText(this, "Location permission granted", Toast.LENGTH_SHORT).show()
+                    }
+                    else -> {
+                        // No location access granted
+                        Toast.makeText(this, "Location permission denied", Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
-            true
-        } catch (_: Exception) {
-            false
+            NOTIFICATION_PERMISSION_REQUEST_CODE -> {
+                // if permission was denied, the service can still run only the notification won't be visible
+            }
+        }
+    }
+
+    /**
+     * Creates and starts the ForegroundService as a foreground service.
+     */
+    private fun startForegroundService() {
+        // start the service
+        val serviceIntent = Intent(this, ForegroundService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
         }
     }
 
@@ -123,36 +173,6 @@ class MainActivity : FlutterActivity() {
             true
         } catch (_: Exception) {
             false
-        }
-    }
-
-    private fun areNotificationsEnabled(): Boolean {
-        val nm = androidx.core.app.NotificationManagerCompat.from(this)
-        return nm.areNotificationsEnabled()
-    }
-
-    private fun openNotificationSettings(): Boolean {
-        return try {
-            val intent = Intent().apply {
-                action = android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS
-                putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
-                putExtra("app_package", packageName)
-                putExtra("app_uid", applicationInfo.uid)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            startActivity(intent)
-            true
-        } catch (_: Exception) {
-            return try {
-                val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.parse("package:$packageName")
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                startActivity(intent)
-                true
-            } catch (_: Exception) {
-                false
-            }
         }
     }
 }

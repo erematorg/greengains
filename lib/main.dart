@@ -1,12 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'core/app_preferences.dart';
+import 'core/theme_controller.dart';
+import 'core/themes.dart';
+import 'app_shell.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Initialize preferences
+  await AppPreferences.instance.init();
+
+  // Load theme preference
+  await ThemeController.instance.load();
+
   runApp(const MyApp());
 }
 
@@ -15,29 +28,18 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'GreenGains Clean',
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('Clean Slate'),
-          backgroundColor: Colors.green,
-        ),
-        body: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.check_circle, size: 100, color: Colors.green),
-              SizedBox(height: 20),
-              Text(
-                'Backend Services Ready',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 10),
-              Text('Auth • Network • API • Tracking'),
-            ],
-          ),
-        ),
-      ),
+    return ListenableBuilder(
+      listenable: ThemeController.instance,
+      builder: (context, _) {
+        return MaterialApp(
+          title: 'GreenGains',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.theme(),
+          darkTheme: AppTheme.themeDark(),
+          themeMode: ThemeController.instance.mode,
+          home: const AppShell(),
+        );
+      },
     );
   }
 }

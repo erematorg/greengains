@@ -7,8 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../core/app_preferences.dart';
-import '../sensors/sensor_manager.dart';
-import '../location/location_service.dart';
+import '../location/foreground_location_service.dart';
 import '../system/battery_service.dart';
 import '../tracking/contribution_tracker.dart';
 import 'backend_client.dart';
@@ -20,14 +19,14 @@ const _logTag = 'SensorUploader';
 class SensorUploader {
   static const _sensorTriggerChannel = MethodChannel('greengains/sensor_trigger');
   SensorUploader({
-    SensorManager? sensorManager,
+    ForegroundLocationService? locationService,
     BackendClient? backendClient,
     Connectivity? connectivity,
     Duration sampleInterval = const Duration(seconds: 10),
     int maxBatchSize = 12,
     Duration maxBatchAge = const Duration(minutes: 2),
     bool compressPayload = false,
-  })  : _sensorManager = sensorManager ?? SensorManager.instance,
+  })  : _locationService = locationService ?? ForegroundLocationService.instance,
         _backendClient = backendClient ?? BackendClient(),
         _connectivity = connectivity ?? Connectivity(),
         _sampleInterval = sampleInterval,
@@ -35,7 +34,7 @@ class SensorUploader {
         _maxBatchAge = maxBatchAge,
         _compressPayload = compressPayload;
 
-  final SensorManager _sensorManager;
+  final ForegroundLocationService _locationService;
   final BackendClient _backendClient;
   final Connectivity _connectivity;
   final Duration _sampleInterval;
@@ -43,19 +42,20 @@ class SensorUploader {
   final Duration _maxBatchAge;
   final bool _compressPayload;
 
-  StreamSubscription<List<double>>? _accelSub;
-  StreamSubscription<List<double>>? _gyroSub;
-  StreamSubscription<List<double>>? _magSub;
-  StreamSubscription<double>? _luxSub;
+  StreamSubscription<LocationData>? _locationSub;
+  StreamSubscription<LightData>? _lightSub;
+  StreamSubscription<AccelerometerData>? _accelSub;
+  StreamSubscription<GyroscopeData>? _gyroSub;
   StreamSubscription<ConnectivityResult>? _connectivitySub;
 
-  List<double>? _lastAccel;
-  List<double>? _lastGyro;
-  List<double>? _lastMagnet;
-  double? _lastLux;
+  LocationData? _lastLocation;
+  LightData? _lastLight;
+  AccelerometerData? _lastAccel;
+  GyroscopeData? _lastGyro;
   bool _isWifiConnected = false;
   bool _uploadInFlight = false;
   bool _started = false;
+  Timer? _collectionTimer;
 
   final List<Map<String, dynamic>> _buffer = [];
   DateTime? _batchStart;
@@ -79,34 +79,31 @@ class SensorUploader {
     _started = true;
     await AppPreferences.instance.ensureInitialized();
     _lastUploadNotifier.value = AppPreferences.instance.lastUploadAt;
-    await _sensorManager.start();
     await _primeConnectivity();
 
-    _accelSub = _sensorManager.accelerometer$.listen((values) {
-      _lastAccel = values;
+    // Listen to native ForegroundService sensor streams
+    _locationSub = _locationService.locationStream.listen((location) {
+      _lastLocation = location;
     });
-    _gyroSub = _sensorManager.gyroscope$.listen((values) {
-      _lastGyro = values;
+    _lightSub = _locationService.lightStream.listen((light) {
+      _lastLight = light;
     });
-    _magSub = _sensorManager.magnetometer$.listen((values) {
-      _lastMagnet = values;
+    _accelSub = _locationService.accelerometerStream.listen((accel) {
+      _lastAccel = accel;
     });
-    _luxSub = _sensorManager.ambientLux$.listen((lux) {
-      _lastLux = lux < 0 ? null : lux;
+    _gyroSub = _locationService.gyroscopeStream.listen((gyro) {
+      _lastGyro = gyro;
     });
 
     _connectivitySub =
         _connectivity.onConnectivityChanged.listen(_handleConnectivity);
 
-    // Listen for sensor collection triggers from Kotlin ForegroundService
-    _sensorTriggerChannel.setMethodCallHandler((call) async {
-      if (call.method == 'collectSensors') {
-        developer.log('Received collectSensors trigger from Kotlin', name: _logTag);
-        await _collectReading();
-      }
+    // Periodically collect sensor readings for batching and upload
+    _collectionTimer = Timer.periodic(_sampleInterval, (_) async {
+      await _collectReading();
     });
 
-    developer.log('Started listening for Kotlin sensor triggers', name: _logTag);
+    developer.log('Started listening for native sensor streams', name: _logTag);
   }
 
   Future<void> _primeConnectivity() async {
@@ -126,21 +123,30 @@ class SensorUploader {
     }
     final accel = _lastAccel;
     final gyro = _lastGyro;
-    final magnet = _lastMagnet;
-    final lux = _lastLux;
+    final light = _lastLight;
 
-    if (accel == null || gyro == null || magnet == null || lux == null) {
+    // Need at least light + one motion sensor to upload
+    if (light == null || (accel == null && gyro == null)) {
       return;
     }
 
     final timestamp = DateTime.now().toUtc();
-    _buffer.add({
+    final sample = <String, dynamic>{
       't': timestamp.toIso8601String(),
-      'light': lux,
-      'accel': List<double>.from(accel),
-      'gyro': List<double>.from(gyro),
-      'magnet': List<double>.from(magnet),
-    });
+      'light': light.lux,
+    };
+
+    // Add accelerometer if available
+    if (accel != null) {
+      sample['accel'] = [accel.x, accel.y, accel.z];
+    }
+
+    // Add gyroscope if available
+    if (gyro != null) {
+      sample['gyro'] = [gyro.x, gyro.y, gyro.z];
+    }
+
+    _buffer.add(sample);
     _batchStart ??= timestamp;
 
     final batchAge = timestamp.difference(_batchStart!);
@@ -164,47 +170,42 @@ class SensorUploader {
     try {
       _deviceId ??= await AppPreferences.instance.getOrCreateDeviceId();
 
-      // Try to get location if user preferences allow (defaults to FALSE)
-      // Uses FINE location (~10-50m GPS accuracy) for smart city data
+      // Use location from ForegroundService if available and user allowed
       Map<String, dynamic>? location;
       String? geohash;
       try {
-        if (AppPreferences.instance.shareLocation) {
-          // Automatically request permission if not granted yet
-          final hasPermission =
-              await LocationService.instance.checkPermission();
-          if (hasPermission == LocationPermission.denied ||
-              hasPermission == LocationPermission.deniedForever) {
-            developer.log('Location permission not granted, trying to request',
-                name: _logTag);
-            await LocationService.instance.requestLocation();
-          }
+        if (AppPreferences.instance.shareLocation && _lastLocation != null) {
+          final loc = _lastLocation!;
+          location = {
+            'lat': loc.latitude,
+            'lon': loc.longitude,
+            'accuracy_m': loc.accuracy,
+            if (loc.altitude != null) 'altitude': loc.altitude,
+            if (loc.speed != null) 'speed_mps': loc.speed,
+            if (loc.bearing != null) 'bearing_deg': loc.bearing,
+          };
 
-          // Try to get location (silently fails if permission denied)
-          location = await LocationService.instance.getLocation();
-          if (location != null) {
-            developer.log(
-              'GPS location included: ${location['lat']}, ${location['lon']}, ${location['altitude']}m (accuracy: ${location['accuracy_m']}m)',
-              name: _logTag,
-            );
+          developer.log(
+            'GPS location included: ${loc.latitude}, ${loc.longitude} (accuracy: ${loc.accuracy}m)',
+            name: _logTag,
+          );
 
-            // Compute GeoHash for privacy (6 characters = ~1.2km grid, like Nodle Cash)
-            final geoHasher = GeoHasher();
-            geohash = geoHasher.encode(
-                location['lon'] as double, location['lat'] as double,
-                precision: 6);
-            developer.log('GeoHash computed: $geohash (~1.2km precision)',
-                name: _logTag);
+          // Compute GeoHash for privacy (6 characters = ~1.2km grid, like Nodle Cash)
+          final geoHasher = GeoHasher();
+          geohash = geoHasher.encode(
+              loc.longitude, loc.latitude,
+              precision: 6);
+          developer.log('GeoHash computed: $geohash (~1.2km precision)',
+              name: _logTag);
 
-            // Track tile for gamification (local only)
-            unawaited(
-              ContributionTracker.instance.recordTile(geohash!, DateTime.now())
-            );
-          }
+          // Track tile for gamification (local only)
+          unawaited(
+            ContributionTracker.instance.recordTile(geohash!, DateTime.now())
+          );
         }
       } catch (e) {
-        // Location fetch failed - continue upload without it
-        developer.log('Failed to get location, continuing without it: $e',
+        // Location processing failed - continue upload without it
+        developer.log('Failed to process location, continuing without it: $e',
             name: _logTag);
       }
 
@@ -251,7 +252,14 @@ class SensorUploader {
             ? DateTime.parse(_buffer.first['t'] as String)
             : null;
       }
-    } catch (_) {
+    } catch (e, stackTrace) {
+      // Log upload errors so we can debug
+      developer.log(
+        'Upload failed: $e',
+        name: _logTag,
+        error: e,
+        stackTrace: stackTrace,
+      );
       // Keep buffer for retry on failure, but trim if it grows too large.
       if (_buffer.length > _maxBatchSize * 3) {
         _buffer.removeRange(0, _buffer.length - (_maxBatchSize * 3));
@@ -263,12 +271,12 @@ class SensorUploader {
   }
 
   Future<void> stop() async {
-    // Clear MethodChannel handler
-    _sensorTriggerChannel.setMethodCallHandler(null);
+    _collectionTimer?.cancel();
+    _collectionTimer = null;
+    await _locationSub?.cancel();
+    await _lightSub?.cancel();
     await _accelSub?.cancel();
     await _gyroSub?.cancel();
-    await _magSub?.cancel();
-    await _luxSub?.cancel();
     await _connectivitySub?.cancel();
     _started = false;
   }
