@@ -21,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription<LightData>? _lightSubscription;
   StreamSubscription<AccelerometerData>? _accelerometerSubscription;
   StreamSubscription<GyroscopeData>? _gyroscopeSubscription;
+  Timer? _uploadStatusTimer;
   LocationData? _currentLocation;
   LightData? _currentLight;
   AccelerometerData? _currentAccelerometer;
@@ -50,10 +51,15 @@ class _HomeScreenState extends State<HomeScreen> {
         _currentGyroscope = gyro;
       });
     });
+    // Update upload status every 30 seconds to keep time-ago text accurate
+    _uploadStatusTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _uploadStatusTimer?.cancel();
     _locationSubscription?.cancel();
     _lightSubscription?.cancel();
     _accelerometerSubscription?.cancel();
