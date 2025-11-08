@@ -6,13 +6,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'package:dart_geohash/dart_geohash.dart';
+import 'package:uuid/uuid.dart';
+
 import '../../core/app_preferences.dart';
+import '../../data/local/database_helper.dart';
 import '../location/foreground_location_service.dart';
 import '../system/battery_service.dart';
 import '../tracking/contribution_tracker.dart';
 import 'backend_client.dart';
 import 'upload_manager.dart';
-import 'package:dart_geohash/dart_geohash.dart';
 
 const _logTag = 'SensorUploader';
 
@@ -66,11 +69,13 @@ class SensorUploader {
       ValueNotifier<DateTime?>(null);
   final ValueNotifier<ConnectivityResult> _connectivityStatusNotifier =
       ValueNotifier<ConnectivityResult>(ConnectivityResult.none);
+  final ValueNotifier<int> _uploadSuccessNotifier = ValueNotifier<int>(0);
 
   ValueListenable<bool> get uploading => _uploadingNotifier;
   ValueListenable<DateTime?> get lastUpload => _lastUploadNotifier;
   ValueListenable<ConnectivityResult> get connectivityStatus =>
       _connectivityStatusNotifier;
+  ValueListenable<int> get uploadSuccess => _uploadSuccessNotifier;
 
   Future<void> start() async {
     if (_started) {
@@ -238,11 +243,21 @@ class SensorUploader {
       );
 
       if (uploaded) {
+        // Track contribution in local database
+        await _saveContribution(
+          samplesCount: _buffer.length,
+          geohash: geohash,
+          success: true,
+        );
+
         _buffer.clear();
         _batchStart = null;
         final now = DateTime.now();
         _lastUploadNotifier.value = now;
         await AppPreferences.instance.setLastUploadAt(now);
+
+        // Notify UI of successful upload for toast/animation
+        _uploadSuccessNotifier.value++;
       } else {
         // Keep recent samples so memory stays bounded; older entries fall off.
         if (_buffer.length > _maxBatchSize) {
@@ -270,6 +285,25 @@ class SensorUploader {
     }
   }
 
+  /// Save contribution to local database
+  Future<void> _saveContribution({
+    required int samplesCount,
+    String? geohash,
+    required bool success,
+  }) async {
+    try {
+      await DatabaseHelper.instance.insertContribution(
+        id: const Uuid().v4(),
+        timestamp: DateTime.now(),
+        samplesCount: samplesCount,
+        geohash: geohash,
+        success: success,
+      );
+    } catch (e) {
+      developer.log('Failed to save contribution: $e', name: _logTag);
+    }
+  }
+
   Future<void> stop() async {
     _collectionTimer?.cancel();
     _collectionTimer = null;
@@ -288,5 +322,6 @@ class SensorUploader {
     _uploadingNotifier.dispose();
     _lastUploadNotifier.dispose();
     _connectivityStatusNotifier.dispose();
+    _uploadSuccessNotifier.dispose();
   }
 }

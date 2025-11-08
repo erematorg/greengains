@@ -25,8 +25,9 @@ class SensorDataCard extends StatelessWidget {
     final isActive = enabled && value != null;
 
     return Card(
+      elevation: isActive ? 3 : 1,
       color: isActive
-          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
+          ? Colors.green.shade50
           : null,
       child: Padding(
         padding: const EdgeInsets.all(AppTheme.spaceMd),
@@ -37,7 +38,7 @@ class SensorDataCard extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isActive
-                    ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                    ? Colors.green.shade100
                     : theme.colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -45,7 +46,7 @@ class SensorDataCard extends StatelessWidget {
                 icon,
                 size: 24,
                 color: isActive
-                    ? theme.colorScheme.primary
+                    ? Colors.green.shade700
                     : theme.colorScheme.outline,
               ),
             ),
@@ -81,10 +82,17 @@ class SensorDataCard extends StatelessWidget {
             ),
 
             // Status indicator
-            Icon(
-              isActive ? Icons.circle : Icons.circle_outlined,
-              size: 12,
-              color: isActive ? Colors.green : theme.colorScheme.outline,
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isActive ? Colors.green.shade600 : Colors.transparent,
+                border: Border.all(
+                  color: isActive ? Colors.green.shade600 : theme.colorScheme.outline,
+                  width: 2,
+                ),
+              ),
             ),
           ],
         ),

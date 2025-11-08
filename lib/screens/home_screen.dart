@@ -5,6 +5,7 @@ import '../core/themes.dart';
 import '../core/app_preferences.dart';
 import '../services/location/foreground_location_service.dart';
 import '../widgets/sensor_data_card.dart';
+import '../widgets/contribution_stats_card.dart';
 
 /// Home screen showing live sensor data and tracking status
 class HomeScreen extends StatefulWidget {
@@ -31,6 +32,16 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _checkServiceStatus();
+    _setupSensorListeners();
+    _setupUploadSuccessListener();
+
+    // Update upload status every 30 seconds to keep time-ago text accurate
+    _uploadStatusTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _setupSensorListeners() {
     _locationSubscription = _locationService.locationStream.listen((location) {
       setState(() {
         _currentLocation = location;
@@ -51,10 +62,32 @@ class _HomeScreenState extends State<HomeScreen> {
         _currentGyroscope = gyro;
       });
     });
-    // Update upload status every 30 seconds to keep time-ago text accurate
-    _uploadStatusTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() {});
-    });
+  }
+
+  void _setupUploadSuccessListener() {
+    final uploader = _locationService.uploader;
+    if (uploader != null) {
+      uploader.uploadSuccess.addListener(_onUploadSuccess);
+    }
+  }
+
+  void _onUploadSuccess() {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 12),
+            Text('Contribution uploaded successfully!'),
+          ],
+        ),
+        backgroundColor: Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -64,6 +97,11 @@ class _HomeScreenState extends State<HomeScreen> {
     _lightSubscription?.cancel();
     _accelerometerSubscription?.cancel();
     _gyroscopeSubscription?.cancel();
+
+    // Clean up upload success listener
+    final uploader = _locationService.uploader;
+    uploader?.uploadSuccess.removeListener(_onUploadSuccess);
+
     super.dispose();
   }
 
@@ -203,6 +241,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
           const SizedBox(height: AppTheme.spaceLg),
 
+          // Contribution Statistics
+          const ContributionStatsCard(),
+
+          const SizedBox(height: AppTheme.spaceLg),
+
           // Service Control Button
           ListenableBuilder(
             listenable: _locationService.isRunning,
@@ -271,22 +314,31 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? '${diff.inHours}h ago'
                     : '${diff.inDays}d ago';
 
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.cloud_upload,
-              size: 14,
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              'Last upload: $timeAgo',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.primary,
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.green.shade200),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.cloud_done,
+                size: 16,
+                color: Colors.green.shade700,
               ),
-            ),
-          ],
+              const SizedBox(width: 6),
+              Text(
+                'Last upload: $timeAgo',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.green.shade700,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
