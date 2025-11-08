@@ -329,6 +329,7 @@ class ForegroundService : Service() {
     /**
      * Starts receiving sensor updates.
      * Uses SENSOR_DELAY_NORMAL (~200ms) for good battery life.
+     * Sends initial data immediately so all sensors "light up" simultaneously in UI.
      */
     private fun startSensors() {
         lightSensor?.let { sensor ->
@@ -338,6 +339,8 @@ class ForegroundService : Service() {
                 SensorManager.SENSOR_DELAY_NORMAL
             )
             Log.d(TAG, "Light sensor listener registered")
+            // Send initial placeholder data immediately so UI shows sensor is active
+            sendLightToFlutter(0f)
         }
 
         accelerometerSensor?.let { sensor ->
@@ -347,6 +350,8 @@ class ForegroundService : Service() {
                 SensorManager.SENSOR_DELAY_NORMAL
             )
             Log.d(TAG, "Accelerometer listener registered")
+            // Send initial placeholder data immediately
+            sendAccelerometerToFlutter(floatArrayOf(0f, 0f, 0f))
         }
 
         gyroscopeSensor?.let { sensor ->
@@ -356,6 +361,8 @@ class ForegroundService : Service() {
                 SensorManager.SENSOR_DELAY_NORMAL
             )
             Log.d(TAG, "Gyroscope listener registered")
+            // Send initial placeholder data immediately
+            sendGyroscopeToFlutter(floatArrayOf(0f, 0f, 0f))
         }
     }
 
