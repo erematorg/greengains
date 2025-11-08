@@ -132,78 +132,64 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: AppTheme.spaceMd),
 
-          // Light Sensor Card
+          // All sensor cards in one ListenableBuilder to reduce duplication
           ListenableBuilder(
             listenable: _locationService.isRunning,
             builder: (context, _) {
               final isRunning = _locationService.isRunning.value;
-              return _SensorDataCard(
-                icon: Icons.light_mode,
-                title: 'Light',
-                value: _currentLight != null
-                    ? '${_currentLight!.lux.toStringAsFixed(0)} lux'
-                    : null,
-                unit: _currentLight != null ? _getLightDescription(_currentLight!.lux) : 'lux',
-                enabled: isRunning,
-              );
-            },
-          ),
-          const SizedBox(height: AppTheme.spaceSm),
+              return Column(
+                children: [
+                  // Light Sensor
+                  _SensorDataCard(
+                    icon: Icons.light_mode,
+                    title: 'Light',
+                    value: _currentLight != null
+                        ? '${_currentLight!.lux.toStringAsFixed(0)} lux'
+                        : null,
+                    unit: _currentLight != null ? _getLightDescription(_currentLight!.lux) : 'lux',
+                    enabled: isRunning,
+                  ),
+                  const SizedBox(height: AppTheme.spaceSm),
 
-          // Accelerometer Card
-          ListenableBuilder(
-            listenable: _locationService.isRunning,
-            builder: (context, _) {
-              final isRunning = _locationService.isRunning.value;
-              return _SensorDataCard(
-                icon: Icons.vibration,
-                title: 'Accelerometer',
-                value: _currentAccelerometer != null
-                    ? '${_currentAccelerometer!.magnitude.toStringAsFixed(1)} m/s²'
-                    : null,
-                unit: _currentAccelerometer != null
-                    ? '(${_currentAccelerometer!.x.toStringAsFixed(1)}, ${_currentAccelerometer!.y.toStringAsFixed(1)}, ${_currentAccelerometer!.z.toStringAsFixed(1)})'
-                    : 'm/s²',
-                enabled: isRunning,
-              );
-            },
-          ),
-          const SizedBox(height: AppTheme.spaceSm),
+                  // Accelerometer
+                  _SensorDataCard(
+                    icon: Icons.vibration,
+                    title: 'Accelerometer',
+                    value: _currentAccelerometer != null
+                        ? '${_currentAccelerometer!.magnitude.toStringAsFixed(1)} m/s²'
+                        : null,
+                    unit: _currentAccelerometer != null
+                        ? '(${_currentAccelerometer!.x.toStringAsFixed(1)}, ${_currentAccelerometer!.y.toStringAsFixed(1)}, ${_currentAccelerometer!.z.toStringAsFixed(1)})'
+                        : 'm/s²',
+                    enabled: isRunning,
+                  ),
+                  const SizedBox(height: AppTheme.spaceSm),
 
-          // Gyroscope Card
-          ListenableBuilder(
-            listenable: _locationService.isRunning,
-            builder: (context, _) {
-              final isRunning = _locationService.isRunning.value;
-              return _SensorDataCard(
-                icon: Icons.rotate_90_degrees_ccw,
-                title: 'Gyroscope',
-                value: _currentGyroscope != null
-                    ? '${_currentGyroscope!.magnitude.toStringAsFixed(2)} rad/s'
-                    : null,
-                unit: _currentGyroscope != null
-                    ? '(${_currentGyroscope!.x.toStringAsFixed(2)}, ${_currentGyroscope!.y.toStringAsFixed(2)}, ${_currentGyroscope!.z.toStringAsFixed(2)})'
-                    : 'rad/s',
-                enabled: isRunning,
-              );
-            },
-          ),
-          const SizedBox(height: AppTheme.spaceSm),
+                  // Gyroscope
+                  _SensorDataCard(
+                    icon: Icons.rotate_90_degrees_ccw,
+                    title: 'Gyroscope',
+                    value: _currentGyroscope != null
+                        ? '${_currentGyroscope!.magnitude.toStringAsFixed(2)} rad/s'
+                        : null,
+                    unit: _currentGyroscope != null
+                        ? '(${_currentGyroscope!.x.toStringAsFixed(2)}, ${_currentGyroscope!.y.toStringAsFixed(2)}, ${_currentGyroscope!.z.toStringAsFixed(2)})'
+                        : 'rad/s',
+                    enabled: isRunning,
+                  ),
+                  const SizedBox(height: AppTheme.spaceSm),
 
-          // Location Card
-          ListenableBuilder(
-            listenable: _locationService.isRunning,
-            builder: (context, _) {
-              final isRunning = _locationService.isRunning.value;
-              final shareLocationEnabled = _prefs.shareLocation;
-              return _SensorDataCard(
-                icon: Icons.location_on,
-                title: 'Location',
-                value: _currentLocation != null
-                    ? '${_currentLocation!.latitude.toStringAsFixed(4)}, ${_currentLocation!.longitude.toStringAsFixed(4)}'
-                    : null,
-                unit: _currentLocation != null ? '±${_currentLocation!.accuracy.toStringAsFixed(0)}m' : 'GPS',
-                enabled: isRunning && shareLocationEnabled,
+                  // Location
+                  _SensorDataCard(
+                    icon: Icons.location_on,
+                    title: 'Location',
+                    value: _currentLocation != null
+                        ? '${_currentLocation!.latitude.toStringAsFixed(4)}, ${_currentLocation!.longitude.toStringAsFixed(4)}'
+                        : null,
+                    unit: _currentLocation != null ? '±${_currentLocation!.accuracy.toStringAsFixed(0)}m' : 'GPS',
+                    enabled: isRunning && _prefs.shareLocation,
+                  ),
+                ],
               );
             },
           ),
@@ -215,14 +201,27 @@ class _HomeScreenState extends State<HomeScreen> {
             listenable: _locationService.isRunning,
             builder: (context, _) {
               final isRunning = _locationService.isRunning.value;
-              return FilledButton.icon(
-                onPressed: _toggleService,
-                icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
-                label: Text(isRunning ? 'Stop Tracking' : 'Start Tracking'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: isRunning ? Colors.red : theme.colorScheme.primary,
-                  minimumSize: const Size.fromHeight(48),
-                ),
+              return Column(
+                children: [
+                  FilledButton.icon(
+                    onPressed: _toggleService,
+                    icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
+                    label: Text(isRunning ? 'Stop Tracking' : 'Start Tracking'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: isRunning ? Colors.red : theme.colorScheme.primary,
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                  ),
+
+                  // Last Upload Status (placeholder - uploader not started yet)
+                  const SizedBox(height: AppTheme.spaceSm),
+                  Text(
+                    'Backend uploads: Not configured',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
+                  ),
+                ],
               );
             },
           ),
