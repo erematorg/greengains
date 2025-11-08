@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/themes.dart';
 import '../services/location/foreground_location_service.dart';
+import '../services/location/permission_service.dart';
 
 /// Home screen showing sensor status and contribution info
 class HomeScreen extends StatefulWidget {
@@ -14,6 +15,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _locationService = ForegroundLocationService.instance;
+  final _permissionService = PermissionService.instance;
   StreamSubscription<LocationData>? _locationSubscription;
   LocationData? _currentLocation;
 
@@ -41,20 +43,59 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _toggleService() async {
     final isRunning = _locationService.isRunning.value;
     if (isRunning) {
+      // Stop the service
       await _locationService.stop();
       setState(() {
         _currentLocation = null;
       });
     } else {
+      // Request location permissions before starting
+      final hasPermission = await _permissionService.requestLocationPermission();
+
+      if (!hasPermission) {
+        if (mounted) {
+          _showPermissionDeniedDialog();
+        }
+        return;
+      }
+
+      // Start the foreground service
       final started = await _locationService.start();
       if (!started && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Failed to start location service. Check permissions.'),
+            content: Text('Failed to start location service'),
+            duration: Duration(seconds: 3),
           ),
         );
       }
     }
+  }
+
+  void _showPermissionDeniedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Location Permission Required'),
+        content: const Text(
+          'GreenGains needs location permission to track your contributions.\n\n'
+          'Please grant location permission in settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _permissionService.openLocationSettings();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
