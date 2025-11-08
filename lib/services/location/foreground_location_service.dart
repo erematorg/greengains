@@ -218,8 +218,11 @@ class ForegroundLocationService {
         _isRunningNotifier.value = true;
         debugPrint('Foreground location service started');
 
-        // Start backend uploader
-        _uploader ??= SensorUploader();
+        // Start backend uploader (recreate if exists to ensure clean state)
+        if (_uploader != null) {
+          await _uploader!.stop();
+        }
+        _uploader = SensorUploader();
         await _uploader!.start();
         debugPrint('Backend uploader started');
       }
