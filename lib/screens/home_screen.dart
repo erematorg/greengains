@@ -67,16 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _currentLight = null;
       });
     } else {
-      // Request location permission before starting service
-      // (only if Share Location is enabled)
-      if (_prefs.shareLocation) {
-        try {
-          await _fgChannel.invokeMethod('requestLocationPermission');
-        } catch (e) {
-          // Permission request failed, but continue to start service
-          // (service will skip location if permission not granted)
-        }
-      }
+      // Just start the service - no permission requests here
       await _locationService.start();
     }
   }
