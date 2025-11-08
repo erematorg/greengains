@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/models/contribution_stats.dart';
 import '../data/repositories/contribution_repository.dart';
-import '../core/app_colors.dart';
+import '../core/themes.dart';
 
 /// Compact horizontal contribution stats bar
 class ContributionStatsCard extends StatefulWidget {

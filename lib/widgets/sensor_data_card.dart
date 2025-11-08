@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../core/themes.dart';
-import '../core/app_colors.dart';
 
 /// Reusable sensor data display card with live values
 /// Shows icon, title, current value, and unit

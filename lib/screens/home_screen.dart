@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/themes.dart';
 import '../core/app_preferences.dart';
-import '../core/app_colors.dart';
 import '../services/location/foreground_location_service.dart';
 import '../widgets/sensor_data_card.dart';
 import '../widgets/contribution_stats_card.dart';
@@ -172,6 +171,11 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: AppTheme.spaceSm),
           ],
 
+          // Contribution Statistics (moved to top)
+          const ContributionStatsCard(),
+
+          const SizedBox(height: AppTheme.spaceLg),
+
           // Sensor Data Section
           Padding(
             padding: const EdgeInsets.only(bottom: AppTheme.spaceSm),
@@ -179,7 +183,6 @@ class _HomeScreenState extends State<HomeScreen> {
               'Sensors',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextSecondary,
               ),
             ),
           ),
@@ -228,25 +231,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     enabled: isRunning,
                   ),
 
-                  // Location
-                  SensorDataCard(
-                    icon: Icons.location_on,
-                    title: 'Location',
-                    value: _currentLocation != null
-                        ? '${_currentLocation!.latitude.toStringAsFixed(4)}, ${_currentLocation!.longitude.toStringAsFixed(4)}'
-                        : null,
-                    unit: _currentLocation != null ? '±${_currentLocation!.accuracy.toStringAsFixed(0)}m' : 'GPS',
-                    enabled: isRunning && _prefs.shareLocation,
-                  ),
+                  // Location tracking in background (no UI card)
                 ],
               );
             },
           ),
-
-          const SizedBox(height: AppTheme.spaceMd),
-
-          // Contribution Statistics
-          const ContributionStatsCard(),
 
           const SizedBox(height: AppTheme.spaceMd),
 

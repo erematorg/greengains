@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../core/themes.dart';
 import '../core/theme_controller.dart';
 import '../core/app_preferences.dart';
@@ -258,18 +259,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     leading: const Icon(Icons.privacy_tip_outlined),
                     title: const Text('Privacy Policy'),
                     trailing: const Icon(Icons.open_in_new),
-                    onTap: () {
-                      // TODO: Open privacy policy URL
-                    },
+                    onTap: () => _openUrl('https://greengains.app/privacy'),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.description_outlined),
                     title: const Text('Terms of Service'),
                     trailing: const Icon(Icons.open_in_new),
-                    onTap: () {
-                      // TODO: Open terms of service URL
-                    },
+                    onTap: () => _openUrl('https://greengains.app/terms'),
                   ),
                 ],
               ),
@@ -311,6 +308,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Sign-out failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _openUrl(String urlString) async {
+    final uri = Uri.parse(urlString);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not open $urlString')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error opening link: $e')),
         );
       }
     }
