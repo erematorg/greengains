@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../core/themes.dart';
 import '../core/app_preferences.dart';
+import '../core/extensions/context_extensions.dart';
+import '../core/themes.dart';
 import '../services/auth/auth_service.dart';
+import '../utils/app_snackbars.dart';
 import 'settings_screen.dart';
 
 /// Profile screen showing user information and quick stats
@@ -19,8 +21,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final theme = context.theme;
+    final isDark = context.isDarkMode;
 
     return Scaffold(
       appBar: AppBar(
@@ -189,7 +191,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label: const Text('Sign out'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.error,
-                side: BorderSide(color: AppColors.error.withOpacity(0.5)),
+                side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
               ),
             ),
           ],
@@ -205,8 +207,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String value,
     required bool isVerified,
   }) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final theme = context.theme;
+    final isDark = context.isDarkMode;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppTheme.spaceSm),
@@ -249,15 +251,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await AuthService.signInWithGoogleUniversal();
       if (mounted) {
         setState(() {});
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Signed in successfully')),
-        );
+        AppSnackbars.showSuccess(context, 'Signed in successfully');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sign-in failed: $e')),
-        );
+        AppSnackbars.showError(context, 'Sign-in failed: $e');
       }
     }
   }
@@ -267,15 +265,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await FirebaseAuth.instance.signOut();
       if (mounted) {
         setState(() {});
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Signed out')),
-        );
+        AppSnackbars.showSuccess(context, 'Signed out');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sign-out failed: $e')),
-        );
+        AppSnackbars.showError(context, 'Sign-out failed: $e');
       }
     }
   }

@@ -40,9 +40,12 @@ class AppColors {
   static const Color darkDivider = Color(0xFF616161);
 
   // Helpers
-  static Color shadowLight(double opacity) => Colors.white.withOpacity(opacity);
-  static Color shadowDark(double opacity) => Colors.black.withOpacity(opacity);
-  static Color primaryAlpha(double opacity) => primary.withOpacity(opacity);
+  static Color shadowLight(double opacity) =>
+      Colors.white.withValues(alpha: opacity);
+  static Color shadowDark(double opacity) =>
+      Colors.black.withValues(alpha: opacity);
+  static Color primaryAlpha(double opacity) =>
+      primary.withValues(alpha: opacity);
 
   static const List<Color> gradientGreen = [primaryLight, primary];
   static const List<Color> gradientRed = [error, errorDark];
@@ -101,7 +104,7 @@ class AppColors {
   static List<BoxShadow> glowEffect(Color color, {double opacity = 0.4}) {
     return [
       BoxShadow(
-        color: color.withOpacity(opacity),
+        color: color.withValues(alpha: opacity),
         blurRadius: 4,
         spreadRadius: 1,
       )

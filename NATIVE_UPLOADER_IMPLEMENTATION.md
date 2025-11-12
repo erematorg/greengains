@@ -1,201 +1,42 @@
-# Native Background Uploader Implementation
+# Native Background Uploader - Current State
 
-## ✅ What's Been Done
+This document tracks the production-ready Kotlin uploader that now handles every sensor upload on Android.
 
-### 1. Dependencies Added (`android/app/build.gradle`)
-```gradle
-implementation "com.squareup.okhttp3:okhttp:4.12.0"  // HTTP client
-implementation "com.google.code.gson:gson:2.10.1"    // JSON serialization
-```
+## Overview
+- File: `android/app/src/main/kotlin/com/eremat/greengains/service/NativeBackendUploader.kt`
+- Runs inside `ForegroundService`; unaffected by Flutter activity lifecycle.
+- Captures the latest sensor snapshots every `NATIVE_SAMPLE_INTERVAL_MS` (default 10 s) and flushes to the backend every `uploadIntervalMs` (default 120 s).
+- Uses OkHttp + Gson with a circular in-memory buffer (1 000 readings) and automatic retry + requeue on failure.
+- Emits status callbacks (`onNativeUploadStatus`) so Flutter can show “last upload” timestamps without owning the network layer.
 
-### 2. Native Uploader Created (`NativeBackendUploader.kt`)
-**Key Features:**
-- ✅ Runs independently of Flutter (pure Kotlin)
-- ✅ Uploads every 2 minutes automatically
-- ✅ Works when app is swiped away
-- ✅ Circular buffer (max 1000 readings)
-- ✅ Automatic retry on failure
-- ✅ Extensive logging for debugging
+## Configuration Knobs
+| Purpose | Location | Default | Notes |
+| --- | --- | --- | --- |
+| Backend base URL | `NativeBackendUploader.baseUrl` | `https://greengains.onrender.com` | Keep trailing `/upload` path. |
+| API key | `NativeBackendUploader.apiKey` | `Vb9kS3tP0xQ7fY2L` | Pull from secure storage/CI for production builds. |
+| Upload interval | `uploadIntervalMs` (constructor) | `120_000` | Lower for faster flushing; higher for battery savings. |
+| Sampling interval | `ForegroundService.NATIVE_SAMPLE_INTERVAL_MS` | `10_000` | Governs how often we snapshot flows into the buffer. |
+| Buffer cap | `maxBufferSize` | `1000` | Older readings are dropped in FIFO order if exceeded. |
 
-**Proof Points in Logs:**
-```
-🚀 NATIVE BACKEND UPLOADER STARTING
-   Upload Interval: 120s
-   Backend URL: https://greengains.onrender.com/upload
-   Max Buffer Size: 1000 readings
+## Verification Checklist
+1. Run `flutter run` (or install APK) and toggle “Start Tracking” in the UI.
+2. Tail logs: `adb logcat -s NativeBackendUploader ForegroundService`.
+3. Expected log flow every ~2 minutes:  
+   - `Uploading <N> readings to backend`  
+   - `Upload succeeded...` **or** `Upload failed ... Network error` (automatic retry keeps buffered data).  
+4. Swipe the app from recents; the notification stays, sensors keep running, and upload logs continue.
+5. Reopen the app; the “Last upload” indicator reads from the same native callback (`ForegroundLocationService.uploadStatus`).
+6. Confirm batches on the backend (Render/Supabase) to ensure payloads match expectations.
 
-📊 Buffer size: 50 readings
-📊 Buffer size: 100 readings
+## Maintenance Tips
+- To silence log noise, `postToFlutter` skips emission when `MethodChannel` is null (common after the activity dies). Additional throttling can be added there if necessary.
+- If network failures persist, consider:  
+  - Tweaking OkHttp timeouts (30 s by default).  
+  - Adding exponential backoff inside `handleFailure`.  
+  - Persisting batches to disk instead of RAM (e.g., `Room` or `MMKV`) for ultra-long offline windows.
+- Remember iOS still lacks an equivalent; plan a separate background-task strategy when porting.
 
-📤 STARTING UPLOAD
-   Readings to upload: 150
-   Time since last upload: 120s
-   Payload size: 12345 characters
-
-✅ UPLOAD SUCCESSFUL!
-   Status: 202
-   Response: {"status":"accepted"}
-   Total succeeded: 1
-```
-
-## 🔧 What Needs Integration
-
-### Step 1: Add Uploader to ForegroundService
-
-```kotlin
-class ForegroundService : Service() {
-    // ADD THIS:
-    private var nativeUploader: NativeBackendUploader? = null
-
-    // Current sensor data (for batching)
-    private var currentLight: Float? = null
-    private var currentAccel: AccelData? = null
-    private var currentGyro: GyroData? = null
-    private var currentLocation: LocationData? = null
-
-    override fun onCreate() {
-        super.onCreate()
-
-        // ADD THIS:
-        nativeUploader = NativeBackendUploader(this)
-        nativeUploader?.start()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-
-        // ADD THIS:
-        nativeUploader?.stop()
-    }
-}
-```
-
-### Step 2: Feed Sensor Data to Native Buffer
-
-**In sensor event listener:**
-```kotlin
-override fun onSensorChanged(event: SensorEvent) {
-    when (event.sensor.type) {
-        Sensor.TYPE_LIGHT -> {
-            currentLight = event.values[0]
-            addSensorReadingToBuffer()  // NEW
-        }
-        Sensor.TYPE_ACCELEROMETER -> {
-            currentAccel = AccelData(
-                event.values[0],
-                event.values[1],
-                event.values[2]
-            )
-            addSensorReadingToBuffer()  // NEW
-        }
-        Sensor.TYPE_GYROSCOPE -> {
-            currentGyro = GyroData(
-                event.values[0],
-                event.values[1],
-                event.values[2]
-            )
-            addSensorReadingToBuffer()  // NEW
-        }
-    }
-}
-
-// NEW METHOD:
-private fun addSensorReadingToBuffer() {
-    val reading = SensorReading(
-        timestamp = System.currentTimeMillis(),
-        light = currentLight,
-        accelerometer = currentAccel,
-        gyroscope = currentGyro,
-        location = currentLocation
-    )
-
-    nativeUploader?.addReading(reading)
-}
-```
-
-**In location callback:**
-```kotlin
-override fun onLocationResult(locationResult: LocationResult) {
-    for (location in locationResult.locations) {
-        // Store for native uploader
-        currentLocation = LocationData(
-            latitude = location.latitude,
-            longitude = location.longitude,
-            accuracy = location.accuracy.toDouble()
-        )
-
-        addSensorReadingToBuffer()  // NEW
-    }
-}
-```
-
-## 📊 How to Verify It Works
-
-### Test Scenario:
-1. **Start service** → Should see: `🚀 NATIVE BACKEND UPLOADER STARTING`
-2. **Wait 5 seconds** → Should see: `📊 Buffer size: 50 readings`
-3. **Wait 2 minutes** → Should see: `📤 STARTING UPLOAD`
-4. **Swipe app away** → Service keeps running
-5. **Wait 2 more minutes** → Upload still happens! (Check logcat)
-6. **Reopen app** → Should see stats: `Total succeeded: 2`
-
-### Logcat Command:
-```bash
-adb logcat | grep -E "(NativeBackendUploader|GreenGainsFGService)"
-```
-
-## 🎯 Why This Will Work
-
-### Problem Before:
-```
-ForegroundService (Native) → MethodChannel → Flutter → SensorUploader
-                                    ↓
-                          When app swiped away:
-                          MethodChannel = null
-                          Flutter dies
-                          SensorUploader dies
-                          ❌ No uploads!
-```
-
-### Solution Now:
-```
-ForegroundService (Native) → NativeBackendUploader (Native)
-         ↓                            ↓
-    Sensors collect              Uploads happen
-    in background               in background
-         ✅                           ✅
-    100% independent from Flutter!
-```
-
-### Key Differences:
-1. **No MethodChannel dependency** - Pure native Kotlin
-2. **No Flutter dependency** - OkHttp HTTP client
-3. **START_STICKY service** - System restarts if killed
-4. **Foreground notification** - Exempt from Doze mode
-5. **Circular buffer** - Prevents memory overflow
-6. **Automatic retry** - Failed uploads re-queued
-
-## ⚠️ Known Limitations
-
-1. **OEM-specific behavior**: Some manufacturers (Xiaomi, Huawei) may still kill foreground services
-2. **Battery saver mode**: Extreme battery saver may pause uploads
-3. **Network connectivity**: Uploads fail without internet (but retry later)
-4. **iOS incompatibility**: This solution is Android-only
-
-## 🔍 Next Steps
-
-1. Integrate uploader into ForegroundService
-2. Update sensor listeners to feed native buffer
-3. Test with `flutter run` and logcat monitoring
-4. Verify uploads happen when app is swiped away
-5. Check backend for received data
-
-## 📝 Implementation Status
-
-- [x] Add dependencies
-- [x] Create NativeBackendUploader.kt
-- [ ] Integrate into ForegroundService
-- [ ] Update sensor listeners
-- [ ] Test and verify
-
-**Want me to complete the integration now?**
+## Known Limitations
+- OEM task killers can still stop even foreground services (notably on Xiaomi/Huawei). Testing on those devices is recommended.
+- Extreme battery saver modes may pause timers; Android usually resumes our service once the device wakes.
+- The uploader currently shares location only when `flutter.share_location` is `true`; update that preference from the Settings screen to opt users in/out.

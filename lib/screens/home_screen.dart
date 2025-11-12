@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../core/extensions/context_extensions.dart';
 import '../core/themes.dart';
-import '../core/app_preferences.dart';
 import '../services/location/foreground_location_service.dart';
 import '../widgets/sensor_data_card.dart';
 import '../widgets/contribution_stats_card.dart';
+import '../utils/app_snackbars.dart';
 
 /// Home screen showing live sensor data and tracking status
 class HomeScreen extends StatefulWidget {
@@ -17,13 +18,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _locationService = ForegroundLocationService.instance;
-  final _prefs = AppPreferences.instance;
-  StreamSubscription<LocationData>? _locationSubscription;
   StreamSubscription<LightData>? _lightSubscription;
   StreamSubscription<AccelerometerData>? _accelerometerSubscription;
   StreamSubscription<GyroscopeData>? _gyroscopeSubscription;
   Timer? _uploadStatusTimer;
-  LocationData? _currentLocation;
   LightData? _currentLight;
   AccelerometerData? _currentAccelerometer;
   GyroscopeData? _currentGyroscope;
@@ -42,11 +40,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _setupSensorListeners() {
-    _locationSubscription = _locationService.locationStream.listen((location) {
-      setState(() {
-        _currentLocation = location;
-      });
-    });
     _lightSubscription = _locationService.lightStream.listen((light) {
       setState(() {
         _currentLight = light;
@@ -65,42 +58,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _setupUploadSuccessListener() {
-    final uploader = _locationService.uploader;
-    if (uploader != null) {
-      uploader.uploadSuccess.addListener(_onUploadSuccess);
-    }
+    _locationService.uploadStatus.uploadSuccess.addListener(_onUploadSuccess);
   }
 
   void _onUploadSuccess() {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.white),
-            const SizedBox(width: 12),
-            const Text('Contribution uploaded successfully!'),
-          ],
-        ),
-        backgroundColor: AppColors.success,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    AppSnackbars.showSuccess(context, 'Contribution uploaded successfully!');
   }
 
   @override
   void dispose() {
     _uploadStatusTimer?.cancel();
-    _locationSubscription?.cancel();
     _lightSubscription?.cancel();
     _accelerometerSubscription?.cancel();
     _gyroscopeSubscription?.cancel();
 
     // Clean up upload success listener
-    final uploader = _locationService.uploader;
-    uploader?.uploadSuccess.removeListener(_onUploadSuccess);
+    _locationService.uploadStatus.uploadSuccess.removeListener(_onUploadSuccess);
 
     super.dispose();
   }
@@ -122,7 +97,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (isRunning) {
       await _locationService.stop();
       setState(() {
-        _currentLocation = null;
         _currentLight = null;
         _currentAccelerometer = null;
         _currentGyroscope = null;
@@ -136,8 +110,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final theme = context.theme;
+    final isDark = context.isDarkMode;
 
     return Scaffold(
       appBar: AppBar(
@@ -311,10 +285,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildUploadStatus(ThemeData theme) {
-    final uploader = _locationService.uploader;
-    if (uploader == null) {
+    final status = _locationService.uploadStatus;
+    final isServiceRunning = _locationService.isRunning.value;
+
+    if (!isServiceRunning) {
       return Text(
-        'Backend: Not started',
+        'Background service stopped',
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.outline,
         ),
@@ -322,11 +298,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return ValueListenableBuilder<DateTime?>(
-      valueListenable: uploader.lastUpload,
+      valueListenable: status.lastUpload,
       builder: (context, lastUpload, _) {
         if (lastUpload == null) {
           return ValueListenableBuilder<bool>(
-            valueListenable: uploader.uploading,
+            valueListenable: status.uploading,
             builder: (context, uploading, _) {
               return Text(
                 uploading ? 'Uploading...' : 'Backend: Waiting for data',

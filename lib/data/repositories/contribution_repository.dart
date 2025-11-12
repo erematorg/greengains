@@ -7,16 +7,16 @@ class ContributionRepository {
 
   /// Get current statistics
   Future<ContributionStats> getStats() async {
-    final results = await Future.wait([
+    final results = await Future.wait<int>([
       _db.getTotalCount(),
       _db.getTodayCount(),
       _db.getStreak(),
     ]);
 
     return ContributionStats(
-      totalUploads: results[0] as int,
-      uploadsToday: results[1] as int,
-      currentStreak: results[2] as int,
+      totalUploads: results[0],
+      uploadsToday: results[1],
+      currentStreak: results[2],
     );
   }
 }

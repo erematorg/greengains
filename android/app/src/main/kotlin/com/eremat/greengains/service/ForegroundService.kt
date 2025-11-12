@@ -30,8 +30,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.seconds
 
@@ -66,6 +68,10 @@ class ForegroundService : Service() {
     var accelerometerFlow: StateFlow<FloatArray?> = _accelerometerFlow
     private val _gyroscopeFlow = MutableStateFlow<FloatArray?>(null)
     var gyroscopeFlow: StateFlow<FloatArray?> = _gyroscopeFlow
+
+    // Native uploader (runs independently of Flutter)
+    private var nativeUploader: NativeBackendUploader? = null
+    private var nativeSamplerJob: Job? = null
 
     // Throttling for sensor data to reduce flooding
     private var lastLightValue: Float = 0f
@@ -105,6 +111,7 @@ class ForegroundService : Service() {
 
         // Always start sensors (they don't require location permission)
         startSensors()
+        startNativeUploader()
 
         return super.onStartCommand(intent, flags, startId)
     }
@@ -125,6 +132,7 @@ class ForegroundService : Service() {
         running = false
         fusedLocationClient.removeLocationUpdates(locationCallback)
         stopSensors()
+        stopNativeUploader()
         coroutineScope.coroutineContext.cancelChildren()
     }
 
@@ -213,27 +221,29 @@ class ForegroundService : Service() {
             return
         }
 
-        coroutineScope.launch(Dispatchers.Main) {
-            val channel = methodChannel
-            if (channel == null) {
-                Log.w(TAG, "MethodChannel is null, cannot send location")
-                return@launch
-            }
+        val locationData = mapOf(
+            "latitude" to location.latitude,
+            "longitude" to location.longitude,
+            "accuracy" to location.accuracy.toDouble(),
+            "altitude" to if (location.hasAltitude()) location.altitude else null,
+            "speed" to if (location.hasSpeed()) location.speed.toDouble() else null,
+            "bearing" to if (location.hasBearing()) location.bearing.toDouble() else null,
+            "timestamp" to location.time,
+            "provider" to location.provider
+        )
 
+        postToFlutter("location") { channel ->
+            channel.invokeMethod("onLocationUpdate", locationData)
+        }
+    }
+
+    private fun postToFlutter(action: String, block: (MethodChannel) -> Unit) {
+        val channel = methodChannel ?: return
+        coroutineScope.launch(Dispatchers.Main) {
             try {
-                val locationData = mapOf(
-                    "latitude" to location.latitude,
-                    "longitude" to location.longitude,
-                    "accuracy" to location.accuracy.toDouble(),
-                    "altitude" to if (location.hasAltitude()) location.altitude else null,
-                    "speed" to if (location.hasSpeed()) location.speed.toDouble() else null,
-                    "bearing" to if (location.hasBearing()) location.bearing.toDouble() else null,
-                    "timestamp" to location.time,
-                    "provider" to location.provider
-                )
-                channel.invokeMethod("onLocationUpdate", locationData)
+                block(channel)
             } catch (e: Exception) {
-                Log.e(TAG, "Error sending location to Flutter: ${e.message}", e)
+                Log.e(TAG, "Error sending $action to Flutter: ${e.message}", e)
             }
         }
     }
@@ -376,25 +386,111 @@ class ForegroundService : Service() {
     }
 
     /**
+     * Starts the native uploader and a lightweight sampler that snapshots sensor values every few seconds.
+     * The sampler avoids flooding the uploader with high-frequency sensor events while ensuring regular samples.
+     */
+    private fun startNativeUploader() {
+        if (nativeUploader == null) {
+            nativeUploader = NativeBackendUploader(
+                applicationContext,
+                statusListener = ::handleNativeUploadStatus
+            )
+        }
+        nativeUploader?.start()
+
+        if (nativeSamplerJob?.isActive == true) {
+            return
+        }
+
+        nativeSamplerJob = coroutineScope.launch(Dispatchers.Default) {
+            while (isActive) {
+                val snapshot = captureSensorSnapshot()
+                if (snapshot != null) {
+                    nativeUploader?.addReading(snapshot)
+                }
+                delay(NATIVE_SAMPLE_INTERVAL_MS)
+            }
+        }
+    }
+
+    private fun stopNativeUploader() {
+        nativeSamplerJob?.cancel()
+        nativeSamplerJob = null
+        nativeUploader?.stop()
+        nativeUploader = null
+    }
+
+    private fun captureSensorSnapshot(): SensorReading? {
+        val light = _lightFlow.value
+        val accelValues = _accelerometerFlow.value
+        val gyroValues = _gyroscopeFlow.value
+        val location = _locationFlow.value
+
+        val accel = accelValues?.takeIf { it.size >= 3 }?.let {
+            AccelData(it[0], it[1], it[2])
+        }
+        val gyro = gyroValues?.takeIf { it.size >= 3 }?.let {
+            GyroData(it[0], it[1], it[2])
+        }
+        val locationData = location?.let {
+            LocationData(
+                latitude = it.latitude,
+                longitude = it.longitude,
+                accuracy = if (it.hasAccuracy()) it.accuracy.toDouble() else null
+            )
+        }
+
+        if (light == null && accel == null && gyro == null && locationData == null) {
+            return null
+        }
+
+        return SensorReading(
+            timestamp = System.currentTimeMillis(),
+            light = light,
+            accelerometer = accel,
+            gyroscope = gyro,
+            location = locationData
+        )
+    }
+
+    private fun handleNativeUploadStatus(event: NativeUploadStatusEvent) {
+        Log.d(
+            TAG,
+            "Native upload event=${event.type} batch=${event.batchSize} buffer=${event.bufferSize} error=${event.errorMessage}"
+        )
+        sendNativeUploadStatusToFlutter(event)
+    }
+
+    private fun sendNativeUploadStatusToFlutter(event: NativeUploadStatusEvent) {
+        val status = when (event.type) {
+            NativeUploadEventType.STARTED -> "started"
+            NativeUploadEventType.SUCCESS -> "success"
+            NativeUploadEventType.FAILURE -> "failure"
+        }
+
+        val payload = mutableMapOf<String, Any>(
+            "status" to status,
+            "timestamp" to event.timestamp,
+            "batchSize" to event.batchSize,
+            "bufferSize" to event.bufferSize
+        )
+        event.errorMessage?.let { payload["error"] = it }
+
+        postToFlutter("native upload status") { channel ->
+            channel.invokeMethod("onNativeUploadStatus", payload)
+        }
+    }
+
+    /**
      * Sends light sensor data to Flutter via MethodChannel.
      */
     private fun sendLightToFlutter(lux: Float) {
-        coroutineScope.launch(Dispatchers.Main) {
-            val channel = methodChannel
-            if (channel == null) {
-                Log.w(TAG, "MethodChannel is null, cannot send light data")
-                return@launch
-            }
-
-            try {
-                val lightData = mapOf(
-                    "lux" to lux,
-                    "timestamp" to System.currentTimeMillis()
-                )
-                channel.invokeMethod("onLightUpdate", lightData)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error sending light data to Flutter: ${e.message}", e)
-            }
+        val lightData = mapOf(
+            "lux" to lux,
+            "timestamp" to System.currentTimeMillis()
+        )
+        postToFlutter("light") { channel ->
+            channel.invokeMethod("onLightUpdate", lightData)
         }
     }
 
@@ -403,24 +499,14 @@ class ForegroundService : Service() {
      * Values represent acceleration in m/s² along x, y, z axes.
      */
     private fun sendAccelerometerToFlutter(values: FloatArray) {
-        coroutineScope.launch(Dispatchers.Main) {
-            val channel = methodChannel
-            if (channel == null) {
-                Log.w(TAG, "MethodChannel is null, cannot send accelerometer data")
-                return@launch
-            }
-
-            try {
-                val accelData = mapOf(
-                    "x" to values[0].toDouble(),
-                    "y" to values[1].toDouble(),
-                    "z" to values[2].toDouble(),
-                    "timestamp" to System.currentTimeMillis()
-                )
-                channel.invokeMethod("onAccelerometerUpdate", accelData)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error sending accelerometer data to Flutter: ${e.message}", e)
-            }
+        val accelData = mapOf(
+            "x" to values[0].toDouble(),
+            "y" to values[1].toDouble(),
+            "z" to values[2].toDouble(),
+            "timestamp" to System.currentTimeMillis()
+        )
+        postToFlutter("accelerometer") { channel ->
+            channel.invokeMethod("onAccelerometerUpdate", accelData)
         }
     }
 
@@ -429,24 +515,14 @@ class ForegroundService : Service() {
      * Values represent rotation rate in rad/s around x, y, z axes.
      */
     private fun sendGyroscopeToFlutter(values: FloatArray) {
-        coroutineScope.launch(Dispatchers.Main) {
-            val channel = methodChannel
-            if (channel == null) {
-                Log.w(TAG, "MethodChannel is null, cannot send gyroscope data")
-                return@launch
-            }
-
-            try {
-                val gyroData = mapOf(
-                    "x" to values[0].toDouble(),
-                    "y" to values[1].toDouble(),
-                    "z" to values[2].toDouble(),
-                    "timestamp" to System.currentTimeMillis()
-                )
-                channel.invokeMethod("onGyroscopeUpdate", gyroData)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error sending gyroscope data to Flutter: ${e.message}", e)
-            }
+        val gyroData = mapOf(
+            "x" to values[0].toDouble(),
+            "y" to values[1].toDouble(),
+            "z" to values[2].toDouble(),
+            "timestamp" to System.currentTimeMillis()
+        )
+        postToFlutter("gyroscope") { channel ->
+            channel.invokeMethod("onGyroscopeUpdate", gyroData)
         }
     }
 
@@ -458,6 +534,7 @@ class ForegroundService : Service() {
         private const val LIGHT_THRESHOLD_LUX = 10.0f  // Only send if change > 10 lux
         private const val SENSOR_SEND_INTERVAL_MS = 5000L  // Or every 5 seconds
         private const val LOCATION_SEND_INTERVAL_MS = 10000L  // Send location every 10 seconds
+        private const val NATIVE_SAMPLE_INTERVAL_MS = 10_000L  // Sample sensors for native uploader every 10 seconds
 
         @Volatile
         var running: Boolean = false
