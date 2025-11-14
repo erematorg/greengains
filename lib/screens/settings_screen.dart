@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import '../core/themes.dart';
 import '../core/theme_controller.dart';
 import '../core/app_preferences.dart';
-import '../services/auth/auth_service.dart';
+import 'webview_screen.dart';
 
-/// Settings screen for app configuration
+/// Settings screen for Data & Privacy, Themes, and Legal
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -22,7 +20,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -32,89 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: AppTheme.pagePadding,
         children: [
-          // Account section
-          if (user == null) ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppTheme.spaceMd),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Account',
-                      style: theme.textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppTheme.spaceMd),
-                    Text(
-                      'Sign in to sync your contributions and earn rewards',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: AppTheme.spaceMd),
-                    FilledButton.icon(
-                      onPressed: _handleGoogleSignIn,
-                      icon: const Icon(Icons.login),
-                      label: const Text('Sign in with Google'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ] else ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppTheme.spaceMd),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Account',
-                      style: theme.textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppTheme.spaceMd),
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 24,
-                          backgroundImage: user.photoURL != null
-                              ? NetworkImage(user.photoURL!)
-                              : null,
-                          child: user.photoURL == null
-                              ? const Icon(Icons.person)
-                              : null,
-                        ),
-                        const SizedBox(width: AppTheme.spaceMd),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                user.displayName ?? 'User',
-                                style: theme.textTheme.titleMedium,
-                              ),
-                              Text(
-                                user.email ?? '',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppTheme.spaceMd),
-                    TextButton.icon(
-                      onPressed: _handleSignOut,
-                      icon: const Icon(Icons.logout),
-                      label: const Text('Sign out'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-
-          const SizedBox(height: AppTheme.spaceLg),
-
-          // Appearance section
+          // Appearance / Theme section
           Card(
             child: Padding(
               padding: const EdgeInsets.all(AppTheme.spaceMd),
@@ -122,7 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Appearance',
+                    'Theme',
                     style: theme.textTheme.titleLarge,
                   ),
                   const SizedBox(height: AppTheme.spaceSm),
@@ -212,35 +127,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: AppTheme.spaceLg),
 
-          // About section
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppTheme.spaceMd),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'About',
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppTheme.spaceSm),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Version'),
-                    subtitle: const Text('1.0.0+1'),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Backend Services'),
-                    subtitle: const Text('Firebase • API • Tracking'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: AppTheme.spaceLg),
-
           // Legal section
           Card(
             child: Padding(
@@ -257,21 +143,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.privacy_tip_outlined),
                     title: const Text('Privacy Policy'),
-                    trailing: const Icon(Icons.open_in_new),
-                    onTap: () {
-                      // TODO: Open privacy policy URL
-                    },
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _openWebView(
+                      context,
+                      'https://greengains.eremat.org/privacy-policy',
+                      'Privacy Policy',
+                    ),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.description_outlined),
                     title: const Text('Terms of Service'),
-                    trailing: const Icon(Icons.open_in_new),
-                    onTap: () {
-                      // TODO: Open terms of service URL
-                    },
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _openWebView(
+                      context,
+                      'https://greengains.eremat.org/terms-of-service',
+                      'Terms of Service',
+                    ),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.delete_outline),
+                    title: const Text('Request Data Deletion'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _openWebView(
+                      context,
+                      'https://greengains.eremat.org/data-deletion-request',
+                      'Request Data Deletion',
+                    ),
                   ),
                 ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: AppTheme.spaceLg),
+
+          Center(
+            child: Text(
+              'Version 1.0.0+1',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
               ),
             ),
           ),
@@ -280,39 +192,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Future<void> _handleGoogleSignIn() async {
-    try {
-      await AuthService.signInWithGoogleUniversal();
-      if (mounted) {
-        setState(() {});
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Signed in successfully')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sign-in failed: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleSignOut() async {
-    try {
-      await FirebaseAuth.instance.signOut();
-      if (mounted) {
-        setState(() {});
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Signed out')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sign-out failed: $e')),
-        );
-      }
-    }
+  void _openWebView(BuildContext context, String url, String title) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => WebViewScreen(
+          url: url,
+          title: title,
+        ),
+      ),
+    );
   }
 }

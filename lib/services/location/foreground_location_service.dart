@@ -1,8 +1,13 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:dart_geohash/dart_geohash.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import '../network/sensor_uploader.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../core/app_preferences.dart';
+import '../../data/local/database_helper.dart';
+import '../tracking/contribution_tracker.dart';
 
 /// Model for location data received from the native foreground service
 class LocationData {
@@ -169,12 +174,15 @@ class ForegroundLocationService {
   GyroscopeData? _lastGyroscope;
   GyroscopeData? get lastGyroscope => _lastGyroscope;
 
-  // Backend uploader (auto-started with service)
-  SensorUploader? _uploader;
-  SensorUploader? get uploader => _uploader;
+  // Native upload status exposed to the UI
+  final NativeUploadStatus uploadStatus = NativeUploadStatus();
+  final GeoHasher _geoHasher = GeoHasher();
+  final Uuid _uuid = const Uuid();
 
   ForegroundLocationService._() {
     _setupMethodCallHandler();
+    unawaited(_bootstrapUploadStatus());
+    unawaited(ContributionTracker.instance.initialize());
   }
 
   static final ForegroundLocationService instance = ForegroundLocationService._();
@@ -202,11 +210,19 @@ class ForegroundLocationService {
           _lastGyroscope = gyro;
           _gyroscopeController.add(gyro);
           break;
-        case 'collectSensors':
-          // This is called periodically by the native service
-          // We don't need to do anything here for now
-          break;
-      }
+      case 'collectSensors':
+        // This is called periodically by the native service
+        // We don't need to do anything here for now
+        break;
+      case 'onNativeUploadStatus':
+        await _handleNativeUploadStatus(call.arguments as Map);
+        break;
+      case 'onServiceStopped':
+        _isRunningNotifier.value = false;
+        uploadStatus.reset();
+        debugPrint('Foreground service reported stopped');
+        break;
+    }
     });
   }
 
@@ -217,11 +233,6 @@ class ForegroundLocationService {
       if (result == true) {
         _isRunningNotifier.value = true;
         debugPrint('Foreground location service started');
-
-        // Start backend uploader
-        _uploader ??= SensorUploader();
-        await _uploader!.start();
-        debugPrint('Backend uploader started');
       }
       return result ?? false;
     } catch (e) {
@@ -233,16 +244,11 @@ class ForegroundLocationService {
   /// Stop the foreground service
   Future<bool> stop() async {
     try {
-      // Stop backend uploader first
-      if (_uploader != null) {
-        await _uploader!.stop();
-        debugPrint('Backend uploader stopped');
-      }
-
       final result = await _fgChannel.invokeMethod<bool>('stopForegroundService');
       if (result == true) {
         _isRunningNotifier.value = false;
         _lastLocation = null;
+        uploadStatus.reset();
         debugPrint('Foreground location service stopped');
       }
       return result ?? false;
@@ -264,9 +270,106 @@ class ForegroundLocationService {
     }
   }
 
+  Future<void> _bootstrapUploadStatus() async {
+    await AppPreferences.instance.ensureInitialized();
+    uploadStatus.lastUpload.value = AppPreferences.instance.lastUploadAt;
+    _isRunningNotifier.value =
+        AppPreferences.instance.foregroundServiceEnabled;
+  }
+
+  Future<void> _handleNativeUploadStatus(Map<dynamic, dynamic> data) async {
+    final status = data['status'] as String? ?? 'unknown';
+    final timestampMs = (data['timestamp'] as num?)?.toInt();
+    final batchSize = (data['batchSize'] as num?)?.toInt() ?? 0;
+
+    switch (status) {
+      case 'started':
+        uploadStatus.uploading.value = true;
+        break;
+      case 'success':
+        uploadStatus.uploading.value = false;
+        if (timestampMs != null) {
+          final ts = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+          uploadStatus.lastUpload.value = ts;
+          await AppPreferences.instance.ensureInitialized();
+          await AppPreferences.instance.setLastUploadAt(ts);
+        }
+        uploadStatus.uploadSuccess.value++;
+        await _saveContribution(samplesCount: batchSize);
+        break;
+      case 'failure':
+        uploadStatus.uploading.value = false;
+        final error = data['error'];
+        debugPrint('Native upload failed: $error');
+        break;
+      default:
+        debugPrint('Received unknown native upload status: $status');
+    }
+  }
+
+  Future<void> _saveContribution({required int samplesCount}) async {
+    if (samplesCount <= 0) {
+      return;
+    }
+
+    try {
+      final geohash = _computeCurrentGeohash();
+      final now = DateTime.now();
+      await DatabaseHelper.instance.insertContribution(
+        id: _uuid.v4(),
+        timestamp: now,
+        samplesCount: samplesCount,
+        geohash: geohash,
+        success: true,
+      );
+
+      if (geohash != null) {
+        await ContributionTracker.instance.initialize();
+        unawaited(ContributionTracker.instance.recordTile(geohash, now));
+      }
+    } catch (e) {
+      debugPrint('Failed to save contribution: $e');
+    }
+  }
+
+  String? _computeCurrentGeohash() {
+    final loc = _lastLocation;
+    if (loc == null) {
+      return null;
+    }
+
+    try {
+      return _geoHasher.encode(
+        loc.longitude,
+        loc.latitude,
+        precision: 6,
+      );
+    } catch (e) {
+      debugPrint('Failed to compute geohash: $e');
+      return null;
+    }
+  }
+
   void dispose() {
     _locationController.close();
     _lightController.close();
     _isRunningNotifier.dispose();
+    uploadStatus.dispose();
+  }
+}
+
+class NativeUploadStatus {
+  final ValueNotifier<bool> uploading = ValueNotifier<bool>(false);
+  final ValueNotifier<DateTime?> lastUpload = ValueNotifier<DateTime?>(null);
+  final ValueNotifier<int> uploadSuccess = ValueNotifier<int>(0);
+
+  void reset() {
+    uploading.value = false;
+  }
+
+  void dispose() {
+    uploading.dispose();
+    lastUpload.dispose();
+    uploadSuccess.dispose();
   }
 }

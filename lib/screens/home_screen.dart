@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../core/extensions/context_extensions.dart';
 import '../core/themes.dart';
-import '../core/app_preferences.dart';
 import '../services/location/foreground_location_service.dart';
+import '../utils/app_snackbars.dart';
+import '../widgets/contribution_stats_card.dart';
 import '../widgets/sensor_data_card.dart';
 
 /// Home screen showing live sensor data and tracking status
@@ -16,12 +19,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _locationService = ForegroundLocationService.instance;
-  final _prefs = AppPreferences.instance;
-  StreamSubscription<LocationData>? _locationSubscription;
   StreamSubscription<LightData>? _lightSubscription;
   StreamSubscription<AccelerometerData>? _accelerometerSubscription;
   StreamSubscription<GyroscopeData>? _gyroscopeSubscription;
-  LocationData? _currentLocation;
+  Timer? _uploadStatusTimer;
   LightData? _currentLight;
   AccelerometerData? _currentAccelerometer;
   GyroscopeData? _currentGyroscope;
@@ -30,11 +31,16 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _checkServiceStatus();
-    _locationSubscription = _locationService.locationStream.listen((location) {
-      setState(() {
-        _currentLocation = location;
-      });
+    _setupSensorListeners();
+    _setupUploadSuccessListener();
+
+    // Update upload status every 30 seconds to keep time-ago text accurate
+    _uploadStatusTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
     });
+  }
+
+  void _setupSensorListeners() {
     _lightSubscription = _locationService.lightStream.listen((light) {
       setState(() {
         _currentLight = light;
@@ -52,12 +58,26 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _setupUploadSuccessListener() {
+    _locationService.uploadStatus.uploadSuccess.addListener(_onUploadSuccess);
+  }
+
+  void _onUploadSuccess() {
+    if (!mounted) return;
+
+    AppSnackbars.showSuccess(context, 'Contribution uploaded successfully!');
+  }
+
   @override
   void dispose() {
-    _locationSubscription?.cancel();
+    _uploadStatusTimer?.cancel();
     _lightSubscription?.cancel();
     _accelerometerSubscription?.cancel();
     _gyroscopeSubscription?.cancel();
+
+    // Clean up upload success listener
+    _locationService.uploadStatus.uploadSuccess.removeListener(_onUploadSuccess);
+
     super.dispose();
   }
 
@@ -78,12 +98,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (isRunning) {
       await _locationService.stop();
       setState(() {
-        _currentLocation = null;
         _currentLight = null;
         _currentAccelerometer = null;
         _currentGyroscope = null;
       });
     } else {
+      HapticFeedback.mediumImpact();
       // Just start the service - no permission requests here
       await _locationService.start();
     }
@@ -92,31 +112,38 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    final theme = Theme.of(context);
+    final theme = context.theme;
+    final isDark = context.isDarkMode;
+    final isRunningNow = _locationService.isRunning.value;
+    final overlayStyle = isRunningNow
+        ? SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.transparent)
+        : SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('GreenGains'),
-        actions: [
-          // Quick status indicator in app bar
-          ListenableBuilder(
-            listenable: _locationService.isRunning,
-            builder: (context, _) {
-              final isRunning = _locationService.isRunning.value;
-              return Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Icon(
-                  isRunning ? Icons.sensors : Icons.sensors_off,
-                  color: isRunning ? Colors.green : theme.colorScheme.outline,
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: AppTheme.pagePadding,
-        children: [
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('GreenGains'),
+          actions: [
+            // Quick status indicator in app bar
+            ListenableBuilder(
+              listenable: _locationService.isRunning,
+              builder: (context, _) {
+                final isRunning = _locationService.isRunning.value;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Icon(
+                    isRunning ? Icons.sensors : Icons.sensors_off,
+                    color: isRunning ? Colors.green : theme.colorScheme.outline,
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+        body: ListView(
+          padding: AppTheme.pagePadding,
+          children: [
           // User greeting (compact)
           if (user != null) ...[
             Text(
@@ -126,76 +153,101 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: AppTheme.spaceSm),
           ],
 
-          // Sensor Data Section
-          Text(
-            'Live Sensor Data',
-            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: AppTheme.spaceMd),
+          // Contribution Statistics (moved to top)
+          const ContributionStatsCard(),
+          const SizedBox(height: AppTheme.spaceLg),
 
-          // All sensor cards in one ListenableBuilder to reduce duplication
+          // Collapsible Sensor Details
           ListenableBuilder(
             listenable: _locationService.isRunning,
             builder: (context, _) {
               final isRunning = _locationService.isRunning.value;
-              return Column(
-                children: [
-                  // Light Sensor
-                  SensorDataCard(
-                    icon: Icons.light_mode,
-                    title: 'Light',
-                    value: _currentLight != null
-                        ? '${_currentLight!.lux.toStringAsFixed(0)} lux'
-                        : null,
-                    unit: _currentLight != null ? _getLightDescription(_currentLight!.lux) : 'lux',
-                    enabled: isRunning,
+              return Card(
+                child: ExpansionTile(
+                  title: Text(
+                    'Live sensor readings',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  const SizedBox(height: AppTheme.spaceSm),
+                  subtitle: Text(
+                    'Use these values to verify the device is streaming correctly',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Environment Section
+                          Text(
+                            'Environment',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
 
-                  // Accelerometer
-                  SensorDataCard(
-                    icon: Icons.vibration,
-                    title: 'Accelerometer',
-                    value: _currentAccelerometer != null
-                        ? '${_currentAccelerometer!.magnitude.toStringAsFixed(1)} m/s²'
-                        : null,
-                    unit: _currentAccelerometer != null
-                        ? '(${_currentAccelerometer!.x.toStringAsFixed(1)}, ${_currentAccelerometer!.y.toStringAsFixed(1)}, ${_currentAccelerometer!.z.toStringAsFixed(1)})'
-                        : 'm/s²',
-                    enabled: isRunning,
-                  ),
-                  const SizedBox(height: AppTheme.spaceSm),
+                          // Light Sensor
+                          SensorDataCard(
+                            icon: Icons.light_mode,
+                            title: 'Light',
+                            value: _currentLight != null
+                                ? '${_currentLight!.lux.toStringAsFixed(0)} lux'
+                                : null,
+                            unit: _currentLight != null ? _getLightDescription(_currentLight!.lux) : 'lux',
+                            enabled: isRunning,
+                          ),
 
-                  // Gyroscope
-                  SensorDataCard(
-                    icon: Icons.rotate_90_degrees_ccw,
-                    title: 'Gyroscope',
-                    value: _currentGyroscope != null
-                        ? '${_currentGyroscope!.magnitude.toStringAsFixed(2)} rad/s'
-                        : null,
-                    unit: _currentGyroscope != null
-                        ? '(${_currentGyroscope!.x.toStringAsFixed(2)}, ${_currentGyroscope!.y.toStringAsFixed(2)}, ${_currentGyroscope!.z.toStringAsFixed(2)})'
-                        : 'rad/s',
-                    enabled: isRunning,
-                  ),
-                  const SizedBox(height: AppTheme.spaceSm),
+                          const SizedBox(height: 16),
 
-                  // Location
-                  SensorDataCard(
-                    icon: Icons.location_on,
-                    title: 'Location',
-                    value: _currentLocation != null
-                        ? '${_currentLocation!.latitude.toStringAsFixed(4)}, ${_currentLocation!.longitude.toStringAsFixed(4)}'
-                        : null,
-                    unit: _currentLocation != null ? '±${_currentLocation!.accuracy.toStringAsFixed(0)}m' : 'GPS',
-                    enabled: isRunning && _prefs.shareLocation,
-                  ),
-                ],
+                          // Motion Section
+                          Text(
+                            'Motion',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Accelerometer
+                          SensorDataCard(
+                            icon: Icons.vibration,
+                            title: 'Accelerometer',
+                            value: _currentAccelerometer != null
+                                ? '${_currentAccelerometer!.magnitude.toStringAsFixed(1)} m/s²'
+                                : null,
+                            unit: _currentAccelerometer != null
+                                ? '(${_currentAccelerometer!.x.toStringAsFixed(1)}, ${_currentAccelerometer!.y.toStringAsFixed(1)}, ${_currentAccelerometer!.z.toStringAsFixed(1)})'
+                                : 'm/s²',
+                            enabled: isRunning,
+                          ),
+
+                          // Gyroscope
+                          SensorDataCard(
+                            icon: Icons.rotate_90_degrees_ccw,
+                            title: 'Gyroscope',
+                            value: _currentGyroscope != null
+                                ? '${_currentGyroscope!.magnitude.toStringAsFixed(2)} rad/s'
+                                : null,
+                            unit: _currentGyroscope != null
+                                ? '(${_currentGyroscope!.x.toStringAsFixed(2)}, ${_currentGyroscope!.y.toStringAsFixed(2)}, ${_currentGyroscope!.z.toStringAsFixed(2)})'
+                                : 'rad/s',
+                            enabled: isRunning,
+                          ),
+
+                          // Location tracking in background (no UI card)
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               );
             },
           ),
 
-          const SizedBox(height: AppTheme.spaceLg),
+          const SizedBox(height: AppTheme.spaceMd),
 
           // Service Control Button
           ListenableBuilder(
@@ -204,13 +256,30 @@ class _HomeScreenState extends State<HomeScreen> {
               final isRunning = _locationService.isRunning.value;
               return Column(
                 children: [
-                  FilledButton.icon(
-                    onPressed: _toggleService,
-                    icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
-                    label: Text(isRunning ? 'Stop Tracking' : 'Start Tracking'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: isRunning ? Colors.red : theme.colorScheme.primary,
-                      minimumSize: const Size.fromHeight(48),
+                  AnimatedScale(
+                    scale: isRunning ? 1.02 : 1.0,
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOut,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: isRunning ? AppColors.gradientRed : AppColors.gradientGreen,
+                        ),
+                        boxShadow: AppColors.buttonShadow(isDark),
+                      ),
+                      child: FilledButton.icon(
+                        onPressed: _toggleService,
+                        icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
+                        label: Text(isRunning ? 'Stop Tracking' : 'Start Tracking'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                      ),
                     ),
                   ),
 
@@ -224,14 +293,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildUploadStatus(ThemeData theme) {
-    final uploader = _locationService.uploader;
-    if (uploader == null) {
+    final status = _locationService.uploadStatus;
+    final isServiceRunning = _locationService.isRunning.value;
+
+    if (!isServiceRunning) {
       return Text(
-        'Backend: Not started',
+        'Background service stopped',
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.outline,
         ),
@@ -239,14 +311,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return ValueListenableBuilder<DateTime?>(
-      valueListenable: uploader.lastUpload,
+      valueListenable: status.lastUpload,
       builder: (context, lastUpload, _) {
         if (lastUpload == null) {
           return ValueListenableBuilder<bool>(
-            valueListenable: uploader.uploading,
+            valueListenable: status.uploading,
             builder: (context, uploading, _) {
               return Text(
-                uploading ? 'Uploading...' : 'Backend: Waiting for data',
+                uploading ? 'Uploading…' : 'Backend: Waiting for data',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.outline,
                 ),
@@ -265,19 +337,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? '${diff.inHours}h ago'
                     : '${diff.inDays}d ago';
 
+        final isDark = theme.brightness == Brightness.dark;
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.cloud_upload,
+              Icons.cloud_done,
               size: 14,
-              color: theme.colorScheme.primary,
+              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
             ),
             const SizedBox(width: 4),
             Text(
               'Last upload: $timeAgo',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.primary,
+                color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
               ),
             ),
           ],

@@ -43,3 +43,5 @@ backend/dist/
 # Investigation notes (not for version control)
 LAST_RESORT_MIUI_FIX.md
 MIUI_FALLBACK_FIX.md
+*.apk
+tmp/nodle-apk/
