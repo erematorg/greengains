@@ -127,35 +127,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: AppTheme.spaceLg),
 
-          // About section
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppTheme.spaceMd),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'About',
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppTheme.spaceSm),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Version'),
-                    subtitle: const Text('1.0.0+1'),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Backend Services'),
-                    subtitle: const Text('Firebase • API • Tracking'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: AppTheme.spaceLg),
-
           // Legal section
           Card(
             child: Padding(
@@ -208,29 +179,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: AppTheme.spaceLg),
 
-          // About section
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppTheme.spaceMd),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'About',
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppTheme.spaceSm),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Version'),
-                    subtitle: const Text('1.0.0+1'),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Backend Services'),
-                    subtitle: const Text('Firebase • API • Tracking'),
-                  ),
-                ],
+          Center(
+            child: Text(
+              'Version 1.0.0+1',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
               ),
             ),
           ),

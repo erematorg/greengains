@@ -37,6 +37,8 @@ class MyApp extends StatelessWidget {
           theme: AppTheme.theme(),
           darkTheme: AppTheme.themeDark(),
           themeMode: ThemeController.instance.mode,
+          themeAnimationDuration: const Duration(milliseconds: 75),
+          themeAnimationCurve: Curves.easeOut,
           home: const AppShell(),
         );
       },

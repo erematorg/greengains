@@ -217,9 +217,14 @@ class ForegroundLocationService {
       case 'onNativeUploadStatus':
         await _handleNativeUploadStatus(call.arguments as Map);
         break;
+      case 'onServiceStopped':
+        _isRunningNotifier.value = false;
+        uploadStatus.reset();
+        debugPrint('Foreground service reported stopped');
+        break;
     }
-  });
-}
+    });
+  }
 
   /// Start the foreground service
   Future<bool> start() async {
@@ -268,6 +273,8 @@ class ForegroundLocationService {
   Future<void> _bootstrapUploadStatus() async {
     await AppPreferences.instance.ensureInitialized();
     uploadStatus.lastUpload.value = AppPreferences.instance.lastUploadAt;
+    _isRunningNotifier.value =
+        AppPreferences.instance.foregroundServiceEnabled;
   }
 
   Future<void> _handleNativeUploadStatus(Map<dynamic, dynamic> data) async {

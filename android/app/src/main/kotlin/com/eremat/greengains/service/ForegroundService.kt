@@ -90,6 +90,10 @@ class ForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP_SERVICE) {
+            stopForegroundService()
+            return START_NOT_STICKY
+        }
         Log.d(TAG, "onStartCommand")
 
         startAsForegroundService()
@@ -113,7 +117,7 @@ class ForegroundService : Service() {
         startSensors()
         startNativeUploader()
 
-        return super.onStartCommand(intent, flags, startId)
+        return START_STICKY
     }
 
     override fun onCreate() {
@@ -130,9 +134,11 @@ class ForegroundService : Service() {
 
         // CRITICAL: Always clean up resources to prevent memory leaks and ensure smooth app lifecycle
         running = false
+        setServiceEnabledPref(false)
         fusedLocationClient.removeLocationUpdates(locationCallback)
         stopSensors()
         stopNativeUploader()
+        methodChannel?.invokeMethod("onServiceStopped", null)
         coroutineScope.coroutineContext.cancelChildren()
     }
 
@@ -161,6 +167,7 @@ class ForegroundService : Service() {
         )
 
         running = true
+        setServiceEnabledPref(true)
         Log.d(TAG, "Service promoted to foreground")
     }
 
@@ -170,6 +177,8 @@ class ForegroundService : Service() {
      */
     fun stopForegroundService() {
         stopSelf()
+        setServiceEnabledPref(false)
+        methodChannel?.invokeMethod("onServiceStopped", null)
     }
 
     /**
@@ -526,6 +535,11 @@ class ForegroundService : Service() {
         }
     }
 
+    private fun setServiceEnabledPref(enabled: Boolean) {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(PREF_FOREGROUND_ENABLED, enabled).apply()
+    }
+
     companion object {
         private const val TAG = "GreenGainsFGService"
         private val LOCATION_UPDATES_INTERVAL_MS = 1.seconds.inWholeMilliseconds
@@ -541,5 +555,9 @@ class ForegroundService : Service() {
 
         @Volatile
         var methodChannel: MethodChannel? = null
+
+        const val ACTION_STOP_SERVICE = "com.eremat.greengains.action.STOP_SERVICE"
+        private const val PREFS_NAME = "FlutterSharedPreferences"
+        private const val PREF_FOREGROUND_ENABLED = "flutter.foreground_service_enabled"
     }
 }

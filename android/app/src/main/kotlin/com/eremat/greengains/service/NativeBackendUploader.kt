@@ -251,19 +251,21 @@ class NativeBackendUploader(
             ).filterValues { it != null }
         }
 
+        val locationMap = if (avgLat != null && avgLon != null) {
+            mapOf(
+                "lat" to avgLat,
+                "lon" to avgLon,
+                "accuracy_m" to avgAccuracy
+            ).filterValues { it != null }
+        } else {
+            null
+        }
+
         return mapOf(
             "device_id" to deviceId,
             "timestamp" to System.currentTimeMillis(),
             "batch" to batch,
-            "location" to if (avgLat != null && avgLon != null) {
-                mapOf(
-                    "latitude" to avgLat,
-                    "longitude" to avgLon,
-                    "accuracy" to avgAccuracy
-                )
-            } else {
-                null
-            }
+            "location" to locationMap
         ).filterValues { it != null }
     }
 

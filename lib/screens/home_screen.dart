@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/extensions/context_extensions.dart';
 import '../core/themes.dart';
 import '../services/location/foreground_location_service.dart';
-import '../widgets/sensor_data_card.dart';
-import '../widgets/contribution_stats_card.dart';
 import '../utils/app_snackbars.dart';
+import '../widgets/contribution_stats_card.dart';
+import '../widgets/sensor_data_card.dart';
 
 /// Home screen showing live sensor data and tracking status
 class HomeScreen extends StatefulWidget {
@@ -102,6 +103,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _currentGyroscope = null;
       });
     } else {
+      HapticFeedback.mediumImpact();
       // Just start the service - no permission requests here
       await _locationService.start();
     }
@@ -112,30 +114,36 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = FirebaseAuth.instance.currentUser;
     final theme = context.theme;
     final isDark = context.isDarkMode;
+    final isRunningNow = _locationService.isRunning.value;
+    final overlayStyle = isRunningNow
+        ? SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.transparent)
+        : SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('GreenGains'),
-        actions: [
-          // Quick status indicator in app bar
-          ListenableBuilder(
-            listenable: _locationService.isRunning,
-            builder: (context, _) {
-              final isRunning = _locationService.isRunning.value;
-              return Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Icon(
-                  isRunning ? Icons.sensors : Icons.sensors_off,
-                  color: isRunning ? Colors.green : theme.colorScheme.outline,
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: AppTheme.pagePadding,
-        children: [
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('GreenGains'),
+          actions: [
+            // Quick status indicator in app bar
+            ListenableBuilder(
+              listenable: _locationService.isRunning,
+              builder: (context, _) {
+                final isRunning = _locationService.isRunning.value;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Icon(
+                    isRunning ? Icons.sensors : Icons.sensors_off,
+                    color: isRunning ? Colors.green : theme.colorScheme.outline,
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+        body: ListView(
+          padding: AppTheme.pagePadding,
+          children: [
           // User greeting (compact)
           if (user != null) ...[
             Text(
@@ -147,7 +155,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // Contribution Statistics (moved to top)
           const ContributionStatsCard(),
-
           const SizedBox(height: AppTheme.spaceLg),
 
           // Collapsible Sensor Details
@@ -249,24 +256,29 @@ class _HomeScreenState extends State<HomeScreen> {
               final isRunning = _locationService.isRunning.value;
               return Column(
                 children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: isRunning ? AppColors.gradientRed : AppColors.gradientGreen,
+                  AnimatedScale(
+                    scale: isRunning ? 1.02 : 1.0,
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOut,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: isRunning ? AppColors.gradientRed : AppColors.gradientGreen,
+                        ),
+                        boxShadow: AppColors.buttonShadow(isDark),
                       ),
-                      boxShadow: AppColors.buttonShadow(isDark),
-                    ),
-                    child: FilledButton.icon(
-                      onPressed: _toggleService,
-                      icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
-                      label: Text(isRunning ? 'Stop Tracking' : 'Start Tracking'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        minimumSize: const Size.fromHeight(48),
+                      child: FilledButton.icon(
+                        onPressed: _toggleService,
+                        icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
+                        label: Text(isRunning ? 'Stop Tracking' : 'Start Tracking'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          minimumSize: const Size.fromHeight(48),
+                        ),
                       ),
                     ),
                   ),
@@ -281,7 +293,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildUploadStatus(ThemeData theme) {
@@ -305,7 +318,7 @@ class _HomeScreenState extends State<HomeScreen> {
             valueListenable: status.uploading,
             builder: (context, uploading, _) {
               return Text(
-                uploading ? 'Uploading...' : 'Backend: Waiting for data',
+                uploading ? 'Uploading…' : 'Backend: Waiting for data',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.outline,
                 ),

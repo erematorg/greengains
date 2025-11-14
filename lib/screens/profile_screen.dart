@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../core/app_preferences.dart';
 import '../core/extensions/context_extensions.dart';
 import '../core/themes.dart';
 import '../services/auth/auth_service.dart';
 import '../utils/app_snackbars.dart';
+import '../widgets/referral_invite_card.dart';
 import 'settings_screen.dart';
 
 /// Profile screen showing user information and quick stats
@@ -16,7 +16,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final _prefs = AppPreferences.instance;
 
   @override
   Widget build(BuildContext context) {
@@ -109,6 +108,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       textAlign: TextAlign.center,
                     ),
+                    const SizedBox(height: AppTheme.spaceXs),
+                    Text(
+                      'Mapping greener cities together',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: AppTheme.spaceSm),
 
                     // Email
@@ -145,42 +153,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: AppTheme.spaceLg),
 
             // Quick stats (if useful)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppTheme.spaceMd),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Account Status',
-                      style: theme.textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppTheme.spaceMd),
-                    _buildStatusRow(
-                      context,
-                      icon: Icons.email_outlined,
-                      label: 'Email verified',
-                      value: user.emailVerified ? 'Yes' : 'No',
-                      isVerified: user.emailVerified,
-                    ),
-                    _buildStatusRow(
-                      context,
-                      icon: Icons.location_on_outlined,
-                      label: 'Location sharing',
-                      value: _prefs.shareLocation ? 'Enabled' : 'Disabled',
-                      isVerified: _prefs.shareLocation,
-                    ),
-                    _buildStatusRow(
-                      context,
-                      icon: Icons.data_usage_outlined,
-                      label: 'Mobile data uploads',
-                      value: _prefs.useMobileUploads ? 'Enabled' : 'Disabled',
-                      isVerified: _prefs.useMobileUploads,
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            ReferralInviteCard(user: user),
 
             const SizedBox(height: AppTheme.spaceLg),
 
@@ -195,44 +168,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusRow(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required String value,
-    required bool isVerified,
-  }) {
-    final theme = context.theme;
-    final isDark = context.isDarkMode;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppTheme.spaceSm),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            size: 20,
-            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-          ),
-          const SizedBox(width: AppTheme.spaceSm),
-          Expanded(
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium,
-            ),
-          ),
-          Text(
-            value,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: isVerified ? AppColors.success : AppColors.warning,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ],
       ),
     );

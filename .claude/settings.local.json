@@ -44,7 +44,9 @@
       "Bash(git rm:*)",
       "Read(//c/Users/mathi/Documents/private/**)",
       "Bash(curl:*)",
-      "Bash(adb logcat:*)"
+      "Bash(adb logcat:*)",
+      "Bash(dir:*)",
+      "Bash(nul)"
     ],
     "deny": [],
     "ask": []

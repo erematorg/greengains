@@ -56,6 +56,7 @@
             android:name="com.eremat.greengains.service.ForegroundService"
             android:exported="false"
             android:foregroundServiceType="dataSync|location" />
+
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
