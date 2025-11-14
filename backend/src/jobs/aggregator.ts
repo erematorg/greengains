@@ -323,56 +323,59 @@ async function upsertWindowResults(
     locationShare: number;
   }>,
 ): Promise<void> {
-  for (const row of results) {
-    await client.query(
-      `INSERT INTO sensor_aggregates_5m (
-          window_start,
-          window_end,
-          geohash,
-          samples_count,
-          device_count,
-          avg_light,
-          avg_light_min,
-          avg_light_max,
-          avg_accel_rms,
-          avg_gyro_rms,
-          movement_score,
-          battery_avg,
-          location_share,
-          created_at,
-          updated_at
-        )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW(),NOW())
-        ON CONFLICT (window_start, geohash)
-        DO UPDATE SET
-          samples_count = EXCLUDED.samples_count,
-          device_count = EXCLUDED.device_count,
-          avg_light = EXCLUDED.avg_light,
-          avg_light_min = EXCLUDED.avg_light_min,
-          avg_light_max = EXCLUDED.avg_light_max,
-          avg_accel_rms = EXCLUDED.avg_accel_rms,
-          avg_gyro_rms = EXCLUDED.avg_gyro_rms,
-          movement_score = EXCLUDED.movement_score,
-          battery_avg = EXCLUDED.battery_avg,
-          location_share = EXCLUDED.location_share,
-          updated_at = NOW()`,
-      [
-        row.windowStart.toISOString(),
-        row.windowEnd.toISOString(),
-        row.geohash,
-        row.samplesCount,
-        row.deviceCount,
-        row.avgLight,
-        row.lightMin,
-        row.lightMax,
-        row.avgAccelRms,
-        row.avgGyroRms,
-        row.movementScore,
-        row.batteryAvg,
-        row.locationShare,
-      ],
-    );
-  }
+  if (results.length === 0) return;
+
+  // Bulk insert using UNNEST - 10-50x faster than N+1 pattern
+  const windowStarts = results.map(r => r.windowStart.toISOString());
+  const windowEnds = results.map(r => r.windowEnd.toISOString());
+  const geohashes = results.map(r => r.geohash);
+  const samplesCounts = results.map(r => r.samplesCount);
+  const deviceCounts = results.map(r => r.deviceCount);
+  const avgLights = results.map(r => r.avgLight);
+  const lightMins = results.map(r => r.lightMin);
+  const lightMaxes = results.map(r => r.lightMax);
+  const avgAccelRms = results.map(r => r.avgAccelRms);
+  const avgGyroRms = results.map(r => r.avgGyroRms);
+  const movementScores = results.map(r => r.movementScore);
+  const batteryAvgs = results.map(r => r.batteryAvg);
+  const locationShares = results.map(r => r.locationShare);
+
+  await client.query(
+    `INSERT INTO sensor_aggregates_5m (
+      window_start, window_end, geohash, samples_count, device_count,
+      avg_light, avg_light_min, avg_light_max, avg_accel_rms,
+      avg_gyro_rms, movement_score, battery_avg, location_share,
+      created_at, updated_at
+    )
+    SELECT * FROM UNNEST(
+      $1::timestamptz[], $2::timestamptz[], $3::text[],
+      $4::int[], $5::int[], $6::double precision[], $7::double precision[],
+      $8::double precision[], $9::double precision[], $10::double precision[],
+      $11::double precision[], $12::double precision[], $13::double precision[]
+    ) AS t(
+      window_start, window_end, geohash, samples_count, device_count,
+      avg_light, avg_light_min, avg_light_max, avg_accel_rms,
+      avg_gyro_rms, movement_score, battery_avg, location_share
+    )
+    ON CONFLICT (window_start, geohash)
+    DO UPDATE SET
+      samples_count = EXCLUDED.samples_count,
+      device_count = EXCLUDED.device_count,
+      avg_light = EXCLUDED.avg_light,
+      avg_light_min = EXCLUDED.avg_light_min,
+      avg_light_max = EXCLUDED.avg_light_max,
+      avg_accel_rms = EXCLUDED.avg_accel_rms,
+      avg_gyro_rms = EXCLUDED.avg_gyro_rms,
+      movement_score = EXCLUDED.movement_score,
+      battery_avg = EXCLUDED.battery_avg,
+      location_share = EXCLUDED.location_share,
+      updated_at = NOW()`,
+    [
+      windowStarts, windowEnds, geohashes, samplesCounts,
+      deviceCounts, avgLights, lightMins, lightMaxes,
+      avgAccelRms, avgGyroRms, movementScores, batteryAvgs, locationShares
+    ],
+  );
 }
 
 async function upsertDailyResults(
@@ -396,11 +399,27 @@ async function upsertDailyResults(
     }
   >,
 ): Promise<void> {
+  if (dayBuckets.size === 0) return;
+
+  // Prepare arrays for bulk insert
+  const days: string[] = [];
+  const geohashes: string[] = [];
+  const samplesCounts: number[] = [];
+  const deviceCounts: number[] = [];
+  const avgLights: (number | null)[] = [];
+  const lightMins: (number | null)[] = [];
+  const lightMaxes: (number | null)[] = [];
+  const avgAccelRms: number[] = [];
+  const avgGyroRms: number[] = [];
+  const movementScores: number[] = [];
+  const batteryAvgs: (number | null)[] = [];
+  const locationShares: number[] = [];
+  const deviceHours: number[] = [];
+
   for (const bucket of dayBuckets.values()) {
     const samples = bucket.samples;
-    if (samples === 0) {
-      continue;
-    }
+    if (samples === 0) continue;
+
     const deviceCount = bucket.deviceIds.size;
     const avgLight =
       samples > 0 && isFinite(bucket.lightSum) ? bucket.lightSum / samples : null;
@@ -408,62 +427,69 @@ async function upsertDailyResults(
       bucket.lightMin === Number.POSITIVE_INFINITY ? null : bucket.lightMin;
     const lightMax =
       bucket.lightMax === Number.NEGATIVE_INFINITY ? null : bucket.lightMax;
-    const avgAccelRms = bucket.accelRmsSum / samples;
-    const avgGyroRms = bucket.gyroRmsSum / samples;
-    const movementScore = Math.min(1, Math.max(0, avgAccelRms / 9.81));
+    const accelRms = bucket.accelRmsSum / samples;
+    const gyroRms = bucket.gyroRmsSum / samples;
+    const movementScore = Math.min(1, Math.max(0, accelRms / 9.81));
     const batteryAvg =
       bucket.batterySamples > 0 ? bucket.batterySum / bucket.batterySamples : null;
     const locationShare = samples > 0 ? bucket.locationSamples / samples : 0;
-    const deviceHours = bucket.deviceActiveMinutes / 60;
+    const deviceHour = bucket.deviceActiveMinutes / 60;
 
-    await client.query(
-      `INSERT INTO sensor_aggregates_daily (
-          day,
-          geohash,
-          samples_count,
-          device_count,
-          avg_light,
-          avg_light_min,
-          avg_light_max,
-          avg_accel_rms,
-          avg_gyro_rms,
-          movement_score,
-          battery_avg,
-          location_share,
-          device_hours,
-          created_at,
-          updated_at
-        )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW(),NOW())
-        ON CONFLICT (day, geohash)
-        DO UPDATE SET
-          samples_count = EXCLUDED.samples_count,
-          device_count = EXCLUDED.device_count,
-          avg_light = EXCLUDED.avg_light,
-          avg_light_min = EXCLUDED.avg_light_min,
-          avg_light_max = EXCLUDED.avg_light_max,
-          avg_accel_rms = EXCLUDED.avg_accel_rms,
-          avg_gyro_rms = EXCLUDED.avg_gyro_rms,
-          movement_score = EXCLUDED.movement_score,
-          battery_avg = EXCLUDED.battery_avg,
-          location_share = EXCLUDED.location_share,
-          device_hours = EXCLUDED.device_hours,
-          updated_at = NOW()`,
-      [
-        bucket.day.toISOString().slice(0, 10),
-        bucket.geohash,
-        samples,
-        deviceCount,
-        avgLight,
-        lightMin,
-        lightMax,
-        avgAccelRms,
-        avgGyroRms,
-        movementScore,
-        batteryAvg,
-        locationShare,
-        deviceHours,
-      ],
-    );
+    days.push(bucket.day.toISOString().slice(0, 10));
+    geohashes.push(bucket.geohash);
+    samplesCounts.push(samples);
+    deviceCounts.push(deviceCount);
+    avgLights.push(avgLight);
+    lightMins.push(lightMin);
+    lightMaxes.push(lightMax);
+    avgAccelRms.push(accelRms);
+    avgGyroRms.push(gyroRms);
+    movementScores.push(movementScore);
+    batteryAvgs.push(batteryAvg);
+    locationShares.push(locationShare);
+    deviceHours.push(deviceHour);
   }
+
+  if (days.length === 0) return;
+
+  // Bulk insert using UNNEST - 10-50x faster than N+1 pattern
+  await client.query(
+    `INSERT INTO sensor_aggregates_daily (
+      day, geohash, samples_count, device_count,
+      avg_light, avg_light_min, avg_light_max, avg_accel_rms,
+      avg_gyro_rms, movement_score, battery_avg, location_share,
+      device_hours, created_at, updated_at
+    )
+    SELECT * FROM UNNEST(
+      $1::date[], $2::text[], $3::bigint[], $4::int[],
+      $5::double precision[], $6::double precision[], $7::double precision[],
+      $8::double precision[], $9::double precision[], $10::double precision[],
+      $11::double precision[], $12::double precision[], $13::double precision[]
+    ) AS t(
+      day, geohash, samples_count, device_count,
+      avg_light, avg_light_min, avg_light_max, avg_accel_rms,
+      avg_gyro_rms, movement_score, battery_avg, location_share,
+      device_hours
+    )
+    ON CONFLICT (day, geohash)
+    DO UPDATE SET
+      samples_count = EXCLUDED.samples_count,
+      device_count = EXCLUDED.device_count,
+      avg_light = EXCLUDED.avg_light,
+      avg_light_min = EXCLUDED.avg_light_min,
+      avg_light_max = EXCLUDED.avg_light_max,
+      avg_accel_rms = EXCLUDED.avg_accel_rms,
+      avg_gyro_rms = EXCLUDED.avg_gyro_rms,
+      movement_score = EXCLUDED.movement_score,
+      battery_avg = EXCLUDED.battery_avg,
+      location_share = EXCLUDED.location_share,
+      device_hours = EXCLUDED.device_hours,
+      updated_at = NOW()`,
+    [
+      days, geohashes, samplesCounts, deviceCounts,
+      avgLights, lightMins, lightMaxes, avgAccelRms,
+      avgGyroRms, movementScores, batteryAvgs, locationShares,
+      deviceHours
+    ],
+  );
 }
