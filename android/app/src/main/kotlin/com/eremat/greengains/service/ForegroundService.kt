@@ -347,7 +347,7 @@ class ForegroundService : Service() {
 
     /**
      * Starts receiving sensor updates.
-     * Uses SENSOR_DELAY_NORMAL (~200ms) for good battery life.
+     * Uses SENSOR_DELAY_UI (~60ms) for responsive UI updates with reasonable battery life.
      * Sends initial data immediately so all sensors "light up" simultaneously in UI.
      */
     private fun startSensors() {
@@ -355,7 +355,7 @@ class ForegroundService : Service() {
             sensorManager.registerListener(
                 sensorListener,
                 sensor,
-                SensorManager.SENSOR_DELAY_NORMAL
+                SensorManager.SENSOR_DELAY_UI
             )
             Log.d(TAG, "Light sensor listener registered")
             // Send initial placeholder data immediately so UI shows sensor is active
@@ -366,7 +366,7 @@ class ForegroundService : Service() {
             sensorManager.registerListener(
                 sensorListener,
                 sensor,
-                SensorManager.SENSOR_DELAY_NORMAL
+                SensorManager.SENSOR_DELAY_UI
             )
             Log.d(TAG, "Accelerometer listener registered")
             // Send initial placeholder data immediately
@@ -377,7 +377,7 @@ class ForegroundService : Service() {
             sensorManager.registerListener(
                 sensorListener,
                 sensor,
-                SensorManager.SENSOR_DELAY_NORMAL
+                SensorManager.SENSOR_DELAY_UI
             )
             Log.d(TAG, "Gyroscope listener registered")
             // Send initial placeholder data immediately

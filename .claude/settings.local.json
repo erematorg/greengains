@@ -46,7 +46,18 @@
       "Bash(curl:*)",
       "Bash(adb logcat:*)",
       "Bash(dir:*)",
-      "Bash(nul)"
+      "Bash(nul)",
+      "Bash(gh pr create:*)",
+      "Bash(find:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\Users\\mathi\\Documents\\GitHub\\greengains\\build-apk.ps1\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File build-apk.ps1)",
+      "Bash(timeout /t 30 /nobreak)",
+      "Bash(flutter --version:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(powershell:*)",
+      "Bash(xargs:*)",
+      "Bash(flutter gen-l10n:*)",
+      "Bash(flutter analyze:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/extensions/context_extensions.dart';
 import '../core/themes.dart';
@@ -56,7 +57,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Icon(
                         Icons.account_circle_outlined,
                         size: 80,
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: AppTheme.spaceMd),
@@ -94,8 +95,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       backgroundImage: user.photoURL != null
                           ? NetworkImage(user.photoURL!)
                           : null,
+                      onBackgroundImageError: user.photoURL != null
+                          ? (exception, stackTrace) {
+                              // Log error silently, fallback to icon child
+                            }
+                          : null,
                       child: user.photoURL == null
-                          ? const Icon(Icons.person, size: 48)
+                          ? const Icon(Icons.person, size: 56)
                           : null,
                     ),
                     const SizedBox(height: AppTheme.spaceMd),
@@ -123,7 +129,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Text(
                       user.email ?? '',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -165,6 +171,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.error,
                 side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
+                minimumSize: const Size.fromHeight(56),
               ),
             ),
           ],
@@ -182,6 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _handleGoogleSignIn() async {
+    HapticFeedback.mediumImpact();
     try {
       await AuthService.signInWithGoogleUniversal();
       if (mounted) {
@@ -196,6 +204,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _handleSignOut() async {
+    HapticFeedback.lightImpact();
     try {
       await FirebaseAuth.instance.signOut();
       if (mounted) {

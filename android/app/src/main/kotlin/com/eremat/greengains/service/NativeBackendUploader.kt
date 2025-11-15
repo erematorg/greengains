@@ -1,7 +1,10 @@
 package com.eremat.greengains.service
 
+import android.content.ContentValues
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import android.util.Log
+import ch.hsr.geohash.GeoHash
 import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +18,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.File
 import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -41,9 +45,22 @@ class NativeBackendUploader(
     private val sensorBuffer = mutableListOf<SensorReading>()
     private val maxBufferSize = 1000
 
-    // Backend configuration
-    private val baseUrl = "https://greengains.onrender.com"
-    private val apiKey = "Vb9kS3tP0xQ7fY2L"
+    // Backend configuration (loaded from SharedPreferences, set by Flutter)
+    private val baseUrl: String
+    private val apiKey: String
+
+    init {
+        // Load API key from SharedPreferences (Flutter writes it on startup)
+        val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        baseUrl = prefs.getString("flutter.backend_url", null)
+            ?: "https://greengains.onrender.com"
+        apiKey = prefs.getString("flutter.backend_api_key", null)
+            ?: throw IllegalStateException(
+                "Backend API key not set.\n" +
+                "Make sure to run with: flutter run --dart-define-from-file=dart_defines.json\n" +
+                "Or use: .\\run-debug.ps1"
+            )
+    }
 
     // HTTP client with reasonable timeouts for shaky mobile networks
     private val httpClient = OkHttpClient.Builder()
@@ -58,6 +75,9 @@ class NativeBackendUploader(
     private var totalUploadsSucceeded = 0
     private var totalUploadsFailed = 0
     private var lastUploadTime: Long = 0
+
+    // Track last location for geohash computation
+    private var lastLocation: LocationData? = null
 
     fun start() {
         if (uploadJob?.isActive == true) {
@@ -93,6 +113,9 @@ class NativeBackendUploader(
     fun addReading(reading: SensorReading) {
         synchronized(sensorBuffer) {
             sensorBuffer.add(reading)
+
+            // Track last known location for contribution geohash
+            reading.location?.let { lastLocation = it }
 
             // Circular buffer: drop oldest entries beyond maxBufferSize
             while (sensorBuffer.size > maxBufferSize) {
@@ -181,6 +204,19 @@ class NativeBackendUploader(
         totalUploadsSucceeded++
         lastUploadTime = System.currentTimeMillis()
         Log.i(TAG, "Upload succeeded. batch=$batchSize status=$statusCode total=$totalUploadsSucceeded")
+
+        // Save upload timestamp to SharedPreferences so Flutter can read it on resume
+        // Format as ISO8601 string to match Flutter's expectation
+        val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        val iso8601Timestamp = java.time.Instant
+            .ofEpochMilli(lastUploadTime)
+            .toString()
+        prefs.edit()
+            .putString("flutter.last_upload_at", iso8601Timestamp)
+            .apply()
+
+        // Save contribution to local SQLite database (independent of Flutter)
+        saveContributionToDatabase(batchSize, lastUploadTime)
 
         statusListener?.onStatus(
             NativeUploadStatusEvent(
@@ -280,6 +316,80 @@ class NativeBackendUploader(
         }
 
         return deviceId
+    }
+
+    /**
+     * Save contribution directly to SQLite database (same database Flutter uses).
+     * This ensures stats are updated even when Flutter is disconnected.
+     */
+    private fun saveContributionToDatabase(samplesCount: Int, timestamp: Long) {
+        if (samplesCount <= 0) {
+            return
+        }
+
+        try {
+            val dbPath = context.getDatabasePath("greengains.db")
+            if (!dbPath.exists()) {
+                Log.w(TAG, "Database not found, Flutter hasn't initialized it yet. Skipping contribution save.")
+                return
+            }
+
+            val db = SQLiteDatabase.openDatabase(
+                dbPath.absolutePath,
+                null,
+                SQLiteDatabase.OPEN_READWRITE
+            )
+
+            db.use {
+                val geohash = computeGeohash()
+                val contributionId = UUID.randomUUID().toString()
+                val now = System.currentTimeMillis()
+
+                val values = ContentValues().apply {
+                    put("id", contributionId)
+                    put("timestamp", timestamp)
+                    put("samples_count", samplesCount)
+                    put("geohash", geohash)
+                    put("success", 1)
+                    put("created_at", now)
+                }
+
+                val rowId = db.insert("contributions", null, values)
+                if (rowId != -1L) {
+                    Log.d(TAG, "Contribution saved to database: id=$contributionId samples=$samplesCount geohash=$geohash")
+                } else {
+                    Log.e(TAG, "Failed to insert contribution to database")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving contribution to database: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Compute geohash from last known location (precision 6 for ~1.2km tiles).
+     */
+    private fun computeGeohash(): String? {
+        val location = lastLocation ?: return null
+
+        return try {
+            // Check if user enabled location sharing
+            val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            val shareLocation = prefs.getBoolean("flutter.share_location", false)
+
+            if (!shareLocation) {
+                null
+            } else {
+                GeoHash.withCharacterPrecision(
+                    location.latitude,
+                    location.longitude,
+                    6
+                ).toBase32()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error computing geohash: ${e.message}", e)
+            null
+        }
     }
 
     companion object {

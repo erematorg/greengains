@@ -6,10 +6,15 @@ import '../core/extensions/context_extensions.dart';
 import '../core/themes.dart';
 import '../services/location/foreground_location_service.dart';
 import '../utils/app_snackbars.dart';
+import '../core/app_preferences.dart';
 import '../widgets/contribution_stats_card.dart';
+import '../widgets/contextual_tip_card.dart';
 import '../widgets/sensor_data_card.dart';
+import '../widgets/service_control_button.dart';
+import '../widgets/time_ago_text.dart';
 
 /// Home screen showing live sensor data and tracking status
+/// Optimized for fast performance with minimal animations
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -17,45 +22,39 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _locationService = ForegroundLocationService.instance;
-  StreamSubscription<LightData>? _lightSubscription;
-  StreamSubscription<AccelerometerData>? _accelerometerSubscription;
-  StreamSubscription<GyroscopeData>? _gyroscopeSubscription;
-  Timer? _uploadStatusTimer;
-  LightData? _currentLight;
-  AccelerometerData? _currentAccelerometer;
-  GyroscopeData? _currentGyroscope;
+  final _statsKey = GlobalKey<ContributionStatsCardState>();
+  final _prefs = AppPreferences.instance;
+  final Set<String> _dismissedTips = {};
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _checkServiceStatus();
-    _setupSensorListeners();
     _setupUploadSuccessListener();
+    _loadDismissedTips();
+  }
 
-    // Update upload status every 30 seconds to keep time-ago text accurate
-    _uploadStatusTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() {});
+  void _loadDismissedTips() {
+    // Load which tips have been dismissed
+    setState(() {
+      if (_prefs.isTipDismissed('expand_sensors')) {
+        _dismissedTips.add('expand_sensors');
+      }
     });
   }
 
-  void _setupSensorListeners() {
-    _lightSubscription = _locationService.lightStream.listen((light) {
-      setState(() {
-        _currentLight = light;
-      });
+  Future<void> _dismissTip(String tipId) async {
+    await _prefs.dismissTip(tipId);
+    setState(() {
+      _dismissedTips.add(tipId);
     });
-    _accelerometerSubscription = _locationService.accelerometerStream.listen((accel) {
-      setState(() {
-        _currentAccelerometer = accel;
-      });
-    });
-    _gyroscopeSubscription = _locationService.gyroscopeStream.listen((gyro) {
-      setState(() {
-        _currentGyroscope = gyro;
-      });
-    });
+  }
+
+  bool _shouldShowTip(String tipId) {
+    return !_dismissedTips.contains(tipId);
   }
 
   void _setupUploadSuccessListener() {
@@ -70,19 +69,43 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    _uploadStatusTimer?.cancel();
-    _lightSubscription?.cancel();
-    _accelerometerSubscription?.cancel();
-    _gyroscopeSubscription?.cancel();
-
+    WidgetsBinding.instance.removeObserver(this);
     // Clean up upload success listener
     _locationService.uploadStatus.uploadSuccess.removeListener(_onUploadSuccess);
 
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Sync service status with native
+      _checkServiceStatus();
+      // Reload last upload time from preferences
+      _reloadUploadStatus();
+      // Auto-refresh stats when user returns to app
+      _statsKey.currentState?.refresh();
+    }
+  }
+
+  Future<void> _reloadUploadStatus() async {
+    await _prefs.ensureInitialized();
+    final lastUpload = _prefs.lastUploadAt;
+    if (lastUpload != null) {
+      _locationService.uploadStatus.lastUpload.value = lastUpload;
+    }
+  }
+
   Future<void> _checkServiceStatus() async {
     await _locationService.isServiceRunning();
+  }
+
+  Future<void> _refreshData() async {
+    HapticFeedback.lightImpact();
+    // Refresh contribution stats
+    await _statsKey.currentState?.refresh();
+    // Min duration for better UX feedback
+    await Future.delayed(const Duration(milliseconds: 300));
   }
 
   String _getLightDescription(double lux) {
@@ -91,22 +114,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (lux < 500) return 'Normal';
     if (lux < 10000) return 'Bright';
     return 'Very Bright';
-  }
-
-  Future<void> _toggleService() async {
-    final isRunning = _locationService.isRunning.value;
-    if (isRunning) {
-      await _locationService.stop();
-      setState(() {
-        _currentLight = null;
-        _currentAccelerometer = null;
-        _currentGyroscope = null;
-      });
-    } else {
-      HapticFeedback.mediumImpact();
-      // Just start the service - no permission requests here
-      await _locationService.start();
-    }
   }
 
   @override
@@ -124,46 +131,65 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('GreenGains'),
-          actions: [
-            // Quick status indicator in app bar
-            ListenableBuilder(
-              listenable: _locationService.isRunning,
-              builder: (context, _) {
-                final isRunning = _locationService.isRunning.value;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 16),
-                  child: Icon(
-                    isRunning ? Icons.sensors : Icons.sensors_off,
-                    color: isRunning ? Colors.green : theme.colorScheme.outline,
-                  ),
-                );
-              },
-            ),
-          ],
         ),
-        body: ListView(
-          padding: AppTheme.pagePadding,
-          children: [
+        body: RefreshIndicator(
+          color: AppColors.primary,
+          onRefresh: _refreshData,
+          child: ListView(
+            padding: AppTheme.pagePadding,
+            children: [
           // User greeting (compact)
           if (user != null) ...[
             Text(
               'Hello, ${user.displayName?.split(' ').first ?? 'User'}!',
               style: theme.textTheme.headlineSmall,
             ),
-            const SizedBox(height: AppTheme.spaceSm),
+            const SizedBox(height: AppTheme.spaceMd),
           ],
 
-          // Contribution Statistics (moved to top)
-          const ContributionStatsCard(),
+          // Service Control Button
+          const ServiceControlButton(),
+
+          // Last Upload Status
+          const SizedBox(height: AppTheme.spaceSm),
+          ListenableBuilder(
+            listenable: _locationService.isRunning,
+            builder: (context, _) => _buildUploadStatus(theme),
+          ),
+
           const SizedBox(height: AppTheme.spaceLg),
+
+          // Contribution Statistics
+          ContributionStatsCard(key: _statsKey),
+          const SizedBox(height: AppTheme.spaceMd),
+
+          // Contextual Tips
+          if (_locationService.isRunning.value && _shouldShowTip('expand_sensors'))
+            ContextualTipCard(
+              tipId: 'expand_sensors',
+              icon: Icons.expand_more,
+              title: 'View live data',
+              message: 'Expand the sensor section below to verify data is streaming correctly',
+              onDismiss: () => _dismissTip('expand_sensors'),
+            ),
+
+          // Coverage Map Placeholder
+          _buildMapPlaceholder(theme, isDark),
+          const SizedBox(height: AppTheme.spaceMd),
 
           // Collapsible Sensor Details
           ListenableBuilder(
             listenable: _locationService.isRunning,
             builder: (context, _) {
               final isRunning = _locationService.isRunning.value;
+
               return Card(
                 child: ExpansionTile(
+                  onExpansionChanged: (expanded) {
+                    if (expanded) {
+                      HapticFeedback.lightImpact();
+                    }
+                  },
                   title: Text(
                     'Live sensor readings',
                     style: theme.textTheme.titleMedium?.copyWith(
@@ -175,118 +201,139 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: theme.textTheme.bodySmall,
                   ),
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Environment Section
-                          Text(
-                            'Environment',
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                    if (!isRunning)
+                      Padding(
+                        padding: const EdgeInsets.all(AppTheme.spaceMd),
+                        child: Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(AppTheme.spaceMd),
+                              decoration: BoxDecoration(
+                                color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.primary.withValues(alpha: 0.3),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.sensors_off,
+                                    size: 48,
+                                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                                  ),
+                                  const SizedBox(height: AppTheme.spaceSm),
+                                  Text(
+                                    'Sensors inactive',
+                                    style: theme.textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppTheme.spaceXs),
+                                  Text(
+                                    'Start tracking above to begin collecting data',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
+                          ],
+                        ),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(AppTheme.spaceMd, 0, AppTheme.spaceMd, AppTheme.spaceMd),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                      // Environment Section
+                      Text(
+                        'Environment',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: AppTheme.spaceXs),
 
-                          // Light Sensor
-                          SensorDataCard(
+                      // Light Sensor
+                      StreamBuilder<LightData>(
+                        stream: _locationService.lightStream,
+                        builder: (context, snapshot) {
+                          final light = snapshot.data;
+                          final isRunning = _locationService.isRunning.value;
+                          return SensorDataCard(
                             icon: Icons.light_mode,
                             title: 'Light',
-                            value: _currentLight != null
-                                ? '${_currentLight!.lux.toStringAsFixed(0)} lux'
+                            value: light != null
+                                ? '${light.lux.toStringAsFixed(0)} lux'
                                 : null,
-                            unit: _currentLight != null ? _getLightDescription(_currentLight!.lux) : 'lux',
+                            unit: light != null ? _getLightDescription(light.lux) : 'lux',
                             enabled: isRunning,
-                          ),
+                          );
+                        },
+                      ),
 
-                          const SizedBox(height: 16),
+                      const SizedBox(height: AppTheme.spaceMd),
 
-                          // Motion Section
-                          Text(
-                            'Motion',
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
+                      // Motion Section
+                      Text(
+                        'Motion',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: AppTheme.spaceXs),
 
-                          // Accelerometer
-                          SensorDataCard(
+                      // Accelerometer
+                      StreamBuilder<AccelerometerData>(
+                        stream: _locationService.accelerometerStream,
+                        builder: (context, snapshot) {
+                          final accel = snapshot.data;
+                          final isRunning = _locationService.isRunning.value;
+                          return SensorDataCard(
                             icon: Icons.vibration,
                             title: 'Accelerometer',
-                            value: _currentAccelerometer != null
-                                ? '${_currentAccelerometer!.magnitude.toStringAsFixed(1)} m/s²'
+                            value: accel != null
+                                ? '${accel.magnitude.toStringAsFixed(1)} m/s²'
                                 : null,
-                            unit: _currentAccelerometer != null
-                                ? '(${_currentAccelerometer!.x.toStringAsFixed(1)}, ${_currentAccelerometer!.y.toStringAsFixed(1)}, ${_currentAccelerometer!.z.toStringAsFixed(1)})'
+                            unit: accel != null
+                                ? '(${accel.x.toStringAsFixed(1)}, ${accel.y.toStringAsFixed(1)}, ${accel.z.toStringAsFixed(1)})'
                                 : 'm/s²',
                             enabled: isRunning,
-                          ),
+                          );
+                        },
+                      ),
 
-                          // Gyroscope
-                          SensorDataCard(
+                      // Gyroscope
+                      StreamBuilder<GyroscopeData>(
+                        stream: _locationService.gyroscopeStream,
+                        builder: (context, snapshot) {
+                          final gyro = snapshot.data;
+                          final isRunning = _locationService.isRunning.value;
+                          return SensorDataCard(
                             icon: Icons.rotate_90_degrees_ccw,
                             title: 'Gyroscope',
-                            value: _currentGyroscope != null
-                                ? '${_currentGyroscope!.magnitude.toStringAsFixed(2)} rad/s'
+                            value: gyro != null
+                                ? '${gyro.magnitude.toStringAsFixed(2)} rad/s'
                                 : null,
-                            unit: _currentGyroscope != null
-                                ? '(${_currentGyroscope!.x.toStringAsFixed(2)}, ${_currentGyroscope!.y.toStringAsFixed(2)}, ${_currentGyroscope!.z.toStringAsFixed(2)})'
+                            unit: gyro != null
+                                ? '(${gyro.x.toStringAsFixed(2)}, ${gyro.y.toStringAsFixed(2)}, ${gyro.z.toStringAsFixed(2)})'
                                 : 'rad/s',
                             enabled: isRunning,
-                          ),
-
-                          // Location tracking in background (no UI card)
-                        ],
+                          );
+                        },
                       ),
-                    ),
+
+                            // Location tracking in background (no UI card)
+                          ],
+                        ),
+                      ),
                   ],
                 ),
-              );
-            },
-          ),
-
-          const SizedBox(height: AppTheme.spaceMd),
-
-          // Service Control Button
-          ListenableBuilder(
-            listenable: _locationService.isRunning,
-            builder: (context, _) {
-              final isRunning = _locationService.isRunning.value;
-              return Column(
-                children: [
-                  AnimatedScale(
-                    scale: isRunning ? 1.02 : 1.0,
-                    duration: const Duration(milliseconds: 250),
-                    curve: Curves.easeOut,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: isRunning ? AppColors.gradientRed : AppColors.gradientGreen,
-                        ),
-                        boxShadow: AppColors.buttonShadow(isDark),
-                      ),
-                      child: FilledButton.icon(
-                        onPressed: _toggleService,
-                        icon: Icon(isRunning ? Icons.stop : Icons.play_arrow),
-                        label: Text(isRunning ? 'Stop Tracking' : 'Start Tracking'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          minimumSize: const Size.fromHeight(48),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Last Upload Status
-                  const SizedBox(height: AppTheme.spaceSm),
-                  _buildUploadStatus(theme),
-                ],
               );
             },
           ),
@@ -294,19 +341,87 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     ),
+    ),
   );
+  }
+
+  Widget _buildMapPlaceholder(ThemeData theme, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spaceMd),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: isDark
+            ? AppColors.elevationDark(active: false)
+            : AppColors.elevationLight(active: false),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primaryAlpha(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              Icons.map,
+              color: AppColors.primary,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: AppTheme.spaceMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your Coverage',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Map visualization coming soon',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.location_on,
+            color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+            size: 20,
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildUploadStatus(ThemeData theme) {
     final status = _locationService.uploadStatus;
     final isServiceRunning = _locationService.isRunning.value;
+    final isDark = theme.brightness == Brightness.dark;
 
     if (!isServiceRunning) {
-      return Text(
-        'Background service stopped',
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.outline,
-        ),
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.sensors_off,
+            size: 16,
+            color: theme.colorScheme.outline,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'Tracking paused',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
+          ),
+        ],
       );
     }
 
@@ -317,38 +432,53 @@ class _HomeScreenState extends State<HomeScreen> {
           return ValueListenableBuilder<bool>(
             valueListenable: status.uploading,
             builder: (context, uploading, _) {
-              return Text(
-                uploading ? 'Uploading…' : 'Backend: Waiting for data',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.outline,
-                ),
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (uploading) ...[
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(
+                          isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                  ] else ...[
+                    Icon(
+                      Icons.cloud_queue,
+                      size: 16,
+                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    uploading ? 'Uploading data...' : 'Waiting for data...',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                    ),
+                  ),
+                ],
               );
             },
           );
         }
 
-        final now = DateTime.now();
-        final diff = now.difference(lastUpload);
-        final timeAgo = diff.inMinutes < 1
-            ? 'just now'
-            : diff.inMinutes < 60
-                ? '${diff.inMinutes}m ago'
-                : diff.inHours < 24
-                    ? '${diff.inHours}h ago'
-                    : '${diff.inDays}d ago';
-
-        final isDark = theme.brightness == Brightness.dark;
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.cloud_done,
-              size: 14,
-              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+              size: 16,
+              color: AppColors.success,
             ),
-            const SizedBox(width: 4),
-            Text(
-              'Last upload: $timeAgo',
+            const SizedBox(width: 6),
+            TimeAgoText(
+              timestamp: lastUpload,
+              prefix: 'Last upload: ',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
               ),

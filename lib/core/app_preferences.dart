@@ -11,6 +11,7 @@ class PreferenceKeys {
   static const foregroundServiceEnabled = 'foreground_service_enabled';
   static const shareLocation = 'share_location';
   static const lastUploadAt = 'last_upload_at';
+  static const dismissedTips = 'dismissed_tips';
 }
 
 class AppPreferences {
@@ -119,5 +120,20 @@ class AppPreferences {
         : mode == ThemeMode.system
             ? 'system'
             : 'light';
+  }
+
+  /// Check if a contextual tip has been dismissed
+  bool isTipDismissed(String tipId) {
+    final dismissed = _sp.getStringList(PreferenceKeys.dismissedTips) ?? [];
+    return dismissed.contains(tipId);
+  }
+
+  /// Dismiss a contextual tip permanently
+  Future<void> dismissTip(String tipId) async {
+    final dismissed = _sp.getStringList(PreferenceKeys.dismissedTips) ?? [];
+    if (!dismissed.contains(tipId)) {
+      dismissed.add(tipId);
+      await _sp.setStringList(PreferenceKeys.dismissedTips, dismissed);
+    }
   }
 }

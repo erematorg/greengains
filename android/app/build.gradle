@@ -20,6 +20,10 @@ android {
         jvmTarget = "17"
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.eremat.greengains"
@@ -29,6 +33,11 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Load API credentials from environment variables
+        // Set these in your shell: export GREENGAINS_API_KEY="your_key_here"
+        buildConfigField "String", "API_KEY", "\"${System.getenv('GREENGAINS_API_KEY') ?: ''}\""
+        buildConfigField "String", "BACKEND_URL", "\"${System.getenv('GREENGAINS_BACKEND_URL') ?: 'https://greengains.onrender.com'}\""
     }
 
     buildTypes {
@@ -53,4 +62,7 @@ dependencies {
 
     // JSON serialization for payload building
     implementation "com.google.code.gson:gson:2.10.1"
+
+    // Geohash library for location encoding
+    implementation "ch.hsr:geohash:1.4.0"
 }

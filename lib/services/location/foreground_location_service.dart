@@ -1,13 +1,9 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:dart_geohash/dart_geohash.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../core/app_preferences.dart';
-import '../../data/local/database_helper.dart';
-import '../tracking/contribution_tracker.dart';
 
 /// Model for location data received from the native foreground service
 class LocationData {
@@ -155,12 +151,14 @@ class ForegroundLocationService {
   final _accelerometerController = StreamController<AccelerometerData>.broadcast();
   final _gyroscopeController = StreamController<GyroscopeData>.broadcast();
   final _isRunningNotifier = ValueNotifier<bool>(false);
+  final _statsRefreshTrigger = ValueNotifier<int>(0);
 
   Stream<LocationData> get locationStream => _locationController.stream;
   Stream<LightData> get lightStream => _lightController.stream;
   Stream<AccelerometerData> get accelerometerStream => _accelerometerController.stream;
   Stream<GyroscopeData> get gyroscopeStream => _gyroscopeController.stream;
   ValueListenable<bool> get isRunning => _isRunningNotifier;
+  ValueListenable<int> get statsRefreshTrigger => _statsRefreshTrigger;
 
   LocationData? _lastLocation;
   LocationData? get lastLocation => _lastLocation;
@@ -176,13 +174,10 @@ class ForegroundLocationService {
 
   // Native upload status exposed to the UI
   final NativeUploadStatus uploadStatus = NativeUploadStatus();
-  final GeoHasher _geoHasher = GeoHasher();
-  final Uuid _uuid = const Uuid();
 
   ForegroundLocationService._() {
     _setupMethodCallHandler();
     unawaited(_bootstrapUploadStatus());
-    unawaited(ContributionTracker.instance.initialize());
   }
 
   static final ForegroundLocationService instance = ForegroundLocationService._();
@@ -215,7 +210,7 @@ class ForegroundLocationService {
         // We don't need to do anything here for now
         break;
       case 'onNativeUploadStatus':
-        await _handleNativeUploadStatus(call.arguments as Map);
+        _handleNativeUploadStatus(call.arguments as Map);
         break;
       case 'onServiceStopped':
         _isRunningNotifier.value = false;
@@ -277,10 +272,9 @@ class ForegroundLocationService {
         AppPreferences.instance.foregroundServiceEnabled;
   }
 
-  Future<void> _handleNativeUploadStatus(Map<dynamic, dynamic> data) async {
+  void _handleNativeUploadStatus(Map<dynamic, dynamic> data) {
     final status = data['status'] as String? ?? 'unknown';
     final timestampMs = (data['timestamp'] as num?)?.toInt();
-    final batchSize = (data['batchSize'] as num?)?.toInt() ?? 0;
 
     switch (status) {
       case 'started':
@@ -291,11 +285,12 @@ class ForegroundLocationService {
         if (timestampMs != null) {
           final ts = DateTime.fromMillisecondsSinceEpoch(timestampMs);
           uploadStatus.lastUpload.value = ts;
-          await AppPreferences.instance.ensureInitialized();
-          await AppPreferences.instance.setLastUploadAt(ts);
+          // Note: Native code already saved timestamp to SharedPreferences
         }
         uploadStatus.uploadSuccess.value++;
-        await _saveContribution(samplesCount: batchSize);
+        // Note: Native code already saved contribution to SQLite database
+        // Trigger stats refresh in UI
+        _statsRefreshTrigger.value++;
         break;
       case 'failure':
         uploadStatus.uploading.value = false;
@@ -304,49 +299,6 @@ class ForegroundLocationService {
         break;
       default:
         debugPrint('Received unknown native upload status: $status');
-    }
-  }
-
-  Future<void> _saveContribution({required int samplesCount}) async {
-    if (samplesCount <= 0) {
-      return;
-    }
-
-    try {
-      final geohash = _computeCurrentGeohash();
-      final now = DateTime.now();
-      await DatabaseHelper.instance.insertContribution(
-        id: _uuid.v4(),
-        timestamp: now,
-        samplesCount: samplesCount,
-        geohash: geohash,
-        success: true,
-      );
-
-      if (geohash != null) {
-        await ContributionTracker.instance.initialize();
-        unawaited(ContributionTracker.instance.recordTile(geohash, now));
-      }
-    } catch (e) {
-      debugPrint('Failed to save contribution: $e');
-    }
-  }
-
-  String? _computeCurrentGeohash() {
-    final loc = _lastLocation;
-    if (loc == null) {
-      return null;
-    }
-
-    try {
-      return _geoHasher.encode(
-        loc.longitude,
-        loc.latitude,
-        precision: 6,
-      );
-    } catch (e) {
-      debugPrint('Failed to compute geohash: $e');
-      return null;
     }
   }
 

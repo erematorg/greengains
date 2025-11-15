@@ -10,7 +10,7 @@ const String kBackendBaseUrl = String.fromEnvironment(
 
 const String kBackendApiKey = String.fromEnvironment(
   'BACKEND_API_KEY',
-  defaultValue: 'Vb9kS3tP0xQ7fY2L',
+  defaultValue: '', // API key must be provided via dart_defines.json or --dart-define
 );
 
 class BackendClient {
@@ -20,7 +20,14 @@ class BackendClient {
     String? apiKey,
   })  : _client = client ?? http.Client(),
         _baseUrl = (baseUrl ?? kBackendBaseUrl).replaceAll(RegExp(r'/+$'), ''),
-        _apiKey = apiKey ?? kBackendApiKey;
+        _apiKey = apiKey ?? kBackendApiKey {
+    if (_apiKey.isEmpty) {
+      throw ArgumentError(
+        'Backend API key is required. '
+        'Set BACKEND_API_KEY environment variable or pass apiKey parameter.',
+      );
+    }
+  }
 
   final http.Client _client;
   final String _baseUrl;

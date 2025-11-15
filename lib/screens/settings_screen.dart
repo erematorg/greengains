@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../core/themes.dart';
 import '../core/theme_controller.dart';
 import '../core/app_preferences.dart';
@@ -17,6 +18,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _prefs = AppPreferences.instance;
   final _themeController = ThemeController.instance;
   static const _fgChannel = MethodChannel('greengains/foreground');
+  String _version = 'Loading...';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final packageInfo = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _version = '${packageInfo.version}+${packageInfo.buildNumber}';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ],
                         selected: {_themeController.mode},
                         onSelectionChanged: (Set<ThemeMode> newSelection) {
+                          HapticFeedback.selectionClick();
                           _themeController.setMode(newSelection.first);
                         },
                       );
@@ -94,6 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: const Text('Allow location data collection for heatmaps'),
                     value: _prefs.shareLocation,
                     onChanged: (value) async {
+                      HapticFeedback.selectionClick();
                       if (value) {
                         // Request location permission when enabling
                         debugPrint('Requesting location permission from Flutter...');
@@ -115,6 +134,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: const Text('Upload contributions on cellular'),
                     value: _prefs.useMobileUploads,
                     onChanged: (value) {
+                      HapticFeedback.selectionClick();
                       setState(() {
                         _prefs.setUseMobileUploads(value);
                       });
@@ -181,7 +201,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           Center(
             child: Text(
-              'Version 1.0.0+1',
+              'Version $_version',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.outline,
               ),
