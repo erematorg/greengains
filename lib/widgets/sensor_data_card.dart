@@ -42,12 +42,12 @@ class SensorDataCard extends StatelessWidget {
         children: [
           // Icon - no animation for instant render
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(AppTheme.spaceSm),
             decoration: BoxDecoration(
               color: isActive
                   ? AppColors.primaryAlpha(0.15)
                   : (isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
             ),
             child: Icon(
               icon,
@@ -70,7 +70,7 @@ class SensorDataCard extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppTheme.spaceXxs),
                 Text(
                   value ?? 'Waiting...',
                   style: theme.textTheme.bodyMedium?.copyWith(

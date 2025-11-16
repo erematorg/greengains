@@ -73,12 +73,12 @@ class ForegroundService : Service() {
     private var nativeUploader: NativeBackendUploader? = null
     private var nativeSamplerJob: Job? = null
 
-    // Throttling for sensor data to reduce flooding
-    private var lastLightValue: Float = 0f
-    private var lastLightSentTime: Long = 0L
-    private var lastLocationSentTime: Long = 0L
-    private var lastAccelerometerSentTime: Long = 0L
-    private var lastGyroscopeSentTime: Long = 0L
+    // Battery state monitoring for battery-friendly behavior
+    private lateinit var batteryMonitor: BatteryStateMonitor
+
+    // Network state monitoring for WiFi-only uploads
+    private lateinit var networkMonitor: NetworkStateMonitor
+
 
     inner class LocalBinder : Binder() {
         fun getService(): ForegroundService = this@ForegroundService
@@ -115,6 +115,8 @@ class ForegroundService : Service() {
 
         // Always start sensors (they don't require location permission)
         startSensors()
+        batteryMonitor.startMonitoring()
+        networkMonitor.startMonitoring()
         startNativeUploader()
 
         return START_STICKY
@@ -126,6 +128,8 @@ class ForegroundService : Service() {
 
         setupLocationUpdates()
         setupSensors()
+        batteryMonitor = BatteryStateMonitor(this)
+        networkMonitor = NetworkStateMonitor(this)
     }
 
     override fun onDestroy() {
@@ -137,8 +141,17 @@ class ForegroundService : Service() {
         setServiceEnabledPref(false)
         fusedLocationClient.removeLocationUpdates(locationCallback)
         stopSensors()
+        batteryMonitor.stopMonitoring()
+        networkMonitor.stopMonitoring()
         stopNativeUploader()
-        methodChannel?.invokeMethod("onServiceStopped", null)
+
+        // Safe notification to Flutter (may be detached)
+        try {
+            methodChannel?.invokeMethod("onServiceStopped", null)
+        } catch (e: Exception) {
+            Log.d(TAG, "Flutter already detached, skipping onServiceStopped notification")
+        }
+
         coroutineScope.coroutineContext.cancelChildren()
     }
 
@@ -178,7 +191,13 @@ class ForegroundService : Service() {
     fun stopForegroundService() {
         stopSelf()
         setServiceEnabledPref(false)
-        methodChannel?.invokeMethod("onServiceStopped", null)
+
+        // Safe notification to Flutter (may be detached)
+        try {
+            methodChannel?.invokeMethod("onServiceStopped", null)
+        } catch (e: Exception) {
+            Log.d(TAG, "Flutter already detached, skipping onServiceStopped notification")
+        }
     }
 
     /**
@@ -191,13 +210,7 @@ class ForegroundService : Service() {
             override fun onLocationResult(locationResult: LocationResult) {
                 for (location in locationResult.locations) {
                     _locationFlow.value = location
-
-                    // Batch location: only send every LOCATION_SEND_INTERVAL_MS
-                    val timeDiff = System.currentTimeMillis() - lastLocationSentTime
-                    if (timeDiff > LOCATION_SEND_INTERVAL_MS) {
-                        sendLocationToFlutter(location)
-                        lastLocationSentTime = System.currentTimeMillis()
-                    }
+                    sendLocationToFlutter(location)
                 }
             }
         }
@@ -205,10 +218,26 @@ class ForegroundService : Service() {
 
     /**
      * Starts the location updates using the FusedLocationProviderClient.
+     * Also tries to get last known location for immediate data.
      */
     @SuppressLint("MissingPermission")
     private fun startLocationUpdates() {
         Log.d(TAG, "Starting location updates")
+
+        // Try to get last known location first (faster, uses cached location)
+        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            if (location != null) {
+                Log.d(TAG, "Got last known location: ${location.latitude}, ${location.longitude}")
+                _locationFlow.value = location
+                sendLocationToFlutter(location)
+            } else {
+                Log.d(TAG, "No last known location available")
+            }
+        }.addOnFailureListener { e ->
+            Log.w(TAG, "Failed to get last known location: ${e.message}")
+        }
+
+        // Start continuous location updates
         fusedLocationClient.requestLocationUpdates(
             LocationRequest.Builder(
                 LOCATION_UPDATES_INTERVAL_MS
@@ -303,38 +332,17 @@ class ForegroundService : Service() {
                 Sensor.TYPE_LIGHT -> {
                     val lux = event.values[0]
                     _lightFlow.value = lux
-
-                    // Throttle: only send if value changed significantly OR enough time passed
-                    val luxDiff = kotlin.math.abs(lux - lastLightValue)
-                    val timeDiff = System.currentTimeMillis() - lastLightSentTime
-
-                    if (luxDiff > LIGHT_THRESHOLD_LUX || timeDiff > SENSOR_SEND_INTERVAL_MS) {
-                        sendLightToFlutter(lux)
-                        lastLightValue = lux
-                        lastLightSentTime = System.currentTimeMillis()
-                    }
+                    sendLightToFlutter(lux)
                 }
                 Sensor.TYPE_ACCELEROMETER -> {
                     val values = event.values.clone()
                     _accelerometerFlow.value = values
-
-                    // Throttle: only send at intervals to avoid flooding
-                    val timeDiff = System.currentTimeMillis() - lastAccelerometerSentTime
-                    if (timeDiff > SENSOR_SEND_INTERVAL_MS) {
-                        sendAccelerometerToFlutter(values)
-                        lastAccelerometerSentTime = System.currentTimeMillis()
-                    }
+                    sendAccelerometerToFlutter(values)
                 }
                 Sensor.TYPE_GYROSCOPE -> {
                     val values = event.values.clone()
                     _gyroscopeFlow.value = values
-
-                    // Throttle: only send at intervals to avoid flooding
-                    val timeDiff = System.currentTimeMillis() - lastGyroscopeSentTime
-                    if (timeDiff > SENSOR_SEND_INTERVAL_MS) {
-                        sendGyroscopeToFlutter(values)
-                        lastGyroscopeSentTime = System.currentTimeMillis()
-                    }
+                    sendGyroscopeToFlutter(values)
                 }
             }
         }
@@ -348,7 +356,7 @@ class ForegroundService : Service() {
     /**
      * Starts receiving sensor updates.
      * Uses SENSOR_DELAY_UI (~60ms) for responsive UI updates with reasonable battery life.
-     * Sends initial data immediately so all sensors "light up" simultaneously in UI.
+     * Data flows instantly to Flutter with no throttling.
      */
     private fun startSensors() {
         lightSensor?.let { sensor ->
@@ -358,8 +366,6 @@ class ForegroundService : Service() {
                 SensorManager.SENSOR_DELAY_UI
             )
             Log.d(TAG, "Light sensor listener registered")
-            // Send initial placeholder data immediately so UI shows sensor is active
-            sendLightToFlutter(0f)
         }
 
         accelerometerSensor?.let { sensor ->
@@ -369,8 +375,6 @@ class ForegroundService : Service() {
                 SensorManager.SENSOR_DELAY_UI
             )
             Log.d(TAG, "Accelerometer listener registered")
-            // Send initial placeholder data immediately
-            sendAccelerometerToFlutter(floatArrayOf(0f, 0f, 0f))
         }
 
         gyroscopeSensor?.let { sensor ->
@@ -380,8 +384,6 @@ class ForegroundService : Service() {
                 SensorManager.SENSOR_DELAY_UI
             )
             Log.d(TAG, "Gyroscope listener registered")
-            // Send initial placeholder data immediately
-            sendGyroscopeToFlutter(floatArrayOf(0f, 0f, 0f))
         }
     }
 
@@ -401,7 +403,9 @@ class ForegroundService : Service() {
     private fun startNativeUploader() {
         if (nativeUploader == null) {
             nativeUploader = NativeBackendUploader(
-                applicationContext,
+                context = applicationContext,
+                batteryMonitor = batteryMonitor,
+                networkMonitor = networkMonitor,
                 statusListener = ::handleNativeUploadStatus
             )
         }
@@ -544,11 +548,8 @@ class ForegroundService : Service() {
         private const val TAG = "GreenGainsFGService"
         private val LOCATION_UPDATES_INTERVAL_MS = 1.seconds.inWholeMilliseconds
 
-        // Sensor throttling to reduce flooding
-        private const val LIGHT_THRESHOLD_LUX = 10.0f  // Only send if change > 10 lux
-        private const val SENSOR_SEND_INTERVAL_MS = 5000L  // Or every 5 seconds
-        private const val LOCATION_SEND_INTERVAL_MS = 10000L  // Send location every 10 seconds
-        private const val NATIVE_SAMPLE_INTERVAL_MS = 10_000L  // Sample sensors for native uploader every 10 seconds
+        // Native uploader sampling interval (independent of Flutter UI updates)
+        private const val NATIVE_SAMPLE_INTERVAL_MS = 10_000L
 
         @Volatile
         var running: Boolean = false

@@ -35,6 +35,8 @@ import java.util.concurrent.TimeUnit
 class NativeBackendUploader(
     private val context: Context,
     private val uploadIntervalMs: Long = 120_000L,
+    private val batteryMonitor: BatteryStateMonitor? = null,
+    private val networkMonitor: NetworkStateMonitor? = null,
     private val statusListener: NativeUploadStatusListener? = null
 ) {
     private val gson = Gson()
@@ -132,6 +134,18 @@ class NativeBackendUploader(
     fun getBufferSize(): Int = synchronized(sensorBuffer) { sensorBuffer.size }
 
     private suspend fun uploadBatch() = withContext(Dispatchers.IO) {
+        // Check battery state before attempting upload
+        if (batteryMonitor?.shouldPauseForBattery() == true) {
+            Log.i(TAG, "Upload skipped: battery low and not charging")
+            return@withContext
+        }
+
+        // Check network state before attempting upload
+        if (networkMonitor?.isUploadAllowed() == false) {
+            Log.i(TAG, "Upload skipped: network unavailable or WiFi-only mode enabled")
+            return@withContext
+        }
+
         val readings: List<SensorReading>
 
         synchronized(sensorBuffer) {

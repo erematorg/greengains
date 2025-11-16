@@ -288,13 +288,18 @@ class ForegroundLocationService {
           // Note: Native code already saved timestamp to SharedPreferences
         }
         uploadStatus.uploadSuccess.value++;
+        // Clear any previous errors on successful upload
+        uploadStatus.lastError.value = null;
+        uploadStatus.lastErrorTime.value = null;
         // Note: Native code already saved contribution to SQLite database
         // Trigger stats refresh in UI
         _statsRefreshTrigger.value++;
         break;
       case 'failure':
         uploadStatus.uploading.value = false;
-        final error = data['error'];
+        final error = data['error'] as String? ?? 'Unknown error';
+        uploadStatus.lastError.value = error;
+        uploadStatus.lastErrorTime.value = DateTime.now();
         debugPrint('Native upload failed: $error');
         break;
       default:
@@ -314,6 +319,8 @@ class NativeUploadStatus {
   final ValueNotifier<bool> uploading = ValueNotifier<bool>(false);
   final ValueNotifier<DateTime?> lastUpload = ValueNotifier<DateTime?>(null);
   final ValueNotifier<int> uploadSuccess = ValueNotifier<int>(0);
+  final ValueNotifier<String?> lastError = ValueNotifier<String?>(null);
+  final ValueNotifier<DateTime?> lastErrorTime = ValueNotifier<DateTime?>(null);
 
   void reset() {
     uploading.value = false;
@@ -323,5 +330,7 @@ class NativeUploadStatus {
     uploading.dispose();
     lastUpload.dispose();
     uploadSuccess.dispose();
+    lastError.dispose();
+    lastErrorTime.dispose();
   }
 }

@@ -119,6 +119,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         try {
                           await _fgChannel.invokeMethod('requestLocationPermission');
                           debugPrint('Permission request completed');
+
+                          // Restart service if running to pick up new permission
+                          final isRunning = await _fgChannel.invokeMethod('isForegroundServiceRunning') as bool?;
+                          if (isRunning == true) {
+                            debugPrint('Restarting service to pick up location permission');
+                            await _fgChannel.invokeMethod('stopForegroundService');
+                            await Future.delayed(const Duration(milliseconds: 500));
+                            await _fgChannel.invokeMethod('startForegroundService');
+                          }
                         } catch (e) {
                           debugPrint('Permission request error: $e');
                         }

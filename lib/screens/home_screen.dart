@@ -425,65 +425,96 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     }
 
-    return ValueListenableBuilder<DateTime?>(
-      valueListenable: status.lastUpload,
-      builder: (context, lastUpload, _) {
-        if (lastUpload == null) {
-          return ValueListenableBuilder<bool>(
-            valueListenable: status.uploading,
-            builder: (context, uploading, _) {
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (uploading) ...[
-                    SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation(
-                          isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                  ] else ...[
-                    Icon(
-                      Icons.cloud_queue,
-                      size: 16,
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                  Text(
-                    uploading ? 'Uploading data...' : 'Waiting for data...',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                    ),
+    // Check for errors first (highest priority)
+    return ValueListenableBuilder<String?>(
+      valueListenable: status.lastError,
+      builder: (context, lastError, _) {
+        if (lastError != null) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.cloud_off,
+                size: 16,
+                color: theme.colorScheme.error,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  'Upload failed: $lastError',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
                   ),
-                ],
-              );
-            },
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+            ],
           );
         }
 
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.cloud_done,
-              size: 16,
-              color: AppColors.success,
-            ),
-            const SizedBox(width: 6),
-            TimeAgoText(
-              timestamp: lastUpload,
-              prefix: 'Last upload: ',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-              ),
-            ),
-          ],
+        // No error, check upload status
+        return ValueListenableBuilder<DateTime?>(
+          valueListenable: status.lastUpload,
+          builder: (context, lastUpload, _) {
+            if (lastUpload == null) {
+              return ValueListenableBuilder<bool>(
+                valueListenable: status.uploading,
+                builder: (context, uploading, _) {
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (uploading) ...[
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(
+                              isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ] else ...[
+                        Icon(
+                          Icons.cloud_queue,
+                          size: 16,
+                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Text(
+                        uploading ? 'Uploading data...' : 'Waiting for data...',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            }
+
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.cloud_done,
+                  size: 16,
+                  color: AppColors.success,
+                ),
+                const SizedBox(width: 6),
+                TimeAgoText(
+                  timestamp: lastUpload,
+                  prefix: 'Last upload: ',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );

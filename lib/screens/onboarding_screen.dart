@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import '../core/app_preferences.dart';
 import '../core/themes.dart';
+import 'webview_screen.dart';
 
 /// Simple one-screen onboarding for first-time users
 /// Optimized with minimal animations for fast load
@@ -125,6 +127,64 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                 ),
 
                 const Spacer(),
+
+                // Privacy Policy link (Play Store requirement)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceSm),
+                  child: RichText(
+                    textAlign: TextAlign.center,
+                    text: TextSpan(
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                      ),
+                      children: [
+                        const TextSpan(text: 'By continuing, you agree to our '),
+                        TextSpan(
+                          text: 'Privacy Policy',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            decoration: TextDecoration.underline,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => const WebViewScreen(
+                                    url: 'https://greengains.eremat.org/privacy-policy',
+                                    title: 'Privacy Policy',
+                                  ),
+                                ),
+                              );
+                            },
+                        ),
+                        const TextSpan(text: ' and '),
+                        TextSpan(
+                          text: 'Terms of Service',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            decoration: TextDecoration.underline,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => const WebViewScreen(
+                                    url: 'https://greengains.eremat.org/terms-of-service',
+                                    title: 'Terms of Service',
+                                  ),
+                                ),
+                              );
+                            },
+                        ),
+                        const TextSpan(text: '.'),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: AppTheme.spaceMd),
 
                 // Start Button - no animation, instant
                 Container(

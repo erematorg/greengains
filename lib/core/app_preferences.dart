@@ -50,7 +50,7 @@ class AppPreferences {
   }
 
   bool get useMobileUploads =>
-      _sp.getBool(PreferenceKeys.useMobileUploads) ?? false;
+      _sp.getBool(PreferenceKeys.useMobileUploads) ?? true;
 
   Future<void> setUseMobileUploads(bool value) async {
     await _sp.setBool(PreferenceKeys.useMobileUploads, value);
