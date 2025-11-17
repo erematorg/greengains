@@ -27,9 +27,9 @@ class ContextualTipCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: AppTheme.spaceMd),
       padding: const EdgeInsets.all(AppTheme.spaceMd),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
-        borderRadius: BorderRadius.circular(12),
+      decoration: AppTheme.surfaceContainer(
+        isDark: isDark,
+        elevated: true,
         border: Border.all(
           color: AppColors.primary.withValues(alpha: 0.2),
           width: 1.5,
@@ -73,7 +73,7 @@ class ContextualTipCard extends StatelessWidget {
                         minWidth: 32,
                         minHeight: 32,
                       ),
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                      color: AppColors.textSecondary(isDark),
                     ),
                   ],
                 ),
@@ -81,7 +81,7 @@ class ContextualTipCard extends StatelessWidget {
                 Text(
                   message,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                    color: AppColors.textSecondary(isDark),
                   ),
                 ),
               ],

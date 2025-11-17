@@ -43,7 +43,7 @@ class ReferralInviteCard extends StatelessWidget {
             ),
             const SizedBox(height: AppTheme.spaceSm),
             Text(
-              'Earn bonus tiles when friends run GreenGains nearby.',
+              'Earn bonus credits when friends contribute data.',
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: AppTheme.spaceSm),

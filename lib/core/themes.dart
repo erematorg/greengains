@@ -47,6 +47,17 @@ class AppColors {
   static Color primaryAlpha(double opacity) =>
       primary.withValues(alpha: opacity);
 
+  // Theme-aware color helpers (reduces isDark ternaries)
+  static Color textPrimary(bool isDark) => isDark ? darkTextPrimary : lightTextPrimary;
+  static Color textSecondary(bool isDark) => isDark ? darkTextSecondary : lightTextSecondary;
+  static Color textTertiary(bool isDark) => isDark ? darkTextTertiary : lightTextTertiary;
+  static Color surface(bool isDark) => isDark ? darkSurface : lightSurface;
+  static Color surfaceElevated(bool isDark) => isDark ? darkSurfaceElevated : lightSurfaceElevated;
+  static Color surfaceActive(bool isDark) => isDark ? darkSurfaceActive : lightSurfaceActive;
+  static Color background(bool isDark) => isDark ? darkBackground : lightBackground;
+  static Color border(bool isDark) => isDark ? darkBorder : lightBorder;
+  static Color divider(bool isDark) => isDark ? darkDivider : lightDivider;
+
   static const List<Color> gradientGreen = [primaryLight, primary];
   static const List<Color> gradientRed = [error, errorDark];
 
@@ -136,6 +147,7 @@ class AppColors {
 
 class AppTheme {
   // Spacing scale (comprehensive)
+  static const double spaceXxxs = 2;  // Micro spacing
   static const double spaceXxs = 4;
   static const double spaceXs = 8;
   static const double spaceSm = 12;
@@ -151,10 +163,12 @@ class AppTheme {
   static const double onboardingLinkBottomGap = 28;
 
   // Radii
+  static const double radiusMin = 4;   // Minimal radius for subtle rounding
   static const double radiusSm = 8;
   static const double radiusMd = 12;
   static const double radiusLg = 16;
   static const double radiusXl = 24;
+  static const double radiusPill = 999; // Fully rounded (pill shape)
 
   // Touch targets (accessibility)
   static const double minTouchTarget = 48;
@@ -172,6 +186,52 @@ class AppTheme {
   static String googleButtonAsset(Brightness b) => b == Brightness.dark
       ? 'assets/brands/google_button_dark.svg'
       : 'assets/brands/google_button_light.svg';
+
+  // Decoration Helpers - reduces ~150 lines of duplicate code
+
+  /// Creates a surface container with elevation and theme-aware colors
+  /// Used for cards, panels, and elevated surfaces throughout the app
+  static BoxDecoration surfaceContainer({
+    required bool isDark,
+    bool active = false,
+    bool elevated = false,
+    double radius = radiusMd,
+    Border? border,
+  }) {
+    Color bgColor;
+    if (active) {
+      bgColor = AppColors.surfaceActive(isDark);
+    } else if (elevated) {
+      bgColor = AppColors.surfaceElevated(isDark);
+    } else {
+      bgColor = AppColors.surface(isDark);
+    }
+
+    return BoxDecoration(
+      color: bgColor,
+      borderRadius: BorderRadius.circular(radius),
+      border: border,
+      boxShadow: isDark
+          ? AppColors.elevationDark(active: active)
+          : AppColors.elevationLight(active: active),
+    );
+  }
+
+  /// Creates an icon container with primary-colored background
+  /// Used for feature icons, status indicators, etc.
+  static BoxDecoration iconContainer({
+    required bool isDark,
+    bool active = false,
+    double padding = spaceSm,
+    double radius = radiusSm,
+  }) {
+    return BoxDecoration(
+      color: active
+          ? AppColors.primaryAlpha(0.15)
+          : AppColors.surfaceElevated(isDark),
+      borderRadius: BorderRadius.circular(radius),
+    );
+  }
 
   static const _seed = Color(0xFF2F6D5F);
 

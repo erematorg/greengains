@@ -45,7 +45,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
+      backgroundColor: AppColors.background(isDark),
       body: SafeArea(
         child: Column(
           children: [
@@ -53,7 +53,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                color: AppColors.surface(isDark),
                 boxShadow: AppColors.elevationLight(active: false),
               ),
               child: Row(
@@ -84,7 +84,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                         Text(
                           widget.url,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                            color: AppColors.textSecondary(isDark),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,

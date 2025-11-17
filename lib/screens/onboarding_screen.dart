@@ -94,7 +94,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                 Text(
                   'Help create greener cities by passively collecting environmental sensor data.',
                   style: theme.textTheme.bodyLarge?.copyWith(
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                    color: AppColors.textSecondary(isDark),
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -135,7 +135,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                     textAlign: TextAlign.center,
                     text: TextSpan(
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                        color: AppColors.textSecondary(isDark),
                       ),
                       children: [
                         const TextSpan(text: 'By continuing, you agree to our '),
@@ -189,7 +189,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                 // Start Button - no animation, instant
                 Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(100),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
                     gradient: const LinearGradient(
                       colors: AppColors.gradientGreen,
                       begin: Alignment.topLeft,
@@ -269,7 +269,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
               Text(
                 description,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                  color: AppColors.textSecondary(isDark),
                 ),
               ),
             ],

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../data/models/contribution_stats.dart';
 import '../data/repositories/contribution_repository.dart';
 import '../services/location/foreground_location_service.dart';
@@ -88,13 +87,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
     if (_loading) {
       return Container(
         padding: const EdgeInsets.all(AppTheme.spaceMd),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: isDark
-              ? AppColors.elevationDark(active: false)
-              : AppColors.elevationLight(active: false),
-        ),
+        decoration: AppTheme.surfaceContainer(isDark: isDark),
         child: Row(
           children: [
             // Icon skeleton
@@ -102,7 +95,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                color: AppColors.surfaceElevated(isDark),
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
@@ -128,7 +121,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
               width: 20,
               height: 20,
               decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+                color: AppColors.surfaceElevated(isDark),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -142,7 +135,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
       return Container(
         padding: const EdgeInsets.all(AppTheme.spaceMd),
         decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+          color: AppColors.surface(isDark),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: AppColors.error.withValues(alpha: 0.3),
@@ -171,7 +164,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
               child: Text(
                 'Failed to load stats',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                  color: AppColors.textSecondary(isDark),
                 ),
               ),
             ),
@@ -192,7 +185,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
       return Container(
         padding: const EdgeInsets.all(AppTheme.spaceMd),
         decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+          color: AppColors.surface(isDark),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: AppColors.primary.withValues(alpha: 0.2),
@@ -232,7 +225,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
                   Text(
                     'Start tracking to make your first contribution',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                      color: AppColors.textSecondary(isDark),
                     ),
                   ),
                 ],
@@ -263,13 +256,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
       },
       child: Container(
       padding: const EdgeInsets.all(AppTheme.spaceMd),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: isDark
-            ? AppColors.elevationDark(active: false)
-            : AppColors.elevationLight(active: false),
-      ),
+      decoration: AppTheme.surfaceContainer(isDark: isDark),
       child: Row(
         children: [
           // Icon - simple, no animation
@@ -315,7 +302,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
                     label: 'Streak',
                     value: '${_stats.currentStreak}d',
                     icon: Icons.local_fire_department,
-                    iconColor: hasStreak ? AppColors.warning : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+                    iconColor: hasStreak ? AppColors.warning : (AppColors.textSecondary(isDark)),
                   ),
                 ],
               ],
@@ -331,7 +318,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
     return Container(
       width: 1,
       height: 24,
-      color: isDark ? AppColors.darkDivider : AppColors.lightDivider,
+      color: AppColors.divider(isDark),
     );
   }
 
@@ -351,7 +338,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
           value,
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
-            color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+            color: AppColors.textPrimary(isDark),
             height: 1.2,
           ),
         ),
@@ -359,7 +346,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
         Text(
           label,
           style: theme.textTheme.bodySmall?.copyWith(
-            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+            color: AppColors.textSecondary(isDark),
             fontSize: 11,
           ),
         ),
@@ -375,7 +362,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
           width: 32,
           height: 18,
           decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+            color: AppColors.surfaceElevated(isDark),
             borderRadius: BorderRadius.circular(4),
           ),
         ),
@@ -384,7 +371,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
           width: 28,
           height: 12,
           decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated,
+            color: AppColors.surfaceElevated(isDark),
             borderRadius: BorderRadius.circular(4),
           ),
         ),

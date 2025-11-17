@@ -35,6 +35,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.collections.ArrayDeque
+import kotlin.math.abs
+import kotlin.math.acos
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.sqrt
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -68,6 +74,8 @@ class ForegroundService : Service() {
     var accelerometerFlow: StateFlow<FloatArray?> = _accelerometerFlow
     private val _gyroscopeFlow = MutableStateFlow<FloatArray?>(null)
     var gyroscopeFlow: StateFlow<FloatArray?> = _gyroscopeFlow
+
+    private val qualityAnalyzer = SensorQualityAnalyzer()
 
     // Native uploader (runs independently of Flutter)
     private var nativeUploader: NativeBackendUploader? = null
@@ -332,16 +340,19 @@ class ForegroundService : Service() {
                 Sensor.TYPE_LIGHT -> {
                     val lux = event.values[0]
                     _lightFlow.value = lux
+                    qualityAnalyzer.onLight(lux)
                     sendLightToFlutter(lux)
                 }
                 Sensor.TYPE_ACCELEROMETER -> {
                     val values = event.values.clone()
                     _accelerometerFlow.value = values
+                    qualityAnalyzer.onAccelerometer(values)
                     sendAccelerometerToFlutter(values)
                 }
                 Sensor.TYPE_GYROSCOPE -> {
                     val values = event.values.clone()
                     _gyroscopeFlow.value = values
+                    qualityAnalyzer.onGyroscope(values)
                     sendGyroscopeToFlutter(values)
                 }
             }
@@ -393,6 +404,7 @@ class ForegroundService : Service() {
      */
     private fun stopSensors() {
         sensorManager.unregisterListener(sensorListener)
+        qualityAnalyzer.reset()
         Log.d(TAG, "All sensor listeners unregistered")
     }
 
@@ -433,6 +445,222 @@ class ForegroundService : Service() {
         nativeUploader = null
     }
 
+    /**
+     * Lightweight analyzer that keeps a rolling window of raw sensor events to derive metadata.
+     * Avoids any heavy math (only a few dot products / variances) so it can run 24/7.
+     */
+    private class SensorQualityAnalyzer {
+        private data class MotionSample(val timestamp: Long, val magnitude: Float)
+        private data class OrientationInfo(
+            val state: OrientationState = OrientationState.UNKNOWN,
+            val tiltDegrees: Float? = null
+        )
+
+        private val accelSamples = ArrayDeque<MotionSample>()
+        private val gyroSamples = ArrayDeque<MotionSample>()
+        private var gravityVector = FloatArray(3)
+        private var gravityInitialized = false
+        private var lastLux: Float? = null
+
+        fun onLight(lux: Float) = synchronized(this) {
+            lastLux = lux
+        }
+
+        fun onAccelerometer(values: FloatArray) = synchronized(this) {
+            val now = System.currentTimeMillis()
+            updateGravity(values)
+            accelSamples.addLast(MotionSample(now, magnitude(values)))
+            trimOld(now)
+        }
+
+        fun onGyroscope(values: FloatArray) = synchronized(this) {
+            val now = System.currentTimeMillis()
+            gyroSamples.addLast(MotionSample(now, magnitude(values)))
+            trimOld(now)
+        }
+
+        fun buildMetadata(location: Location?): QualityMetadata = synchronized(this) {
+            val now = System.currentTimeMillis()
+            trimOld(now)
+
+            val orientationInfo = computeOrientation()
+            val accelVariance = computeVariance(accelSamples)
+            val gyroRms = computeRms(gyroSamples)
+            val (motionState, motionConfidence) = classifyMotion(accelVariance, gyroRms)
+            val pocketState = determinePocketState(
+                orientationInfo,
+                lastLux,
+                motionState
+            )
+            val locationQuality = determineLocationQuality(location)
+
+            return QualityMetadata(
+                orientation = orientationInfo.state,
+                tiltDegrees = orientationInfo.tiltDegrees,
+                motionState = motionState,
+                motionConfidence = motionConfidence,
+                pocketState = pocketState,
+                locationQuality = locationQuality
+            )
+        }
+
+        fun reset() = synchronized(this) {
+            accelSamples.clear()
+            gyroSamples.clear()
+            gravityVector = FloatArray(3)
+            gravityInitialized = false
+            lastLux = null
+        }
+
+        private fun trimOld(now: Long) {
+            while (accelSamples.isNotEmpty() && now - accelSamples.first().timestamp > WINDOW_MS) {
+                accelSamples.removeFirst()
+            }
+            while (gyroSamples.isNotEmpty() && now - gyroSamples.first().timestamp > WINDOW_MS) {
+                gyroSamples.removeFirst()
+            }
+        }
+
+        private fun updateGravity(values: FloatArray) {
+            if (!gravityInitialized) {
+                gravityVector[0] = values[0]
+                gravityVector[1] = values[1]
+                gravityVector[2] = values[2]
+                gravityInitialized = true
+                return
+            }
+            gravityVector[0] = ALPHA * values[0] + (1 - ALPHA) * gravityVector[0]
+            gravityVector[1] = ALPHA * values[1] + (1 - ALPHA) * gravityVector[1]
+            gravityVector[2] = ALPHA * values[2] + (1 - ALPHA) * gravityVector[2]
+        }
+
+        private fun computeOrientation(): OrientationInfo {
+            if (!gravityInitialized) return OrientationInfo()
+            val norm = magnitude(gravityVector)
+            if (norm < 0.1f) return OrientationInfo()
+
+            val gx = gravityVector[0] / norm
+            val gy = gravityVector[1] / norm
+            val gz = gravityVector[2] / norm
+
+            val tiltRad = acos(max(-1f, min(1f, gz)).toDouble())
+            val tiltDeg = Math.toDegrees(tiltRad.toDouble()).toFloat()
+
+            val absGz = abs(gz)
+            val absGx = abs(gx)
+            val absGy = abs(gy)
+
+            val state = when {
+                gz <= -FACE_THRESHOLD -> OrientationState.FACE_UP
+                gz >= FACE_THRESHOLD -> OrientationState.FACE_DOWN
+                absGz < UPRIGHT_THRESHOLD -> {
+                    when {
+                        absGy - absGx > ORIENTATION_MARGIN -> OrientationState.UPRIGHT_PORTRAIT
+                        absGx - absGy > ORIENTATION_MARGIN -> OrientationState.UPRIGHT_LANDSCAPE
+                        else -> OrientationState.UPRIGHT_UNKNOWN
+                    }
+                }
+                else -> OrientationState.UNKNOWN
+            }
+
+            return OrientationInfo(state = state, tiltDegrees = tiltDeg)
+        }
+
+        private fun computeVariance(samples: ArrayDeque<MotionSample>): Double {
+            if (samples.size < 2) return 0.0
+            val mean = samples.sumOf { it.magnitude.toDouble() } / samples.size
+            return samples.sumOf {
+                val diff = it.magnitude - mean
+                (diff * diff).toDouble()
+            } / samples.size
+        }
+
+        private fun computeRms(samples: ArrayDeque<MotionSample>): Double {
+            if (samples.isEmpty()) return 0.0
+            val meanSquares = samples.sumOf { (it.magnitude * it.magnitude).toDouble() } / samples.size
+            return sqrt(meanSquares)
+        }
+
+        private fun classifyMotion(
+            accelVariance: Double,
+            gyroRms: Double
+        ): Pair<MotionState, Float> {
+            if (accelSamples.isEmpty() && gyroSamples.isEmpty()) {
+                return MotionState.UNKNOWN to 0f
+            }
+            val accelRatio = (accelVariance / ACCEL_MOVING_VARIANCE).toFloat()
+            val gyroRatio = (gyroRms / GYRO_MOVING_RMS).toFloat()
+            val confidence = max(accelRatio, gyroRatio).coerceIn(0f, 1f)
+
+            val state = when {
+                confidence < 0.2f -> MotionState.STATIONARY
+                confidence < 0.6f -> MotionState.LIGHT
+                else -> MotionState.ACTIVE
+            }
+            return state to confidence
+        }
+
+        private fun determinePocketState(
+            orientationInfo: OrientationInfo,
+            lux: Float?,
+            motionState: MotionState
+        ): PocketState {
+            val tilt = orientationInfo.tiltDegrees
+            if (lux == null || tilt == null) {
+                return PocketState.UNKNOWN
+            }
+
+            return when {
+                lux < POCKET_LUX_THRESHOLD &&
+                    tilt in POCKET_TILT_MIN..POCKET_TILT_MAX &&
+                    motionState != MotionState.ACTIVE -> PocketState.LIKELY
+                lux > BRIGHT_ENV_LUX -> PocketState.UNLIKELY
+                else -> PocketState.UNKNOWN
+            }
+        }
+
+        private fun determineLocationQuality(location: Location?): LocationQuality {
+            location ?: return LocationQuality.NONE
+
+            val now = System.currentTimeMillis()
+            val ageMs = now - location.time
+            if (ageMs > STALE_LOCATION_MS) {
+                return LocationQuality.STALE
+            }
+
+            val accuracy = if (location.hasAccuracy()) location.accuracy else Float.MAX_VALUE
+            return when {
+                accuracy <= 25f -> LocationQuality.HIGH
+                accuracy <= 75f -> LocationQuality.MEDIUM
+                accuracy <= 200f -> LocationQuality.LOW
+                else -> LocationQuality.POOR
+            }
+        }
+
+        private fun magnitude(values: FloatArray): Float {
+            return sqrt(
+                values[0] * values[0] +
+                    values[1] * values[1] +
+                    values[2] * values[2]
+            )
+        }
+
+        companion object {
+            private const val WINDOW_MS = 10_000L
+            private const val ALPHA = 0.1f
+            private const val FACE_THRESHOLD = 0.7f
+            private const val UPRIGHT_THRESHOLD = 0.4f
+            private const val ORIENTATION_MARGIN = 0.15f
+            private const val ACCEL_MOVING_VARIANCE = 0.5
+            private const val GYRO_MOVING_RMS = 0.07
+            private const val POCKET_LUX_THRESHOLD = 2f
+            private const val BRIGHT_ENV_LUX = 15f
+            private const val POCKET_TILT_MIN = 60f
+            private const val POCKET_TILT_MAX = 120f
+            private const val STALE_LOCATION_MS = 60_000L
+        }
+    }
+
     private fun captureSensorSnapshot(): SensorReading? {
         val light = _lightFlow.value
         val accelValues = _accelerometerFlow.value
@@ -452,6 +680,7 @@ class ForegroundService : Service() {
                 accuracy = if (it.hasAccuracy()) it.accuracy.toDouble() else null
             )
         }
+        val quality = qualityAnalyzer.buildMetadata(location)
 
         if (light == null && accel == null && gyro == null && locationData == null) {
             return null
@@ -462,7 +691,8 @@ class ForegroundService : Service() {
             light = light,
             accelerometer = accel,
             gyroscope = gyro,
-            location = locationData
+            location = locationData,
+            quality = quality
         )
     }
 

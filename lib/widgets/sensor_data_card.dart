@@ -29,32 +29,25 @@ class SensorDataCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: AppTheme.spaceSm),
       padding: const EdgeInsets.all(AppTheme.spaceMd),
-      decoration: BoxDecoration(
-        color: isActive
-            ? (isDark ? AppColors.darkSurfaceActive : AppColors.lightSurfaceActive)
-            : (isDark ? AppColors.darkSurface : AppColors.lightSurface),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: isDark
-            ? AppColors.elevationDark(active: isActive)
-            : AppColors.elevationLight(active: isActive),
+      decoration: AppTheme.surfaceContainer(
+        isDark: isDark,
+        active: isActive,
       ),
       child: Row(
         children: [
           // Icon - no animation for instant render
           Container(
             padding: const EdgeInsets.all(AppTheme.spaceSm),
-            decoration: BoxDecoration(
-              color: isActive
-                  ? AppColors.primaryAlpha(0.15)
-                  : (isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated),
-              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+            decoration: AppTheme.iconContainer(
+              isDark: isDark,
+              active: isActive,
             ),
             child: Icon(
               icon,
               size: 22,
               color: isActive
                   ? AppColors.primary
-                  : (isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
+                  : AppColors.textTertiary(isDark),
             ),
           ),
           const SizedBox(width: AppTheme.spaceMd),
@@ -99,7 +92,7 @@ class SensorDataCard extends StatelessWidget {
               shape: BoxShape.circle,
               color: isActive
                   ? AppColors.primary
-                  : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
+                  : AppColors.border(isDark),
             ),
           ),
         ],

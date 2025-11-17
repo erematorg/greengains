@@ -129,9 +129,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: overlayStyle,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('GreenGains'),
-        ),
+        appBar: AppBar(),
         body: RefreshIndicator(
           color: AppColors.primary,
           onRefresh: _refreshData,
@@ -208,9 +206,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           children: [
                             Container(
                               padding: const EdgeInsets.all(AppTheme.spaceMd),
-                              decoration: BoxDecoration(
-                                color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-                                borderRadius: BorderRadius.circular(12),
+                              decoration: AppTheme.surfaceContainer(
+                                isDark: isDark,
                                 border: Border.all(
                                   color: AppColors.primary.withValues(alpha: 0.3),
                                   width: 1.5,
@@ -221,7 +218,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   Icon(
                                     Icons.sensors_off,
                                     size: 48,
-                                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                                    color: AppColors.textSecondary(isDark),
                                   ),
                                   const SizedBox(height: AppTheme.spaceSm),
                                   Text(
@@ -234,7 +231,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   Text(
                                     'Start tracking above to begin collecting data',
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                                      color: AppColors.textSecondary(isDark),
                                     ),
                                     textAlign: TextAlign.center,
                                   ),
@@ -254,7 +251,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       Text(
                         'Environment',
                         style: theme.textTheme.labelLarge?.copyWith(
-                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                          color: AppColors.textSecondary(isDark),
                         ),
                       ),
                       const SizedBox(height: AppTheme.spaceXs),
@@ -283,7 +280,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       Text(
                         'Motion',
                         style: theme.textTheme.labelLarge?.copyWith(
-                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                          color: AppColors.textSecondary(isDark),
                         ),
                       ),
                       const SizedBox(height: AppTheme.spaceXs),
@@ -348,13 +345,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildMapPlaceholder(ThemeData theme, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(AppTheme.spaceMd),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: isDark
-            ? AppColors.elevationDark(active: false)
-            : AppColors.elevationLight(active: false),
-      ),
+      decoration: AppTheme.surfaceContainer(isDark: isDark),
       child: Row(
         children: [
           Container(
@@ -384,7 +375,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Text(
                   'Map visualization coming soon',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                    color: AppColors.textSecondary(isDark),
                   ),
                 ),
               ],
@@ -392,7 +383,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
           Icon(
             Icons.location_on,
-            color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary,
+            color: AppColors.textTertiary(isDark),
             size: 20,
           ),
         ],
@@ -471,7 +462,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation(
-                              isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                              AppColors.textSecondary(isDark),
                             ),
                           ),
                         ),
@@ -480,14 +471,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         Icon(
                           Icons.cloud_queue,
                           size: 16,
-                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                          color: AppColors.textSecondary(isDark),
                         ),
                         const SizedBox(width: 6),
                       ],
                       Text(
                         uploading ? 'Uploading data...' : 'Waiting for data...',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                          color: AppColors.textSecondary(isDark),
                         ),
                       ),
                     ],
@@ -509,7 +500,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   timestamp: lastUpload,
                   prefix: 'Last upload: ',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                    color: AppColors.textSecondary(isDark),
                   ),
                 ),
               ],

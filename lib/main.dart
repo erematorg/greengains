@@ -80,7 +80,7 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
   }
 
   Future<void> _checkOnboarding() async {
-    final completed = await AppPreferences.instance.onboardingComplete;
+    final completed = AppPreferences.instance.onboardingComplete;
     if (mounted) {
       setState(() {
         _showOnboarding = !completed;

@@ -297,7 +297,8 @@ class NativeBackendUploader(
                 "t" to reading.timestamp,
                 "light" to reading.light,
                 "accel" to reading.accelerometer?.let { listOf(it.x, it.y, it.z) },
-                "gyro" to reading.gyroscope?.let { listOf(it.x, it.y, it.z) }
+                "gyro" to reading.gyroscope?.let { listOf(it.x, it.y, it.z) },
+                "quality" to reading.quality?.toPayloadMap()?.takeIf { it.isNotEmpty() }
             ).filterValues { it != null }
         }
 
@@ -316,6 +317,17 @@ class NativeBackendUploader(
             "timestamp" to System.currentTimeMillis(),
             "batch" to batch,
             "location" to locationMap
+        ).filterValues { it != null }
+    }
+
+    private fun QualityMetadata.toPayloadMap(): Map<String, Any?> {
+        return mapOf(
+            "orientation" to orientation.name.lowercase(),
+            "tilt_deg" to tiltDegrees,
+            "motion_state" to motionState.name.lowercase(),
+            "motion_confidence" to motionConfidence.toDouble(),
+            "pocket" to pocketState.name.lowercase(),
+            "location_quality" to locationQuality.name.lowercase()
         ).filterValues { it != null }
     }
 
@@ -419,7 +431,8 @@ data class SensorReading(
     val light: Float?,
     val accelerometer: AccelData?,
     val gyroscope: GyroData?,
-    val location: LocationData?
+    val location: LocationData?,
+    val quality: QualityMetadata?
 )
 
 data class AccelData(val x: Float, val y: Float, val z: Float)
@@ -446,4 +459,44 @@ data class NativeUploadStatusEvent(
 
 fun interface NativeUploadStatusListener {
     fun onStatus(event: NativeUploadStatusEvent)
+}
+
+data class QualityMetadata(
+    val orientation: OrientationState = OrientationState.UNKNOWN,
+    val tiltDegrees: Float? = null,
+    val motionState: MotionState = MotionState.UNKNOWN,
+    val motionConfidence: Float = 0f,
+    val pocketState: PocketState = PocketState.UNKNOWN,
+    val locationQuality: LocationQuality = LocationQuality.NONE
+)
+
+enum class OrientationState {
+    FACE_UP,
+    FACE_DOWN,
+    UPRIGHT_PORTRAIT,
+    UPRIGHT_LANDSCAPE,
+    UPRIGHT_UNKNOWN,
+    UNKNOWN
+}
+
+enum class MotionState {
+    UNKNOWN,
+    STATIONARY,
+    LIGHT,
+    ACTIVE
+}
+
+enum class PocketState {
+    UNKNOWN,
+    LIKELY,
+    UNLIKELY
+}
+
+enum class LocationQuality {
+    NONE,
+    STALE,
+    HIGH,
+    MEDIUM,
+    LOW,
+    POOR
 }
