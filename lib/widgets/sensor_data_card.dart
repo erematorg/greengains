@@ -3,6 +3,7 @@ import '../core/themes.dart';
 
 /// Reusable sensor data display card with live values
 /// Shows icon, title, current value, and unit
+/// Optimized for fast rendering and instant updates
 class SensorDataCard extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -28,49 +29,44 @@ class SensorDataCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: AppTheme.spaceSm),
       padding: const EdgeInsets.all(AppTheme.spaceMd),
-      decoration: BoxDecoration(
-        color: isActive
-            ? (isDark ? AppColors.darkSurfaceActive : AppColors.lightSurfaceActive)
-            : (isDark ? AppColors.darkSurface : AppColors.lightSurface),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: isDark
-            ? AppColors.elevationDark(active: isActive)
-            : AppColors.elevationLight(active: isActive),
+      decoration: AppTheme.surfaceContainer(
+        isDark: isDark,
+        active: isActive,
       ),
       child: Row(
         children: [
-          // Icon
+          // Icon - no animation for instant render
           Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isActive
-                  ? AppColors.primaryAlpha(0.15)
-                  : (isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated),
-              borderRadius: BorderRadius.circular(12),
+            padding: const EdgeInsets.all(AppTheme.spaceSm),
+            decoration: AppTheme.iconContainer(
+              isDark: isDark,
+              active: isActive,
             ),
             child: Icon(
               icon,
-              size: 24,
+              size: 22,
               color: isActive
                   ? AppColors.primary
-                  : (isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
+                  : AppColors.textTertiary(isDark),
             ),
           ),
           const SizedBox(width: AppTheme.spaceMd),
 
-          // Title and status
+          // Title and status - instant updates
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: theme.textTheme.titleMedium,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppTheme.spaceXxs),
                 Text(
                   value ?? 'Waiting...',
-                  style: theme.textTheme.bodyLarge?.copyWith(
+                  style: theme.textTheme.bodyMedium?.copyWith(
                     color: isActive
                         ? theme.colorScheme.onSurface
                         : theme.colorScheme.outline,
@@ -81,22 +77,22 @@ class SensorDataCard extends StatelessWidget {
                   unit,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.outline,
+                    fontSize: 12,
                   ),
                 ),
               ],
             ),
           ),
 
-          // Status indicator
+          // Status indicator - simple, no pulse animation
           Container(
-            width: 10,
-            height: 10,
+            width: 8,
+            height: 8,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isActive
                   ? AppColors.primary
-                  : (isDark ? AppColors.darkBorder : AppColors.lightBorder),
-              boxShadow: isActive ? AppColors.glowEffect(AppColors.primary) : null,
+                  : AppColors.border(isDark),
             ),
           ),
         ],

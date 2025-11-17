@@ -1,0 +1,552 @@
+import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+import '../core/themes.dart';
+import '../data/models/contribution_stats.dart';
+import '../data/repositories/contribution_repository.dart';
+
+/// Comprehensive statistics screen showing detailed contribution metrics,
+/// environmental insights, achievements, and future earnings
+class StatisticsScreen extends StatefulWidget {
+  const StatisticsScreen({super.key});
+
+  @override
+  State<StatisticsScreen> createState() => _StatisticsScreenState();
+}
+
+class _StatisticsScreenState extends State<StatisticsScreen> {
+  final _contributionRepo = ContributionRepository();
+  ContributionStats? _stats;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    setState(() => _isLoading = true);
+    try {
+      final stats = await _contributionRepo.getStats();
+      if (mounted) {
+        setState(() {
+          _stats = stats;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Statistics'),
+        // Share feature commented out - will be implemented later
+        // actions: [
+        //   IconButton(
+        //     icon: const Icon(Icons.share_outlined),
+        //     onPressed: () {
+        //       // TODO: Implement share stats functionality
+        //     },
+        //     tooltip: 'Share statistics',
+        //   ),
+        // ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _stats == null || _stats!.totalUploads == 0
+              ? _buildEmptyState(context, theme, isDark)
+              : RefreshIndicator(
+                  onRefresh: _loadStats,
+                  color: AppColors.primary,
+                  child: ListView(
+                    padding: AppTheme.pagePadding,
+                    children: [
+                      // Quick stats grid
+                      _buildQuickStatsGrid(theme, isDark),
+                      const SizedBox(height: AppTheme.spaceLg),
+
+                      // Section: Contribution Timeline - Simple trend chart
+                      _buildSectionHeader('Contribution Timeline', theme, isDark),
+                      const SizedBox(height: AppTheme.spaceMd),
+                      _buildSimpleTrendChart(theme, isDark),
+                      const SizedBox(height: AppTheme.spaceLg),
+
+                      // Section: Achievements (Coming soon placeholder)
+                      _buildSectionHeader('Achievements', theme, isDark),
+                      const SizedBox(height: AppTheme.spaceMd),
+                      _buildAchievementsPlaceholder(theme, isDark),
+                      const SizedBox(height: AppTheme.spaceLg),
+
+                      // Section: Future Earnings
+                      _buildSectionHeader('Earnings', theme, isDark),
+                      const SizedBox(height: AppTheme.spaceMd),
+                      _buildEarningsPlaceholder(theme, isDark),
+                    ],
+                  ),
+                ),
+    );
+  }
+
+  Widget _buildHeroMetricCard(ThemeData theme, bool isDark) {
+    final totalContributions = _stats!.totalUploads;
+    // Weekly change calculation will be added when we track historical data
+    final weeklyChange = 0; // Placeholder - needs historical data tracking
+
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spaceLg),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary.withValues(alpha: 0.15),
+            AppColors.primary.withValues(alpha: 0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.eco,
+            size: 48,
+            color: AppColors.primary,
+          ),
+          const SizedBox(height: AppTheme.spaceSm),
+          Text(
+            totalContributions.toString(),
+            style: theme.textTheme.displayLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+              height: 1.0,
+            ),
+          ),
+          const SizedBox(height: AppTheme.spaceXs),
+          Text(
+            'Total Contributions',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: AppColors.textSecondary(isDark),
+            ),
+          ),
+          const SizedBox(height: AppTheme.spaceMd),
+          if (weeklyChange > 0)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.trending_up,
+                  size: 16,
+                  color: AppColors.success,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '+$weeklyChange% this week',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.success,
+                  ),
+                ),
+              ],
+            )
+          else
+            Text(
+              'Keep contributing to track trends',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.textSecondary(isDark),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickStatsGrid(ThemeData theme, bool isDark) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildQuickStatTile(
+            'Today',
+            '${_stats!.uploadsToday}', // Real data from database
+            Icons.today,
+            theme,
+            isDark,
+          ),
+        ),
+        const SizedBox(width: AppTheme.spaceMd),
+        Expanded(
+          child: _buildQuickStatTile(
+            'Streak',
+            '${_stats!.currentStreak}d', // Real data from database
+            Icons.local_fire_department,
+            theme,
+            isDark,
+          ),
+        ),
+        const SizedBox(width: AppTheme.spaceMd),
+        Expanded(
+          child: _buildQuickStatTile(
+            'Total',
+            '${_stats!.totalUploads}', // Real data from database
+            Icons.eco,
+            theme,
+            isDark,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickStatTile(
+    String label,
+    String value,
+    IconData icon,
+    ThemeData theme,
+    bool isDark,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spaceMd),
+      decoration: AppTheme.surfaceContainer(isDark: isDark),
+      child: Column(
+        children: [
+          Icon(icon, size: 24, color: AppColors.primary),
+          const SizedBox(height: AppTheme.spaceXs),
+          Text(
+            value,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppColors.textSecondary(isDark),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Calculate appropriate grid interval for whole numbers
+  double _calculateGridInterval(List<FlSpot> spots) {
+    final maxValue = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
+    if (maxValue <= 5) return 1.0;
+    if (maxValue <= 10) return 2.0;
+    if (maxValue <= 20) return 5.0;
+    return (maxValue / 4).ceilToDouble();
+  }
+
+  /// Calculate max Y value ensuring it's a whole number with some padding
+  double _calculateMaxY(List<FlSpot> spots) {
+    final maxValue = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
+    if (maxValue == 0) return 5.0; // Show 0-5 range when all values are 0
+    // Add 20% padding and round up to nearest whole number
+    return (maxValue * 1.2).ceilToDouble();
+  }
+
+  /// Simple trend chart showing basic contribution pattern
+  Widget _buildSimpleTrendChart(ThemeData theme, bool isDark) {
+    // Create a simple 7-day visualization
+    // Use today's count as the latest point, then taper back for demo purposes
+    final todayCount = _stats!.uploadsToday.toDouble();
+
+    // Until we fetch historical daily counts, show zeros for previous days
+    final spots = List.generate(7, (index) {
+      if (index == 6) {
+        return FlSpot(index.toDouble(), todayCount);
+      }
+      return FlSpot(index.toDouble(), 0.0);
+    });
+
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spaceMd),
+      decoration: AppTheme.surfaceContainer(isDark: isDark),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Activity Trend',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spaceXs,
+                  vertical: AppTheme.spaceXxs,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryAlpha(0.1),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMin),
+                ),
+                child: Text(
+                  'Last 7 days',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.spaceMd),
+          SizedBox(
+            height: 140,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: _calculateGridInterval(spots),
+                  getDrawingHorizontalLine: (value) => FlLine(
+                    color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFE0E0E0),
+                    strokeWidth: 1,
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 32,
+                      getTitlesWidget: (value, meta) {
+                        // Only show whole numbers on Y-axis
+                        if (value % 1 != 0) return const SizedBox();
+                        return Text(
+                          value.toInt().toString(),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: AppColors.textTertiary(isDark),
+                            fontSize: 11,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Today'];
+                        if (value.toInt() >= 0 && value.toInt() < days.length) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              days[value.toInt()],
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: value.toInt() == 6
+                                    ? AppColors.primary
+                                    : AppColors.textTertiary(isDark),
+                                fontSize: 11,
+                                fontWeight: value.toInt() == 6
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                          );
+                        }
+                        return const SizedBox();
+                      },
+                    ),
+                  ),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                borderData: FlBorderData(show: false),
+                minX: 0,
+                maxX: 6,
+                minY: 0,
+                maxY: _calculateMaxY(spots),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    color: AppColors.primary,
+                    barWidth: 3,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, bar, index) {
+                        return FlDotCirclePainter(
+                          radius: index == 6 ? 5 : 3, // Highlight today
+                          color: index == 6 ? AppColors.primary : Colors.white,
+                          strokeWidth: index == 6 ? 2 : 1,
+                          strokeColor: AppColors.primary,
+                        );
+                      },
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          AppColors.primary.withValues(alpha: 0.2),
+                          AppColors.primary.withValues(alpha: 0.0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: AppTheme.spaceSm),
+          Text(
+            'Visualization based on your current activity',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: AppColors.textTertiary(isDark),
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Generic coming soon card for features not yet implemented
+  Widget _buildComingSoonCard(
+    String title,
+    String description,
+    IconData icon,
+    ThemeData theme,
+    bool isDark,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spaceLg),
+      decoration: AppTheme.surfaceContainer(
+        isDark: isDark,
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.2),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            icon,
+            size: 48,
+            color: AppColors.primary.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: AppTheme.spaceMd),
+          Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: AppTheme.spaceXs),
+          Text(
+            description,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: AppColors.textSecondary(isDark),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAchievementsPlaceholder(ThemeData theme, bool isDark) {
+    return _buildComingSoonCard(
+      'Achievements',
+      'Unlock badges and milestones as you contribute',
+      Icons.emoji_events_outlined,
+      theme,
+      isDark,
+    );
+  }
+
+  Widget _buildEarningsPlaceholder(ThemeData theme, bool isDark) {
+    return _buildComingSoonCard(
+      'Earnings Tracking',
+      'Track your earnings and payout history once monetization begins',
+      Icons.attach_money,
+      theme,
+      isDark,
+    );
+  }
+
+  Widget _buildSectionHeader(String title, ThemeData theme, bool isDark) {
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 20,
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context, ThemeData theme, bool isDark) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spaceLg),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                color: AppColors.primaryAlpha(0.08),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.bar_chart_outlined,
+                size: 80,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: AppTheme.spaceLg),
+            Text(
+              'Start Contributing',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: AppTheme.spaceXs),
+            Text(
+              'Your statistics will appear here\nonce you begin tracking',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.textSecondary(isDark),
+              ),
+            ),
+            const SizedBox(height: AppTheme.spaceLg),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Start Tracking'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

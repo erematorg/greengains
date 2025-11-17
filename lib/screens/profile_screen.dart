@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/extensions/context_extensions.dart';
 import '../core/themes.dart';
@@ -6,8 +7,10 @@ import '../services/auth/auth_service.dart';
 import '../utils/app_snackbars.dart';
 import '../widgets/referral_invite_card.dart';
 import 'settings_screen.dart';
+import 'statistics_screen.dart';
 
 /// Profile screen showing user information and quick stats
+/// REDESIGNED: Compact layout that fits without scrolling
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -25,9 +28,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
         actions: [
-          // Settings cog icon (top right)
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () {
@@ -41,134 +42,189 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: AppTheme.pagePadding,
+      body: user == null ? _buildSignedOutState(theme, isDark) : _buildSignedInState(user, theme, isDark),
+    );
+  }
+
+  /// Signed-out state (keep existing design)
+  Widget _buildSignedOutState(ThemeData theme, bool isDark) {
+    return Padding(
+      padding: AppTheme.pagePadding,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppTheme.spaceMd),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Icon(
+                  Icons.account_circle_outlined,
+                  size: 80,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppTheme.spaceMd),
+              Text(
+                'Sign in to get started',
+                style: theme.textTheme.titleLarge,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppTheme.spaceSm),
+              Text(
+                'Sync your contributions across devices and earn rewards',
+                style: theme.textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppTheme.spaceLg),
+              FilledButton.icon(
+                onPressed: _handleGoogleSignIn,
+                icon: const Icon(Icons.login),
+                label: const Text('Sign in with Google'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// REDESIGNED: Compact signed-in state (no scrolling required)
+  Widget _buildSignedInState(User user, ThemeData theme, bool isDark) {
+    return Padding(
+      padding: AppTheme.pagePadding,
+      child: Column(
         children: [
-          // Account section
-          if (user == null) ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppTheme.spaceMd),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Center(
-                      child: Icon(
-                        Icons.account_circle_outlined,
-                        size: 80,
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: AppTheme.spaceMd),
-                    Text(
-                      'Sign in to get started',
-                      style: theme.textTheme.titleLarge,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppTheme.spaceSm),
-                    Text(
-                      'Sync your contributions across devices and earn rewards',
-                      style: theme.textTheme.bodyMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppTheme.spaceLg),
-                    FilledButton.icon(
-                      onPressed: _handleGoogleSignIn,
-                      icon: const Icon(Icons.login),
-                      label: const Text('Sign in with Google'),
-                    ),
-                  ],
-                ),
-              ),
+          // COMPACT USER HEADER (~100px)
+          _buildCompactUserHeader(user, theme, isDark),
+
+          const SizedBox(height: AppTheme.spaceMd),
+
+          // REFERRAL CARD (critical for monetization)
+          ReferralInviteCard(user: user),
+
+          const SizedBox(height: AppTheme.spaceMd),
+
+          // COMPACT STATISTICS NAVIGATION (~70px)
+          _buildCompactStatsCard(theme, isDark),
+
+          const Spacer(), // Pushes sign out to bottom if screen is taller
+
+          const SizedBox(height: AppTheme.spaceMd),
+
+          // SIGN OUT BUTTON (bottom pinned)
+          OutlinedButton.icon(
+            onPressed: _handleSignOut,
+            icon: const Icon(Icons.logout),
+            label: const Text('Sign out'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.error,
+              side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
+              minimumSize: const Size.fromHeight(56),
             ),
-          ] else ...[
-            // User profile card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppTheme.spaceLg),
-                child: Column(
-                  children: [
-                    // Profile picture
-                    CircleAvatar(
-                      radius: 48,
-                      backgroundImage: user.photoURL != null
-                          ? NetworkImage(user.photoURL!)
-                          : null,
-                      child: user.photoURL == null
-                          ? const Icon(Icons.person, size: 48)
-                          : null,
-                    ),
-                    const SizedBox(height: AppTheme.spaceMd),
+          ),
+        ],
+      ),
+    );
+  }
 
-                    // Name
-                    Text(
-                      user.displayName ?? 'User',
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppTheme.spaceXs),
-                    Text(
-                      'Mapping greener cities together',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppTheme.spaceSm),
-
-                    // Email
-                    Text(
-                      user.email ?? '',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppTheme.spaceMd),
-
-                    // Member since (if available)
-                    if (user.metadata.creationTime != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppTheme.spaceMd,
-                          vertical: AppTheme.spaceSm,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurface,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Member since ${_formatDate(user.metadata.creationTime!)}',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+  /// COMPACT USER HEADER: Horizontal layout, smaller avatar, inline member badge
+  Widget _buildCompactUserHeader(User user, ThemeData theme, bool isDark) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spaceMd),
+        child: Row(
+          children: [
+            // Smaller avatar (40px radius instead of 48px)
+            CircleAvatar(
+              radius: 40,
+              backgroundImage: user.photoURL != null
+                  ? NetworkImage(user.photoURL!)
+                  : null,
+              onBackgroundImageError: user.photoURL != null
+                  ? (exception, stackTrace) {
+                      // Log error silently, fallback to icon child
+                    }
+                  : null,
+              child: user.photoURL == null
+                  ? const Icon(Icons.person, size: 40)
+                  : null,
             ),
+            const SizedBox(width: AppTheme.spaceMd),
 
-            const SizedBox(height: AppTheme.spaceLg),
+            // Compact info column
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Name (single line)
+                  Text(
+                    user.displayName ?? 'User',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: AppTheme.spaceXxs),
 
-            // Quick stats (if useful)
-            ReferralInviteCard(user: user),
-
-            const SizedBox(height: AppTheme.spaceLg),
-
-            // Sign out button
-            OutlinedButton.icon(
-              onPressed: _handleSignOut,
-              icon: const Icon(Icons.logout),
-              label: const Text('Sign out'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.error,
-                side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
+                  // Inline member since (no container, just text)
+                  if (user.metadata.creationTime != null)
+                    Text(
+                      'Member since ${_formatDate(user.metadata.creationTime!)}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
               ),
             ),
           ],
-        ],
+        ),
+      ),
+    );
+  }
+
+  /// COMPACT STATISTICS NAVIGATION: Single-line ListTile instead of multi-line card
+  Widget _buildCompactStatsCard(ThemeData theme, bool isDark) {
+    return Card(
+      child: ListTile(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const StatisticsScreen(),
+            ),
+          );
+        },
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppColors.primaryAlpha(0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            Icons.bar_chart,
+            color: AppColors.primary,
+            size: 24,
+          ),
+        ),
+        title: Text(
+          'View Statistics',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: Text(
+          'Track your contributions',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: AppColors.textSecondary(isDark),
+          ),
+        ),
+        trailing: Icon(
+          Icons.chevron_right,
+          color: AppColors.textTertiary(isDark),
+        ),
       ),
     );
   }
@@ -182,6 +238,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _handleGoogleSignIn() async {
+    HapticFeedback.mediumImpact();
     try {
       await AuthService.signInWithGoogleUniversal();
       if (mounted) {
@@ -196,6 +253,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _handleSignOut() async {
+    HapticFeedback.lightImpact();
     try {
       await FirebaseAuth.instance.signOut();
       if (mounted) {

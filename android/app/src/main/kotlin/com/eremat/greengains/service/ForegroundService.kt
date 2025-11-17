@@ -35,6 +35,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.collections.ArrayDeque
+import kotlin.math.abs
+import kotlin.math.acos
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.sqrt
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -69,16 +75,18 @@ class ForegroundService : Service() {
     private val _gyroscopeFlow = MutableStateFlow<FloatArray?>(null)
     var gyroscopeFlow: StateFlow<FloatArray?> = _gyroscopeFlow
 
+    private val qualityAnalyzer = SensorQualityAnalyzer()
+
     // Native uploader (runs independently of Flutter)
     private var nativeUploader: NativeBackendUploader? = null
     private var nativeSamplerJob: Job? = null
 
-    // Throttling for sensor data to reduce flooding
-    private var lastLightValue: Float = 0f
-    private var lastLightSentTime: Long = 0L
-    private var lastLocationSentTime: Long = 0L
-    private var lastAccelerometerSentTime: Long = 0L
-    private var lastGyroscopeSentTime: Long = 0L
+    // Battery state monitoring for battery-friendly behavior
+    private lateinit var batteryMonitor: BatteryStateMonitor
+
+    // Network state monitoring for WiFi-only uploads
+    private lateinit var networkMonitor: NetworkStateMonitor
+
 
     inner class LocalBinder : Binder() {
         fun getService(): ForegroundService = this@ForegroundService
@@ -115,6 +123,8 @@ class ForegroundService : Service() {
 
         // Always start sensors (they don't require location permission)
         startSensors()
+        batteryMonitor.startMonitoring()
+        networkMonitor.startMonitoring()
         startNativeUploader()
 
         return START_STICKY
@@ -126,6 +136,8 @@ class ForegroundService : Service() {
 
         setupLocationUpdates()
         setupSensors()
+        batteryMonitor = BatteryStateMonitor(this)
+        networkMonitor = NetworkStateMonitor(this)
     }
 
     override fun onDestroy() {
@@ -137,8 +149,17 @@ class ForegroundService : Service() {
         setServiceEnabledPref(false)
         fusedLocationClient.removeLocationUpdates(locationCallback)
         stopSensors()
+        batteryMonitor.stopMonitoring()
+        networkMonitor.stopMonitoring()
         stopNativeUploader()
-        methodChannel?.invokeMethod("onServiceStopped", null)
+
+        // Safe notification to Flutter (may be detached)
+        try {
+            methodChannel?.invokeMethod("onServiceStopped", null)
+        } catch (e: Exception) {
+            Log.d(TAG, "Flutter already detached, skipping onServiceStopped notification")
+        }
+
         coroutineScope.coroutineContext.cancelChildren()
     }
 
@@ -178,7 +199,13 @@ class ForegroundService : Service() {
     fun stopForegroundService() {
         stopSelf()
         setServiceEnabledPref(false)
-        methodChannel?.invokeMethod("onServiceStopped", null)
+
+        // Safe notification to Flutter (may be detached)
+        try {
+            methodChannel?.invokeMethod("onServiceStopped", null)
+        } catch (e: Exception) {
+            Log.d(TAG, "Flutter already detached, skipping onServiceStopped notification")
+        }
     }
 
     /**
@@ -191,13 +218,7 @@ class ForegroundService : Service() {
             override fun onLocationResult(locationResult: LocationResult) {
                 for (location in locationResult.locations) {
                     _locationFlow.value = location
-
-                    // Batch location: only send every LOCATION_SEND_INTERVAL_MS
-                    val timeDiff = System.currentTimeMillis() - lastLocationSentTime
-                    if (timeDiff > LOCATION_SEND_INTERVAL_MS) {
-                        sendLocationToFlutter(location)
-                        lastLocationSentTime = System.currentTimeMillis()
-                    }
+                    sendLocationToFlutter(location)
                 }
             }
         }
@@ -205,10 +226,26 @@ class ForegroundService : Service() {
 
     /**
      * Starts the location updates using the FusedLocationProviderClient.
+     * Also tries to get last known location for immediate data.
      */
     @SuppressLint("MissingPermission")
     private fun startLocationUpdates() {
         Log.d(TAG, "Starting location updates")
+
+        // Try to get last known location first (faster, uses cached location)
+        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            if (location != null) {
+                Log.d(TAG, "Got last known location: ${location.latitude}, ${location.longitude}")
+                _locationFlow.value = location
+                sendLocationToFlutter(location)
+            } else {
+                Log.d(TAG, "No last known location available")
+            }
+        }.addOnFailureListener { e ->
+            Log.w(TAG, "Failed to get last known location: ${e.message}")
+        }
+
+        // Start continuous location updates
         fusedLocationClient.requestLocationUpdates(
             LocationRequest.Builder(
                 LOCATION_UPDATES_INTERVAL_MS
@@ -303,38 +340,20 @@ class ForegroundService : Service() {
                 Sensor.TYPE_LIGHT -> {
                     val lux = event.values[0]
                     _lightFlow.value = lux
-
-                    // Throttle: only send if value changed significantly OR enough time passed
-                    val luxDiff = kotlin.math.abs(lux - lastLightValue)
-                    val timeDiff = System.currentTimeMillis() - lastLightSentTime
-
-                    if (luxDiff > LIGHT_THRESHOLD_LUX || timeDiff > SENSOR_SEND_INTERVAL_MS) {
-                        sendLightToFlutter(lux)
-                        lastLightValue = lux
-                        lastLightSentTime = System.currentTimeMillis()
-                    }
+                    qualityAnalyzer.onLight(lux)
+                    sendLightToFlutter(lux)
                 }
                 Sensor.TYPE_ACCELEROMETER -> {
                     val values = event.values.clone()
                     _accelerometerFlow.value = values
-
-                    // Throttle: only send at intervals to avoid flooding
-                    val timeDiff = System.currentTimeMillis() - lastAccelerometerSentTime
-                    if (timeDiff > SENSOR_SEND_INTERVAL_MS) {
-                        sendAccelerometerToFlutter(values)
-                        lastAccelerometerSentTime = System.currentTimeMillis()
-                    }
+                    qualityAnalyzer.onAccelerometer(values)
+                    sendAccelerometerToFlutter(values)
                 }
                 Sensor.TYPE_GYROSCOPE -> {
                     val values = event.values.clone()
                     _gyroscopeFlow.value = values
-
-                    // Throttle: only send at intervals to avoid flooding
-                    val timeDiff = System.currentTimeMillis() - lastGyroscopeSentTime
-                    if (timeDiff > SENSOR_SEND_INTERVAL_MS) {
-                        sendGyroscopeToFlutter(values)
-                        lastGyroscopeSentTime = System.currentTimeMillis()
-                    }
+                    qualityAnalyzer.onGyroscope(values)
+                    sendGyroscopeToFlutter(values)
                 }
             }
         }
@@ -347,41 +366,35 @@ class ForegroundService : Service() {
 
     /**
      * Starts receiving sensor updates.
-     * Uses SENSOR_DELAY_NORMAL (~200ms) for good battery life.
-     * Sends initial data immediately so all sensors "light up" simultaneously in UI.
+     * Uses SENSOR_DELAY_UI (~60ms) for responsive UI updates with reasonable battery life.
+     * Data flows instantly to Flutter with no throttling.
      */
     private fun startSensors() {
         lightSensor?.let { sensor ->
             sensorManager.registerListener(
                 sensorListener,
                 sensor,
-                SensorManager.SENSOR_DELAY_NORMAL
+                SensorManager.SENSOR_DELAY_UI
             )
             Log.d(TAG, "Light sensor listener registered")
-            // Send initial placeholder data immediately so UI shows sensor is active
-            sendLightToFlutter(0f)
         }
 
         accelerometerSensor?.let { sensor ->
             sensorManager.registerListener(
                 sensorListener,
                 sensor,
-                SensorManager.SENSOR_DELAY_NORMAL
+                SensorManager.SENSOR_DELAY_UI
             )
             Log.d(TAG, "Accelerometer listener registered")
-            // Send initial placeholder data immediately
-            sendAccelerometerToFlutter(floatArrayOf(0f, 0f, 0f))
         }
 
         gyroscopeSensor?.let { sensor ->
             sensorManager.registerListener(
                 sensorListener,
                 sensor,
-                SensorManager.SENSOR_DELAY_NORMAL
+                SensorManager.SENSOR_DELAY_UI
             )
             Log.d(TAG, "Gyroscope listener registered")
-            // Send initial placeholder data immediately
-            sendGyroscopeToFlutter(floatArrayOf(0f, 0f, 0f))
         }
     }
 
@@ -391,6 +404,7 @@ class ForegroundService : Service() {
      */
     private fun stopSensors() {
         sensorManager.unregisterListener(sensorListener)
+        qualityAnalyzer.reset()
         Log.d(TAG, "All sensor listeners unregistered")
     }
 
@@ -401,7 +415,9 @@ class ForegroundService : Service() {
     private fun startNativeUploader() {
         if (nativeUploader == null) {
             nativeUploader = NativeBackendUploader(
-                applicationContext,
+                context = applicationContext,
+                batteryMonitor = batteryMonitor,
+                networkMonitor = networkMonitor,
                 statusListener = ::handleNativeUploadStatus
             )
         }
@@ -429,6 +445,222 @@ class ForegroundService : Service() {
         nativeUploader = null
     }
 
+    /**
+     * Lightweight analyzer that keeps a rolling window of raw sensor events to derive metadata.
+     * Avoids any heavy math (only a few dot products / variances) so it can run 24/7.
+     */
+    private class SensorQualityAnalyzer {
+        private data class MotionSample(val timestamp: Long, val magnitude: Float)
+        private data class OrientationInfo(
+            val state: OrientationState = OrientationState.UNKNOWN,
+            val tiltDegrees: Float? = null
+        )
+
+        private val accelSamples = ArrayDeque<MotionSample>()
+        private val gyroSamples = ArrayDeque<MotionSample>()
+        private var gravityVector = FloatArray(3)
+        private var gravityInitialized = false
+        private var lastLux: Float? = null
+
+        fun onLight(lux: Float) = synchronized(this) {
+            lastLux = lux
+        }
+
+        fun onAccelerometer(values: FloatArray) = synchronized(this) {
+            val now = System.currentTimeMillis()
+            updateGravity(values)
+            accelSamples.addLast(MotionSample(now, magnitude(values)))
+            trimOld(now)
+        }
+
+        fun onGyroscope(values: FloatArray) = synchronized(this) {
+            val now = System.currentTimeMillis()
+            gyroSamples.addLast(MotionSample(now, magnitude(values)))
+            trimOld(now)
+        }
+
+        fun buildMetadata(location: Location?): QualityMetadata = synchronized(this) {
+            val now = System.currentTimeMillis()
+            trimOld(now)
+
+            val orientationInfo = computeOrientation()
+            val accelVariance = computeVariance(accelSamples)
+            val gyroRms = computeRms(gyroSamples)
+            val (motionState, motionConfidence) = classifyMotion(accelVariance, gyroRms)
+            val pocketState = determinePocketState(
+                orientationInfo,
+                lastLux,
+                motionState
+            )
+            val locationQuality = determineLocationQuality(location)
+
+            return QualityMetadata(
+                orientation = orientationInfo.state,
+                tiltDegrees = orientationInfo.tiltDegrees,
+                motionState = motionState,
+                motionConfidence = motionConfidence,
+                pocketState = pocketState,
+                locationQuality = locationQuality
+            )
+        }
+
+        fun reset() = synchronized(this) {
+            accelSamples.clear()
+            gyroSamples.clear()
+            gravityVector = FloatArray(3)
+            gravityInitialized = false
+            lastLux = null
+        }
+
+        private fun trimOld(now: Long) {
+            while (accelSamples.isNotEmpty() && now - accelSamples.first().timestamp > WINDOW_MS) {
+                accelSamples.removeFirst()
+            }
+            while (gyroSamples.isNotEmpty() && now - gyroSamples.first().timestamp > WINDOW_MS) {
+                gyroSamples.removeFirst()
+            }
+        }
+
+        private fun updateGravity(values: FloatArray) {
+            if (!gravityInitialized) {
+                gravityVector[0] = values[0]
+                gravityVector[1] = values[1]
+                gravityVector[2] = values[2]
+                gravityInitialized = true
+                return
+            }
+            gravityVector[0] = ALPHA * values[0] + (1 - ALPHA) * gravityVector[0]
+            gravityVector[1] = ALPHA * values[1] + (1 - ALPHA) * gravityVector[1]
+            gravityVector[2] = ALPHA * values[2] + (1 - ALPHA) * gravityVector[2]
+        }
+
+        private fun computeOrientation(): OrientationInfo {
+            if (!gravityInitialized) return OrientationInfo()
+            val norm = magnitude(gravityVector)
+            if (norm < 0.1f) return OrientationInfo()
+
+            val gx = gravityVector[0] / norm
+            val gy = gravityVector[1] / norm
+            val gz = gravityVector[2] / norm
+
+            val tiltRad = acos(max(-1f, min(1f, gz)).toDouble())
+            val tiltDeg = Math.toDegrees(tiltRad.toDouble()).toFloat()
+
+            val absGz = abs(gz)
+            val absGx = abs(gx)
+            val absGy = abs(gy)
+
+            val state = when {
+                gz <= -FACE_THRESHOLD -> OrientationState.FACE_UP
+                gz >= FACE_THRESHOLD -> OrientationState.FACE_DOWN
+                absGz < UPRIGHT_THRESHOLD -> {
+                    when {
+                        absGy - absGx > ORIENTATION_MARGIN -> OrientationState.UPRIGHT_PORTRAIT
+                        absGx - absGy > ORIENTATION_MARGIN -> OrientationState.UPRIGHT_LANDSCAPE
+                        else -> OrientationState.UPRIGHT_UNKNOWN
+                    }
+                }
+                else -> OrientationState.UNKNOWN
+            }
+
+            return OrientationInfo(state = state, tiltDegrees = tiltDeg)
+        }
+
+        private fun computeVariance(samples: ArrayDeque<MotionSample>): Double {
+            if (samples.size < 2) return 0.0
+            val mean = samples.sumOf { it.magnitude.toDouble() } / samples.size
+            return samples.sumOf {
+                val diff = it.magnitude - mean
+                (diff * diff).toDouble()
+            } / samples.size
+        }
+
+        private fun computeRms(samples: ArrayDeque<MotionSample>): Double {
+            if (samples.isEmpty()) return 0.0
+            val meanSquares = samples.sumOf { (it.magnitude * it.magnitude).toDouble() } / samples.size
+            return sqrt(meanSquares)
+        }
+
+        private fun classifyMotion(
+            accelVariance: Double,
+            gyroRms: Double
+        ): Pair<MotionState, Float> {
+            if (accelSamples.isEmpty() && gyroSamples.isEmpty()) {
+                return MotionState.UNKNOWN to 0f
+            }
+            val accelRatio = (accelVariance / ACCEL_MOVING_VARIANCE).toFloat()
+            val gyroRatio = (gyroRms / GYRO_MOVING_RMS).toFloat()
+            val confidence = max(accelRatio, gyroRatio).coerceIn(0f, 1f)
+
+            val state = when {
+                confidence < 0.2f -> MotionState.STATIONARY
+                confidence < 0.6f -> MotionState.LIGHT
+                else -> MotionState.ACTIVE
+            }
+            return state to confidence
+        }
+
+        private fun determinePocketState(
+            orientationInfo: OrientationInfo,
+            lux: Float?,
+            motionState: MotionState
+        ): PocketState {
+            val tilt = orientationInfo.tiltDegrees
+            if (lux == null || tilt == null) {
+                return PocketState.UNKNOWN
+            }
+
+            return when {
+                lux < POCKET_LUX_THRESHOLD &&
+                    tilt in POCKET_TILT_MIN..POCKET_TILT_MAX &&
+                    motionState != MotionState.ACTIVE -> PocketState.LIKELY
+                lux > BRIGHT_ENV_LUX -> PocketState.UNLIKELY
+                else -> PocketState.UNKNOWN
+            }
+        }
+
+        private fun determineLocationQuality(location: Location?): LocationQuality {
+            location ?: return LocationQuality.NONE
+
+            val now = System.currentTimeMillis()
+            val ageMs = now - location.time
+            if (ageMs > STALE_LOCATION_MS) {
+                return LocationQuality.STALE
+            }
+
+            val accuracy = if (location.hasAccuracy()) location.accuracy else Float.MAX_VALUE
+            return when {
+                accuracy <= 25f -> LocationQuality.HIGH
+                accuracy <= 75f -> LocationQuality.MEDIUM
+                accuracy <= 200f -> LocationQuality.LOW
+                else -> LocationQuality.POOR
+            }
+        }
+
+        private fun magnitude(values: FloatArray): Float {
+            return sqrt(
+                values[0] * values[0] +
+                    values[1] * values[1] +
+                    values[2] * values[2]
+            )
+        }
+
+        companion object {
+            private const val WINDOW_MS = 10_000L
+            private const val ALPHA = 0.1f
+            private const val FACE_THRESHOLD = 0.7f
+            private const val UPRIGHT_THRESHOLD = 0.4f
+            private const val ORIENTATION_MARGIN = 0.15f
+            private const val ACCEL_MOVING_VARIANCE = 0.5
+            private const val GYRO_MOVING_RMS = 0.07
+            private const val POCKET_LUX_THRESHOLD = 2f
+            private const val BRIGHT_ENV_LUX = 15f
+            private const val POCKET_TILT_MIN = 60f
+            private const val POCKET_TILT_MAX = 120f
+            private const val STALE_LOCATION_MS = 60_000L
+        }
+    }
+
     private fun captureSensorSnapshot(): SensorReading? {
         val light = _lightFlow.value
         val accelValues = _accelerometerFlow.value
@@ -448,6 +680,7 @@ class ForegroundService : Service() {
                 accuracy = if (it.hasAccuracy()) it.accuracy.toDouble() else null
             )
         }
+        val quality = qualityAnalyzer.buildMetadata(location)
 
         if (light == null && accel == null && gyro == null && locationData == null) {
             return null
@@ -458,7 +691,8 @@ class ForegroundService : Service() {
             light = light,
             accelerometer = accel,
             gyroscope = gyro,
-            location = locationData
+            location = locationData,
+            quality = quality
         )
     }
 
@@ -544,11 +778,8 @@ class ForegroundService : Service() {
         private const val TAG = "GreenGainsFGService"
         private val LOCATION_UPDATES_INTERVAL_MS = 1.seconds.inWholeMilliseconds
 
-        // Sensor throttling to reduce flooding
-        private const val LIGHT_THRESHOLD_LUX = 10.0f  // Only send if change > 10 lux
-        private const val SENSOR_SEND_INTERVAL_MS = 5000L  // Or every 5 seconds
-        private const val LOCATION_SEND_INTERVAL_MS = 10000L  // Send location every 10 seconds
-        private const val NATIVE_SAMPLE_INTERVAL_MS = 10_000L  // Sample sensors for native uploader every 10 seconds
+        // Native uploader sampling interval (independent of Flutter UI updates)
+        private const val NATIVE_SAMPLE_INTERVAL_MS = 10_000L
 
         @Volatile
         var running: Boolean = false

@@ -31,6 +31,9 @@ uvicorn_err.log
 .python-version
 .idea/.name
 
+# Dart defines with API keys (local only)
+dart_defines.json
+
 # Firebase Admin SDK credentials
 *-adminsdk-*.json
 firebase-key.json

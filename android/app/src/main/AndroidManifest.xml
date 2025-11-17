@@ -18,6 +18,7 @@
     <!-- <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" /> -->
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:label="greengains"
@@ -56,6 +57,16 @@
             android:name="com.eremat.greengains.service.ForegroundService"
             android:exported="false"
             android:foregroundServiceType="dataSync|location" />
+
+        <!-- Boot receiver for auto-starting service after device reboot -->
+        <receiver
+            android:name="com.eremat.greengains.receivers.BootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
     </application>
     <!-- Required to query activities that can process text, see:

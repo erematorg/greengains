@@ -39,21 +39,11 @@ class ReferralInviteCard extends StatelessWidget {
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
                   ),
                 ),
-                IconButton(
-                  tooltip: 'Share link',
-                  onPressed: () async {
-                    await Clipboard.setData(ClipboardData(text: referralLink));
-                    if (context.mounted) {
-                      AppSnackbars.showInfo(context, 'Referral link copied');
-                    }
-                  },
-                  icon: const Icon(Icons.share),
-                ),
               ],
             ),
             const SizedBox(height: AppTheme.spaceSm),
             Text(
-              'Earn bonus tiles when friends run GreenGains nearby.',
+              'Earn bonus credits when friends contribute data.',
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: AppTheme.spaceSm),

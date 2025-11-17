@@ -9,12 +9,35 @@ export const LocationDataSchema = z.object({
   bearing_deg: z.number().optional(),
 });
 
+const OrientationEnum = z.enum([
+  'face_up',
+  'face_down',
+  'upright_portrait',
+  'upright_landscape',
+  'upright_unknown',
+  'unknown',
+]);
+
+const MotionStateEnum = z.enum(['unknown', 'stationary', 'light', 'active']);
+const PocketStateEnum = z.enum(['unknown', 'likely', 'unlikely']);
+const LocationQualityEnum = z.enum(['none', 'stale', 'high', 'medium', 'low', 'poor']);
+
+export const QualityMetadataSchema = z.object({
+  orientation: OrientationEnum.optional(),
+  tilt_deg: z.number().optional(),
+  motion_state: MotionStateEnum.optional(),
+  motion_confidence: z.number().min(0).max(1).optional(),
+  pocket: PocketStateEnum.optional(),
+  location_quality: LocationQualityEnum.optional(),
+});
+
 export const SensorReadingSchema = z.object({
   t: z.coerce.date(),
   light: z.number(),
   accel: z.array(z.number()).length(3).optional(),
   gyro: z.array(z.number()).length(3).optional(),
   magnet: z.array(z.number()).length(3).optional(),
+  quality: QualityMetadataSchema.optional(),
 });
 
 export const UploadBatchSchema = z.object({
@@ -29,4 +52,5 @@ export const UploadBatchSchema = z.object({
 
 export type LocationData = z.infer<typeof LocationDataSchema>;
 export type SensorReading = z.infer<typeof SensorReadingSchema>;
+export type QualityMetadata = z.infer<typeof QualityMetadataSchema>;
 export type UploadBatch = z.infer<typeof UploadBatchSchema>;

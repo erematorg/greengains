@@ -1,7 +1,10 @@
 package com.eremat.greengains.service
 
+import android.content.ContentValues
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import android.util.Log
+import ch.hsr.geohash.GeoHash
 import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +18,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.File
 import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -31,6 +35,8 @@ import java.util.concurrent.TimeUnit
 class NativeBackendUploader(
     private val context: Context,
     private val uploadIntervalMs: Long = 120_000L,
+    private val batteryMonitor: BatteryStateMonitor? = null,
+    private val networkMonitor: NetworkStateMonitor? = null,
     private val statusListener: NativeUploadStatusListener? = null
 ) {
     private val gson = Gson()
@@ -41,9 +47,22 @@ class NativeBackendUploader(
     private val sensorBuffer = mutableListOf<SensorReading>()
     private val maxBufferSize = 1000
 
-    // Backend configuration
-    private val baseUrl = "https://greengains.onrender.com"
-    private val apiKey = "Vb9kS3tP0xQ7fY2L"
+    // Backend configuration (loaded from SharedPreferences, set by Flutter)
+    private val baseUrl: String
+    private val apiKey: String
+
+    init {
+        // Load API key from SharedPreferences (Flutter writes it on startup)
+        val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        baseUrl = prefs.getString("flutter.backend_url", null)
+            ?: "https://greengains.onrender.com"
+        apiKey = prefs.getString("flutter.backend_api_key", null)
+            ?: throw IllegalStateException(
+                "Backend API key not set.\n" +
+                "Make sure to run with: flutter run --dart-define-from-file=dart_defines.json\n" +
+                "Or use: .\\run-debug.ps1"
+            )
+    }
 
     // HTTP client with reasonable timeouts for shaky mobile networks
     private val httpClient = OkHttpClient.Builder()
@@ -58,6 +77,9 @@ class NativeBackendUploader(
     private var totalUploadsSucceeded = 0
     private var totalUploadsFailed = 0
     private var lastUploadTime: Long = 0
+
+    // Track last location for geohash computation
+    private var lastLocation: LocationData? = null
 
     fun start() {
         if (uploadJob?.isActive == true) {
@@ -94,6 +116,9 @@ class NativeBackendUploader(
         synchronized(sensorBuffer) {
             sensorBuffer.add(reading)
 
+            // Track last known location for contribution geohash
+            reading.location?.let { lastLocation = it }
+
             // Circular buffer: drop oldest entries beyond maxBufferSize
             while (sensorBuffer.size > maxBufferSize) {
                 val removed = sensorBuffer.removeAt(0)
@@ -109,6 +134,18 @@ class NativeBackendUploader(
     fun getBufferSize(): Int = synchronized(sensorBuffer) { sensorBuffer.size }
 
     private suspend fun uploadBatch() = withContext(Dispatchers.IO) {
+        // Check battery state before attempting upload
+        if (batteryMonitor?.shouldPauseForBattery() == true) {
+            Log.i(TAG, "Upload skipped: battery low and not charging")
+            return@withContext
+        }
+
+        // Check network state before attempting upload
+        if (networkMonitor?.isUploadAllowed() == false) {
+            Log.i(TAG, "Upload skipped: network unavailable or WiFi-only mode enabled")
+            return@withContext
+        }
+
         val readings: List<SensorReading>
 
         synchronized(sensorBuffer) {
@@ -182,6 +219,19 @@ class NativeBackendUploader(
         lastUploadTime = System.currentTimeMillis()
         Log.i(TAG, "Upload succeeded. batch=$batchSize status=$statusCode total=$totalUploadsSucceeded")
 
+        // Save upload timestamp to SharedPreferences so Flutter can read it on resume
+        // Format as ISO8601 string to match Flutter's expectation
+        val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        val iso8601Timestamp = java.time.Instant
+            .ofEpochMilli(lastUploadTime)
+            .toString()
+        prefs.edit()
+            .putString("flutter.last_upload_at", iso8601Timestamp)
+            .apply()
+
+        // Save contribution to local SQLite database (independent of Flutter)
+        saveContributionToDatabase(batchSize, lastUploadTime)
+
         statusListener?.onStatus(
             NativeUploadStatusEvent(
                 type = NativeUploadEventType.SUCCESS,
@@ -247,7 +297,8 @@ class NativeBackendUploader(
                 "t" to reading.timestamp,
                 "light" to reading.light,
                 "accel" to reading.accelerometer?.let { listOf(it.x, it.y, it.z) },
-                "gyro" to reading.gyroscope?.let { listOf(it.x, it.y, it.z) }
+                "gyro" to reading.gyroscope?.let { listOf(it.x, it.y, it.z) },
+                "quality" to reading.quality?.toPayloadMap()?.takeIf { it.isNotEmpty() }
             ).filterValues { it != null }
         }
 
@@ -269,6 +320,17 @@ class NativeBackendUploader(
         ).filterValues { it != null }
     }
 
+    private fun QualityMetadata.toPayloadMap(): Map<String, Any?> {
+        return mapOf(
+            "orientation" to orientation.name.lowercase(),
+            "tilt_deg" to tiltDegrees,
+            "motion_state" to motionState.name.lowercase(),
+            "motion_confidence" to motionConfidence.toDouble(),
+            "pocket" to pocketState.name.lowercase(),
+            "location_quality" to locationQuality.name.lowercase()
+        ).filterValues { it != null }
+    }
+
     private fun getOrCreateDeviceId(): String {
         val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         var deviceId = prefs.getString("flutter.device_id", null)
@@ -280,6 +342,80 @@ class NativeBackendUploader(
         }
 
         return deviceId
+    }
+
+    /**
+     * Save contribution directly to SQLite database (same database Flutter uses).
+     * This ensures stats are updated even when Flutter is disconnected.
+     */
+    private fun saveContributionToDatabase(samplesCount: Int, timestamp: Long) {
+        if (samplesCount <= 0) {
+            return
+        }
+
+        try {
+            val dbPath = context.getDatabasePath("greengains.db")
+            if (!dbPath.exists()) {
+                Log.w(TAG, "Database not found, Flutter hasn't initialized it yet. Skipping contribution save.")
+                return
+            }
+
+            val db = SQLiteDatabase.openDatabase(
+                dbPath.absolutePath,
+                null,
+                SQLiteDatabase.OPEN_READWRITE
+            )
+
+            db.use {
+                val geohash = computeGeohash()
+                val contributionId = UUID.randomUUID().toString()
+                val now = System.currentTimeMillis()
+
+                val values = ContentValues().apply {
+                    put("id", contributionId)
+                    put("timestamp", timestamp)
+                    put("samples_count", samplesCount)
+                    put("geohash", geohash)
+                    put("success", 1)
+                    put("created_at", now)
+                }
+
+                val rowId = db.insert("contributions", null, values)
+                if (rowId != -1L) {
+                    Log.d(TAG, "Contribution saved to database: id=$contributionId samples=$samplesCount geohash=$geohash")
+                } else {
+                    Log.e(TAG, "Failed to insert contribution to database")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving contribution to database: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Compute geohash from last known location (precision 6 for ~1.2km tiles).
+     */
+    private fun computeGeohash(): String? {
+        val location = lastLocation ?: return null
+
+        return try {
+            // Check if user enabled location sharing
+            val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            val shareLocation = prefs.getBoolean("flutter.share_location", false)
+
+            if (!shareLocation) {
+                null
+            } else {
+                GeoHash.withCharacterPrecision(
+                    location.latitude,
+                    location.longitude,
+                    6
+                ).toBase32()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error computing geohash: ${e.message}", e)
+            null
+        }
     }
 
     companion object {
@@ -295,7 +431,8 @@ data class SensorReading(
     val light: Float?,
     val accelerometer: AccelData?,
     val gyroscope: GyroData?,
-    val location: LocationData?
+    val location: LocationData?,
+    val quality: QualityMetadata?
 )
 
 data class AccelData(val x: Float, val y: Float, val z: Float)
@@ -322,4 +459,44 @@ data class NativeUploadStatusEvent(
 
 fun interface NativeUploadStatusListener {
     fun onStatus(event: NativeUploadStatusEvent)
+}
+
+data class QualityMetadata(
+    val orientation: OrientationState = OrientationState.UNKNOWN,
+    val tiltDegrees: Float? = null,
+    val motionState: MotionState = MotionState.UNKNOWN,
+    val motionConfidence: Float = 0f,
+    val pocketState: PocketState = PocketState.UNKNOWN,
+    val locationQuality: LocationQuality = LocationQuality.NONE
+)
+
+enum class OrientationState {
+    FACE_UP,
+    FACE_DOWN,
+    UPRIGHT_PORTRAIT,
+    UPRIGHT_LANDSCAPE,
+    UPRIGHT_UNKNOWN,
+    UNKNOWN
+}
+
+enum class MotionState {
+    UNKNOWN,
+    STATIONARY,
+    LIGHT,
+    ACTIVE
+}
+
+enum class PocketState {
+    UNKNOWN,
+    LIKELY,
+    UNLIKELY
+}
+
+enum class LocationQuality {
+    NONE,
+    STALE,
+    HIGH,
+    MEDIUM,
+    LOW,
+    POOR
 }

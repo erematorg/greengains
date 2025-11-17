@@ -33,8 +33,8 @@ class AppSnackbars {
         resolvedIcon = icon ?? Icons.error_outline;
         break;
       case AppSnackbarType.info:
-        background = isDark ? AppColors.darkSurfaceElevated : AppColors.lightSurfaceElevated;
-        textColor = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
+        background = AppColors.surfaceElevated(isDark);
+        textColor = AppColors.textPrimary(isDark);
         resolvedIcon = icon ?? Icons.info_outline;
         break;
     }
