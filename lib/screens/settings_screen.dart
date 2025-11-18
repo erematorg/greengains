@@ -17,7 +17,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _prefs = AppPreferences.instance;
   final _themeController = ThemeController.instance;
-  static const _fgChannel = MethodChannel('greengains/foreground');
   String _version = 'Loading...';
 
   @override
@@ -89,6 +88,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _SettingsSectionTitle(text: 'Data & Privacy'),
+                // TODO: Restore Share Location toggle if we reintroduce manual control.
+                /*
                 _SettingsToggleRow(
                   icon: Icons.location_on_outlined,
                   title: 'Share Location',
@@ -116,6 +117,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 const SizedBox(height: AppTheme.spaceSm),
+                */
                 _SettingsToggleRow(
                   icon: Icons.podcasts_outlined,
                   title: 'Use Mobile Data',
