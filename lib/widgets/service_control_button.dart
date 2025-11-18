@@ -54,6 +54,8 @@ class _ServiceControlButtonState extends State<ServiceControlButton>
         await _locationService.stop();
       } else {
         HapticFeedback.mediumImpact();
+        // TODO: surface a branded battery-optimization prompt (similar to Honeygain)
+        // once we have a reliable detection hook so users know how to keep the service alive.
         await _locationService.start();
       }
     } catch (e) {

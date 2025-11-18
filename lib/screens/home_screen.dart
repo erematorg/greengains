@@ -116,6 +116,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return 'Very Bright';
   }
 
+  String _sensorStatus({
+    required bool isRunning,
+    required bool hasData,
+  }) {
+    if (!isRunning) return 'Paused';
+    if (!hasData) return 'Waiting';
+    return 'Live';
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -161,6 +170,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ContributionStatsCard(key: _statsKey),
           const SizedBox(height: AppTheme.spaceMd),
 
+          // TODO: Introduce an optional CTA/education banner (à la Honeygain) once retention
+          // mechanics exist, but keep the core experience passive until then.
           // Contextual Tips
           if (_locationService.isRunning.value && _shouldShowTip('expand_sensors'))
             ContextualTipCard(
@@ -270,6 +281,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 : null,
                             unit: light != null ? _getLightDescription(light.lux) : 'lux',
                             enabled: isRunning,
+                            statusLabel: _sensorStatus(
+                              isRunning: isRunning,
+                              hasData: light != null,
+                            ),
+                            updatedAt: light?.dateTime,
                           );
                         },
                       ),
@@ -301,6 +317,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 ? '(${accel.x.toStringAsFixed(1)}, ${accel.y.toStringAsFixed(1)}, ${accel.z.toStringAsFixed(1)})'
                                 : 'm/s²',
                             enabled: isRunning,
+                            statusLabel: _sensorStatus(
+                              isRunning: isRunning,
+                              hasData: accel != null,
+                            ),
+                            updatedAt: accel?.dateTime,
                           );
                         },
                       ),
@@ -321,6 +342,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 ? '(${gyro.x.toStringAsFixed(2)}, ${gyro.y.toStringAsFixed(2)}, ${gyro.z.toStringAsFixed(2)})'
                                 : 'rad/s',
                             enabled: isRunning,
+                            statusLabel: _sensorStatus(
+                              isRunning: isRunning,
+                              hasData: gyro != null,
+                            ),
+                            updatedAt: gyro?.dateTime,
                           );
                         },
                       ),

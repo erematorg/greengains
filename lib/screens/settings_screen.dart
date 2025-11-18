@@ -44,163 +44,134 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: AppTheme.pagePadding,
         children: [
-          // Appearance / Theme section
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppTheme.spaceMd),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Theme',
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppTheme.spaceSm),
-                  ListenableBuilder(
-                    listenable: _themeController,
-                    builder: (context, _) {
-                      return SegmentedButton<ThemeMode>(
-                        segments: const [
-                          ButtonSegment(
-                            value: ThemeMode.light,
-                            icon: Icon(Icons.light_mode),
-                            label: Text('Light'),
-                          ),
-                          ButtonSegment(
-                            value: ThemeMode.dark,
-                            icon: Icon(Icons.dark_mode),
-                            label: Text('Dark'),
-                          ),
-                          ButtonSegment(
-                            value: ThemeMode.system,
-                            icon: Icon(Icons.auto_mode),
-                            label: Text('Auto'),
-                          ),
-                        ],
-                        selected: {_themeController.mode},
-                        onSelectionChanged: (Set<ThemeMode> newSelection) {
-                          HapticFeedback.selectionClick();
-                          _themeController.setMode(newSelection.first);
-                        },
-                      );
-                    },
-                  ),
-                ],
-              ),
+          _SettingsSectionContainer(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SettingsSectionTitle(text: 'Theme'),
+                ListenableBuilder(
+                  listenable: _themeController,
+                  builder: (context, _) {
+                    return SegmentedButton<ThemeMode>(
+                      segments: const [
+                        ButtonSegment(
+                          value: ThemeMode.light,
+                          icon: Icon(Icons.light_mode),
+                          label: Text('Light'),
+                        ),
+                        ButtonSegment(
+                          value: ThemeMode.dark,
+                          icon: Icon(Icons.dark_mode),
+                          label: Text('Dark'),
+                        ),
+                        ButtonSegment(
+                          value: ThemeMode.system,
+                          icon: Icon(Icons.auto_mode),
+                          label: Text('Auto'),
+                        ),
+                      ],
+                      selected: {_themeController.mode},
+                      onSelectionChanged: (Set<ThemeMode> newSelection) {
+                        HapticFeedback.selectionClick();
+                        _themeController.setMode(newSelection.first);
+                      },
+                    );
+                  },
+                ),
+              ],
             ),
           ),
 
           const SizedBox(height: AppTheme.spaceLg),
 
-          // Data & Privacy section
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppTheme.spaceMd),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Data & Privacy',
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppTheme.spaceSm),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Share Location'),
-                    subtitle: const Text('Allow location data collection for heatmaps'),
-                    value: _prefs.shareLocation,
-                    onChanged: (value) async {
-                      HapticFeedback.selectionClick();
-                      if (value) {
-                        // Request location permission when enabling
-                        debugPrint('Requesting location permission from Flutter...');
-                        try {
-                          await _fgChannel.invokeMethod('requestLocationPermission');
-                          debugPrint('Permission request completed');
-
-                          // Restart service if running to pick up new permission
-                          final isRunning = await _fgChannel.invokeMethod('isForegroundServiceRunning') as bool?;
-                          if (isRunning == true) {
-                            debugPrint('Restarting service to pick up location permission');
-                            await _fgChannel.invokeMethod('stopForegroundService');
-                            await Future.delayed(const Duration(milliseconds: 500));
-                            await _fgChannel.invokeMethod('startForegroundService');
-                          }
-                        } catch (e) {
-                          debugPrint('Permission request error: $e');
+          _SettingsSectionContainer(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SettingsSectionTitle(text: 'Data & Privacy'),
+                _SettingsToggleRow(
+                  icon: Icons.location_on_outlined,
+                  title: 'Share Location',
+                  subtitle: 'Allow anonymized location for smarter maps',
+                  value: _prefs.shareLocation,
+                  onChanged: (value) async {
+                    HapticFeedback.selectionClick();
+                    if (value) {
+                      try {
+                        await _fgChannel.invokeMethod('requestLocationPermission');
+                        final isRunning =
+                            await _fgChannel.invokeMethod('isForegroundServiceRunning') as bool?;
+                        if (isRunning == true) {
+                          await _fgChannel.invokeMethod('stopForegroundService');
+                          await Future.delayed(const Duration(milliseconds: 500));
+                          await _fgChannel.invokeMethod('startForegroundService');
                         }
+                      } catch (e) {
+                        debugPrint('Permission request error: $e');
                       }
-                      setState(() {
-                        _prefs.setShareLocation(value);
-                      });
-                    },
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Use Mobile Data'),
-                    subtitle: const Text('Upload contributions on cellular'),
-                    value: _prefs.useMobileUploads,
-                    onChanged: (value) {
-                      HapticFeedback.selectionClick();
-                      setState(() {
-                        _prefs.setUseMobileUploads(value);
-                      });
-                    },
-                  ),
-                ],
-              ),
+                    }
+                    setState(() {
+                      _prefs.setShareLocation(value);
+                    });
+                  },
+                ),
+                const SizedBox(height: AppTheme.spaceSm),
+                _SettingsToggleRow(
+                  icon: Icons.podcasts_outlined,
+                  title: 'Use Mobile Data',
+                  subtitle: 'Upload contributions over LTE/5G when needed',
+                  value: _prefs.useMobileUploads,
+                  onChanged: (value) {
+                    HapticFeedback.selectionClick();
+                    setState(() {
+                      _prefs.setUseMobileUploads(value);
+                    });
+                  },
+                ),
+              ],
             ),
           ),
 
           const SizedBox(height: AppTheme.spaceLg),
 
-          // Legal section
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppTheme.spaceMd),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Legal',
-                    style: theme.textTheme.titleLarge,
+          _SettingsSectionContainer(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SettingsSectionTitle(text: 'Legal'),
+                _SettingsNavRow(
+                  icon: Icons.privacy_tip_outlined,
+                  title: 'Privacy Policy',
+                  subtitle: 'How we handle your data',
+                  onTap: () => _openWebView(
+                    context,
+                    'https://greengains.eremat.org/privacy-policy',
+                    'Privacy Policy',
                   ),
-                  const SizedBox(height: AppTheme.spaceSm),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.privacy_tip_outlined),
-                    title: const Text('Privacy Policy'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _openWebView(
-                      context,
-                      'https://greengains.eremat.org/privacy-policy',
-                      'Privacy Policy',
-                    ),
+                ),
+                const SizedBox(height: AppTheme.spaceSm),
+                _SettingsNavRow(
+                  icon: Icons.description_outlined,
+                  title: 'Terms of Service',
+                  subtitle: 'Usage terms and conditions',
+                  onTap: () => _openWebView(
+                    context,
+                    'https://greengains.eremat.org/terms-of-service',
+                    'Terms of Service',
                   ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.description_outlined),
-                    title: const Text('Terms of Service'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _openWebView(
-                      context,
-                      'https://greengains.eremat.org/terms-of-service',
-                      'Terms of Service',
-                    ),
+                ),
+                const SizedBox(height: AppTheme.spaceSm),
+                _SettingsNavRow(
+                  icon: Icons.delete_outline,
+                  title: 'Request Data Deletion',
+                  subtitle: 'Remove your contributions',
+                  onTap: () => _openWebView(
+                    context,
+                    'https://greengains.eremat.org/data-deletion-request',
+                    'Request Data Deletion',
                   ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.delete_outline),
-                    title: const Text('Request Data Deletion'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _openWebView(
-                      context,
-                      'https://greengains.eremat.org/data-deletion-request',
-                      'Request Data Deletion',
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
 
@@ -226,6 +197,162 @@ class _SettingsScreenState extends State<SettingsScreen> {
           url: url,
           title: title,
         ),
+      ),
+    );
+  }
+}
+
+class _SettingsSectionTitle extends StatelessWidget {
+  const _SettingsSectionTitle({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppTheme.spaceSm),
+      child: Text(
+        text,
+        style: theme.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsSectionContainer extends StatelessWidget {
+  const _SettingsSectionContainer({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppTheme.spaceLg),
+      padding: const EdgeInsets.all(AppTheme.spaceMd),
+      decoration: AppTheme.surfaceContainer(isDark: isDark),
+      child: child,
+    );
+  }
+}
+
+class _SettingsToggleRow extends StatelessWidget {
+  const _SettingsToggleRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(AppTheme.spaceSm),
+          decoration: AppTheme.iconContainer(isDark: isDark, active: value),
+          child: Icon(
+            icon,
+            color: value ? AppColors.primary : AppColors.textTertiary(isDark),
+          ),
+        ),
+        const SizedBox(width: AppTheme.spaceMd),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: AppTheme.spaceXxs),
+              Text(
+                subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: AppColors.textSecondary(isDark),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Switch(
+          value: value,
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _SettingsNavRow extends StatelessWidget {
+  const _SettingsNavRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+      onTap: onTap,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(AppTheme.spaceSm),
+            decoration: AppTheme.iconContainer(isDark: isDark, active: true),
+            child: Icon(
+              icon,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(width: AppTheme.spaceMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: AppTheme.spaceXxs),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary(isDark),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right),
+        ],
       ),
     );
   }
