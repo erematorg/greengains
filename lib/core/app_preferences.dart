@@ -71,6 +71,7 @@ class AppPreferences {
     await _sp.setBool(PreferenceKeys.shareLocation, value);
   }
 
+
   DateTime? get lastUploadAt {
     final raw = _sp.getString(PreferenceKeys.lastUploadAt);
     if (raw == null || raw.isEmpty) {

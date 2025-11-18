@@ -18,6 +18,11 @@ const coverageQuerySchema = z.object({
   precision: z.coerce.number().int().min(1).max(12).default(6),
 });
 
+const deviceStatsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(500).default(100),
+  cursor: z.string().optional(),
+});
+
 export async function analyticsRoutes(fastify: FastifyInstance) {
   const pool = getPool();
 
@@ -83,6 +88,9 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
       battery_avg: row.battery_avg !== null ? Number(row.battery_avg) : null,
       location_share: row.location_share !== null ? Number(row.location_share) : null,
       device_hours: row.device_hours !== undefined && row.device_hours !== null ? Number(row.device_hours) : undefined,
+      quality_samples: row.quality_samples !== undefined && row.quality_samples !== null ? Number(row.quality_samples) : undefined,
+      quality_valid_ratio: row.quality_valid_ratio !== null ? Number(row.quality_valid_ratio) : null,
+      quality_pocket_ratio: row.quality_pocket_ratio !== null ? Number(row.quality_pocket_ratio) : null,
     }));
 
     const lastItem = items[items.length - 1];
@@ -120,7 +128,10 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
           AVG(avg_accel_rms) AS avg_accel_rms,
           AVG(avg_gyro_rms) AS avg_gyro_rms,
           AVG(movement_score) AS movement_score,
-          AVG(location_share) AS location_share
+          AVG(location_share) AS location_share,
+          SUM(quality_samples) AS quality_samples,
+          AVG(quality_valid_ratio) AS quality_valid_ratio,
+          AVG(quality_pocket_ratio) AS quality_pocket_ratio
         FROM sensor_aggregates_5m
         WHERE window_start >= $1
         GROUP BY geohash
@@ -139,6 +150,9 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
         avg_gyro_rms: row.avg_gyro_rms !== null ? Number(row.avg_gyro_rms) : null,
         movement_score: row.movement_score !== null ? Number(row.movement_score) : null,
         location_share: row.location_share !== null ? Number(row.location_share) : null,
+        quality_samples: row.quality_samples !== null ? Number(row.quality_samples) : null,
+        quality_valid_ratio: row.quality_valid_ratio !== null ? Number(row.quality_valid_ratio) : null,
+        quality_pocket_ratio: row.quality_pocket_ratio !== null ? Number(row.quality_pocket_ratio) : null,
       }))
       .filter((item) => item.device_events >= query.min_devices)
       .sort((a, b) => b.device_events - a.device_events);
@@ -147,6 +161,56 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
       from: from.toISOString(),
       to: now.toISOString(),
       items,
+    };
+  });
+
+  fastify.get('/analytics/device-stats', async (request) => {
+    const query = deviceStatsQuerySchema.parse(request.query);
+
+    const clauses: string[] = [];
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (query.cursor) {
+      const [cursorTime, cursorHash] = query.cursor.split('|');
+      if (cursorTime && cursorHash) {
+        clauses.push(`(COALESCE(last_upload_at, '1970-01-01'), device_hash) < ($${paramIndex++}, $${paramIndex++})`);
+        params.push(cursorTime);
+        params.push(cursorHash);
+      }
+    }
+
+    const whereSql = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+
+    const sql = `
+      SELECT device_hash, samples_count, valid_samples, pocket_samples, uptime_seconds, last_upload_at
+      FROM user_stats
+      ${whereSql}
+      ORDER BY COALESCE(last_upload_at, '1970-01-01') DESC, device_hash DESC
+      LIMIT $${paramIndex}
+    `;
+    params.push(query.limit);
+
+    const result = await pool.query(sql, params);
+
+    const items = result.rows.map((row) => ({
+      device_hash: row.device_hash,
+      samples_count: Number(row.samples_count),
+      valid_samples: Number(row.valid_samples),
+      pocket_samples: Number(row.pocket_samples),
+      uptime_seconds: Number(row.uptime_seconds),
+      last_upload_at: row.last_upload_at ? row.last_upload_at.toISOString() : null,
+    }));
+
+    const last = items[items.length - 1];
+    let next_cursor: string | null = null;
+    if (last && last.last_upload_at) {
+      next_cursor = `${last.last_upload_at}|${last.device_hash}`;
+    }
+
+    return {
+      items,
+      next_cursor,
     };
   });
 }

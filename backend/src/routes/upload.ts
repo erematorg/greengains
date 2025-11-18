@@ -1,9 +1,11 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { Pool } from 'pg';
 import { decompressPayload, UnsupportedEncodingError } from '../utils/compression';
 import { verifyApiKey } from '../utils/security';
 import { hashDeviceId } from '../utils/security';
 import { getPool } from '../database';
 import { UploadBatchSchema, UploadBatch, SensorReading } from '../models/upload';
+import { Pool } from 'pg';
 
 interface Summary {
   count: number;
@@ -83,6 +85,91 @@ function buildStoragePayload(batch: UploadBatch): any {
   return payload;
 }
 
+type QualityCounters = {
+  total: number;
+  valid: number;
+  pocketLikely: number;
+};
+
+function analyzeQuality(readings: SensorReading[]): QualityCounters {
+  const counters: QualityCounters = {
+    total: 0,
+    valid: 0,
+    pocketLikely: 0,
+  };
+
+  for (const reading of readings) {
+    const quality = (reading as any)?.quality;
+    if (!quality) continue;
+    counters.total += 1;
+
+    const pocket = String(quality.pocket ?? '').toLowerCase();
+    if (pocket === 'likely') {
+      counters.pocketLikely += 1;
+      continue;
+    }
+
+    const locationQuality = String(quality.location_quality ?? '').toLowerCase();
+    const motionState = String(quality.motion_state ?? '').toLowerCase();
+    const motionConfidence =
+      typeof quality.motion_confidence === 'number' ? quality.motion_confidence : 0;
+
+    const locationOk = ['high', 'medium', 'low'].includes(locationQuality);
+    const motionOk = motionState !== 'unknown' && motionConfidence >= 0.2;
+
+    if (locationOk || motionOk || pocket === 'unlikely') {
+      counters.valid += 1;
+    }
+  }
+
+  return counters;
+}
+
+function calculateUptimeSeconds(summary: Summary): number {
+  const start = summary?.period_start ? summary.period_start.getTime() : 0;
+  const end = summary?.period_end ? summary.period_end.getTime() : start;
+  if (!start || !end) return 0;
+  return Math.max(0, Math.floor((end - start) / 1000));
+}
+
+async function upsertUserStats(
+  pool: Pool,
+  deviceHash: string,
+  summary: Summary,
+  readings: SensorReading[],
+  timestamp: Date,
+): Promise<void> {
+  const totalSamples = summary?.count ?? readings.length;
+  if (totalSamples <= 0) {
+    return;
+  }
+
+  const quality = analyzeQuality(readings);
+  const uptimeSeconds = calculateUptimeSeconds(summary);
+
+  await pool.query(
+    `INSERT INTO user_stats (
+      device_hash, samples_count, valid_samples, pocket_samples, uptime_seconds, last_upload_at
+    ) VALUES ($1, $2, $3, $4, $5, $6)
+    ON CONFLICT (device_hash)
+    DO UPDATE SET
+      samples_count = user_stats.samples_count + EXCLUDED.samples_count,
+      valid_samples = user_stats.valid_samples + EXCLUDED.valid_samples,
+      pocket_samples = user_stats.pocket_samples + EXCLUDED.pocket_samples,
+      uptime_seconds = user_stats.uptime_seconds + EXCLUDED.uptime_seconds,
+      last_upload_at = GREATEST(user_stats.last_upload_at, EXCLUDED.last_upload_at),
+      updated_at = NOW()`,
+    [
+      deviceHash,
+      totalSamples,
+      quality.valid,
+      quality.pocketLikely,
+      uptimeSeconds,
+      timestamp,
+    ],
+  );
+}
+
 export async function uploadRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/upload',
@@ -133,6 +220,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
           'INSERT INTO sensor_batches (device_hash, timestamp_utc, batch_json) VALUES ($1, $2, $3::jsonb)',
           [deviceHash, batch.timestamp, payloadJson]
         );
+        await upsertUserStats(pool, deviceHash, sanitizedPayload.summary, batch.batch, batch.timestamp);
 
         // Log with stats
         const stats = sanitizedPayload.summary;

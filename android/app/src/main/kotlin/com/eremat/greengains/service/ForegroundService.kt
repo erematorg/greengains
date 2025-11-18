@@ -4,6 +4,7 @@ import android.Manifest.permission.ACCESS_COARSE_LOCATION
 import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.annotation.SuppressLint
 import android.app.Service
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -86,6 +87,8 @@ class ForegroundService : Service() {
 
     // Network state monitoring for WiFi-only uploads
     private lateinit var networkMonitor: NetworkStateMonitor
+
+    private lateinit var notificationManager: NotificationManager
 
 
     inner class LocalBinder : Binder() {
@@ -171,9 +174,10 @@ class ForegroundService : Service() {
      * Calling this immediately in onStartCommand prevents ANR and ensures smooth lifecycle.
      */
     private fun startAsForegroundService() {
-        // create the notification channel and notification
         NotificationsHelper.createNotificationChannel(this)
-        val notification = NotificationsHelper.buildNotification(this)
+        notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val lastUpload = NotificationsHelper.readLastUploadFromPrefs(this)
+        val notification = NotificationsHelper.buildNotification(this, lastUpload)
 
         // promote service to foreground service
         ServiceCompat.startForeground(
@@ -702,6 +706,9 @@ class ForegroundService : Service() {
             "Native upload event=${event.type} batch=${event.batchSize} buffer=${event.bufferSize} error=${event.errorMessage}"
         )
         sendNativeUploadStatusToFlutter(event)
+        if (event.type == NativeUploadEventType.SUCCESS && ::notificationManager.isInitialized) {
+            NotificationsHelper.notifyUpdate(this, notificationManager, event.timestamp)
+        }
     }
 
     private fun sendNativeUploadStatusToFlutter(event: NativeUploadStatusEvent) {

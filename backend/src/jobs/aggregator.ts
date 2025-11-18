@@ -22,6 +22,9 @@ interface WindowAccumulator {
   batterySum: number;
   batterySamples: number;
   locationSamples: number;
+  qualitySamples: number;
+  qualityValidSamples: number;
+  pocketLikelySamples: number;
 }
 
 interface DayAccumulator {
@@ -38,6 +41,15 @@ interface DayAccumulator {
   batterySamples: number;
   locationSamples: number;
   deviceActiveMinutes: number;
+  qualitySamples: number;
+  qualityValidSamples: number;
+  pocketLikelySamples: number;
+}
+
+interface QualityCounters {
+  total: number;
+  valid: number;
+  pocketLikely: number;
 }
 
 let aggregationTimer: NodeJS.Timeout | null = null;
@@ -72,6 +84,38 @@ function nextWindowStart(date: Date): Date {
 
 function dayStartUtc(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function analyzeQuality(readings: any[]): QualityCounters {
+  const counters: QualityCounters = {
+    total: 0,
+    valid: 0,
+    pocketLikely: 0,
+  };
+  if (!Array.isArray(readings)) return counters;
+
+  for (const reading of readings) {
+    const quality = reading?.quality;
+    if (!quality) continue;
+    counters.total += 1;
+    const pocket = String(quality.pocket ?? '').toLowerCase();
+    const locationQuality = String(quality.location_quality ?? '').toLowerCase();
+    const motionState = String(quality.motion_state ?? '').toLowerCase();
+    const motionConfidence = typeof quality.motion_confidence === 'number' ? quality.motion_confidence : 0;
+
+    if (pocket === 'likely') {
+      counters.pocketLikely += 1;
+      continue;
+    }
+
+    const locationOk = ['high', 'medium', 'low'].includes(locationQuality);
+    const motionOk = motionState !== 'unknown' && motionConfidence >= 0.2;
+
+    if (locationOk || motionOk || pocket === 'unlikely') {
+      counters.valid += 1;
+    }
+  }
+  return counters;
 }
 
 export async function runAggregationJob(): Promise<void> {
@@ -161,6 +205,9 @@ export async function runAggregationJob(): Promise<void> {
         batterySum: 0,
         batterySamples: 0,
         locationSamples: 0,
+        qualitySamples: 0,
+        qualityValidSamples: 0,
+        pocketLikelySamples: 0,
       };
       windowBuckets.set(windowKey, windowAcc);
     }
@@ -200,6 +247,13 @@ export async function runAggregationJob(): Promise<void> {
     if (payload?.location != null) {
       windowAcc.locationSamples += readingsCount;
     }
+
+    if (Array.isArray(payload?.batch)) {
+      const qualityCounters = analyzeQuality(payload.batch);
+      windowAcc.qualitySamples += qualityCounters.total;
+      windowAcc.qualityValidSamples += qualityCounters.valid;
+      windowAcc.pocketLikelySamples += qualityCounters.pocketLikely;
+    }
   }
 
   if (windowBuckets.size === 0) {
@@ -223,6 +277,11 @@ export async function runAggregationJob(): Promise<void> {
     const batteryAvg =
       bucket.batterySamples > 0 ? bucket.batterySum / bucket.batterySamples : null;
     const locationShare = samples > 0 ? bucket.locationSamples / samples : 0;
+    const qualitySamples = bucket.qualitySamples;
+    const qualityValidRatio =
+      qualitySamples > 0 ? bucket.qualityValidSamples / qualitySamples : null;
+    const pocketRatio =
+      qualitySamples > 0 ? bucket.pocketLikelySamples / qualitySamples : null;
 
     windowResults.push({
       windowStart: bucket.windowStart,
@@ -238,6 +297,9 @@ export async function runAggregationJob(): Promise<void> {
       movementScore,
       batteryAvg,
       locationShare,
+      qualitySamples,
+      qualityValidRatio,
+      pocketRatio,
     });
 
     const dayKey = buildDayKey(bucket.windowStart, bucket.geohash);
@@ -258,6 +320,9 @@ export async function runAggregationJob(): Promise<void> {
         batterySamples: 0,
         locationSamples: 0,
         deviceActiveMinutes: 0,
+        qualitySamples: 0,
+        qualityValidSamples: 0,
+        pocketLikelySamples: 0,
       };
       dayBuckets.set(dayKey, dayAcc);
     }
@@ -277,6 +342,9 @@ export async function runAggregationJob(): Promise<void> {
     dayAcc.batterySamples += bucket.batterySamples;
     dayAcc.locationSamples += bucket.locationSamples;
     dayAcc.deviceActiveMinutes += deviceCount * AGGREGATION_WINDOW_MINUTES;
+    dayAcc.qualitySamples += bucket.qualitySamples;
+    dayAcc.qualityValidSamples += bucket.qualityValidSamples;
+    dayAcc.pocketLikelySamples += bucket.pocketLikelySamples;
   }
 
   const client = await pool.connect();
@@ -321,6 +389,9 @@ async function upsertWindowResults(
     movementScore: number;
     batteryAvg: number | null;
     locationShare: number;
+    qualitySamples: number;
+    qualityValidRatio: number | null;
+    pocketRatio: number | null;
   }>,
 ): Promise<void> {
   if (results.length === 0) return;
@@ -339,23 +410,29 @@ async function upsertWindowResults(
   const movementScores = results.map(r => r.movementScore);
   const batteryAvgs = results.map(r => r.batteryAvg);
   const locationShares = results.map(r => r.locationShare);
+  const qualitySampleCounts = results.map(r => r.qualitySamples);
+  const qualityValidRatios = results.map(r => r.qualityValidRatio);
+  const pocketRatios = results.map(r => r.pocketRatio);
 
   await client.query(
     `INSERT INTO sensor_aggregates_5m (
       window_start, window_end, geohash, samples_count, device_count,
       avg_light, avg_light_min, avg_light_max, avg_accel_rms,
       avg_gyro_rms, movement_score, battery_avg, location_share,
+      quality_samples, quality_valid_ratio, quality_pocket_ratio,
       created_at, updated_at
     )
     SELECT * FROM UNNEST(
       $1::timestamptz[], $2::timestamptz[], $3::text[],
       $4::int[], $5::int[], $6::double precision[], $7::double precision[],
       $8::double precision[], $9::double precision[], $10::double precision[],
-      $11::double precision[], $12::double precision[], $13::double precision[]
+      $11::double precision[], $12::double precision[], $13::double precision[],
+      $14::bigint[], $15::double precision[], $16::double precision[]
     ) AS t(
       window_start, window_end, geohash, samples_count, device_count,
       avg_light, avg_light_min, avg_light_max, avg_accel_rms,
-      avg_gyro_rms, movement_score, battery_avg, location_share
+      avg_gyro_rms, movement_score, battery_avg, location_share,
+      quality_samples, quality_valid_ratio, quality_pocket_ratio
     )
     ON CONFLICT (window_start, geohash)
     DO UPDATE SET
@@ -369,11 +446,15 @@ async function upsertWindowResults(
       movement_score = EXCLUDED.movement_score,
       battery_avg = EXCLUDED.battery_avg,
       location_share = EXCLUDED.location_share,
+      quality_samples = EXCLUDED.quality_samples,
+      quality_valid_ratio = EXCLUDED.quality_valid_ratio,
+      quality_pocket_ratio = EXCLUDED.quality_pocket_ratio,
       updated_at = NOW()`,
     [
       windowStarts, windowEnds, geohashes, samplesCounts,
       deviceCounts, avgLights, lightMins, lightMaxes,
-      avgAccelRms, avgGyroRms, movementScores, batteryAvgs, locationShares
+      avgAccelRms, avgGyroRms, movementScores, batteryAvgs, locationShares,
+      qualitySampleCounts, qualityValidRatios, pocketRatios
     ],
   );
 }
@@ -396,6 +477,9 @@ async function upsertDailyResults(
       batterySamples: number;
       locationSamples: number;
       deviceActiveMinutes: number;
+      qualitySamples: number;
+      qualityValidSamples: number;
+      pocketLikelySamples: number;
     }
   >,
 ): Promise<void> {
@@ -415,6 +499,9 @@ async function upsertDailyResults(
   const batteryAvgs: (number | null)[] = [];
   const locationShares: number[] = [];
   const deviceHours: number[] = [];
+  const qualitySampleCounts: number[] = [];
+  const qualityValidRatios: (number | null)[] = [];
+  const pocketRatios: (number | null)[] = [];
 
   for (const bucket of dayBuckets.values()) {
     const samples = bucket.samples;
@@ -434,6 +521,11 @@ async function upsertDailyResults(
       bucket.batterySamples > 0 ? bucket.batterySum / bucket.batterySamples : null;
     const locationShare = samples > 0 ? bucket.locationSamples / samples : 0;
     const deviceHour = bucket.deviceActiveMinutes / 60;
+    const qualitySamples = bucket.qualitySamples;
+    const qualityValidRatio =
+      qualitySamples > 0 ? bucket.qualityValidSamples / qualitySamples : null;
+    const pocketRatio =
+      qualitySamples > 0 ? bucket.pocketLikelySamples / qualitySamples : null;
 
     days.push(bucket.day.toISOString().slice(0, 10));
     geohashes.push(bucket.geohash);
@@ -448,6 +540,9 @@ async function upsertDailyResults(
     batteryAvgs.push(batteryAvg);
     locationShares.push(locationShare);
     deviceHours.push(deviceHour);
+    qualitySampleCounts.push(qualitySamples);
+    qualityValidRatios.push(qualityValidRatio);
+    pocketRatios.push(pocketRatio);
   }
 
   if (days.length === 0) return;
@@ -458,18 +553,20 @@ async function upsertDailyResults(
       day, geohash, samples_count, device_count,
       avg_light, avg_light_min, avg_light_max, avg_accel_rms,
       avg_gyro_rms, movement_score, battery_avg, location_share,
-      device_hours, created_at, updated_at
+      device_hours, quality_samples, quality_valid_ratio, quality_pocket_ratio,
+      created_at, updated_at
     )
     SELECT * FROM UNNEST(
       $1::date[], $2::text[], $3::bigint[], $4::int[],
       $5::double precision[], $6::double precision[], $7::double precision[],
       $8::double precision[], $9::double precision[], $10::double precision[],
-      $11::double precision[], $12::double precision[], $13::double precision[]
+      $11::double precision[], $12::double precision[], $13::double precision[],
+      $14::bigint[], $15::double precision[], $16::double precision[]
     ) AS t(
       day, geohash, samples_count, device_count,
       avg_light, avg_light_min, avg_light_max, avg_accel_rms,
       avg_gyro_rms, movement_score, battery_avg, location_share,
-      device_hours
+      device_hours, quality_samples, quality_valid_ratio, quality_pocket_ratio
     )
     ON CONFLICT (day, geohash)
     DO UPDATE SET
@@ -484,12 +581,15 @@ async function upsertDailyResults(
       battery_avg = EXCLUDED.battery_avg,
       location_share = EXCLUDED.location_share,
       device_hours = EXCLUDED.device_hours,
+      quality_samples = EXCLUDED.quality_samples,
+      quality_valid_ratio = EXCLUDED.quality_valid_ratio,
+      quality_pocket_ratio = EXCLUDED.quality_pocket_ratio,
       updated_at = NOW()`,
     [
       days, geohashes, samplesCounts, deviceCounts,
       avgLights, lightMins, lightMaxes, avgAccelRms,
       avgGyroRms, movementScores, batteryAvgs, locationShares,
-      deviceHours
+      deviceHours, qualitySampleCounts, qualityValidRatios, pocketRatios
     ],
   );
 }
