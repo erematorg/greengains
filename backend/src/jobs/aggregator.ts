@@ -419,8 +419,7 @@ async function upsertWindowResults(
       window_start, window_end, geohash, samples_count, device_count,
       avg_light, avg_light_min, avg_light_max, avg_accel_rms,
       avg_gyro_rms, movement_score, battery_avg, location_share,
-      quality_samples, quality_valid_ratio, quality_pocket_ratio,
-      created_at, updated_at
+      quality_samples, quality_valid_ratio, quality_pocket_ratio
     )
     SELECT * FROM UNNEST(
       $1::timestamptz[], $2::timestamptz[], $3::text[],

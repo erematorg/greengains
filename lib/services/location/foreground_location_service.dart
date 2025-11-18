@@ -236,6 +236,14 @@ class ForegroundLocationService {
     }
   }
 
+  Future<void> requestLocationPermission() async {
+    try {
+      await _fgChannel.invokeMethod('requestLocationPermission');
+    } catch (e) {
+      debugPrint('Error requesting location permission: $e');
+    }
+  }
+
   /// Stop the foreground service
   Future<bool> stop() async {
     try {

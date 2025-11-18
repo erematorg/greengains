@@ -312,11 +312,14 @@ class NativeBackendUploader(
             null
         }
 
+        val geohash = if (shareLocation) computeGeohash() else null
+
         return mapOf(
             "device_id" to deviceId,
             "timestamp" to System.currentTimeMillis(),
             "batch" to batch,
-            "location" to locationMap
+            "location" to locationMap,
+            "geohash" to geohash
         ).filterValues { it != null }
     }
 

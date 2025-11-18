@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../core/app_preferences.dart';
 import '../core/themes.dart';
 import '../services/location/foreground_location_service.dart';
+import '../services/location/location_service.dart';
 import '../utils/app_snackbars.dart';
 
 /// Service control button with loading state and scale animation
@@ -16,6 +18,8 @@ class ServiceControlButton extends StatefulWidget {
 class _ServiceControlButtonState extends State<ServiceControlButton>
     with SingleTickerProviderStateMixin {
   final _locationService = ForegroundLocationService.instance;
+  final _locationPermissionHelper = LocationService.instance;
+  final _prefs = AppPreferences.instance;
   bool _isTogglingService = false;
   late AnimationController _buttonAnimController;
   late Animation<double> _buttonScale;
@@ -41,6 +45,17 @@ class _ServiceControlButtonState extends State<ServiceControlButton>
   Future<void> _toggleService() async {
     if (_isTogglingService) return; // Prevent double-tap
 
+    // TODO: replace ad-hoc permission prompts with a dedicated UX flow (one-time modal + status banner).
+    var isRunning = _locationService.isRunning.value;
+    if (!isRunning) {
+      final hasAccess = await _ensureLocationAccess();
+      if (!hasAccess) {
+        return;
+      }
+      // Service state could change while user deals with OS dialog
+      isRunning = _locationService.isRunning.value;
+    }
+
     setState(() {
       _isTogglingService = true;
     });
@@ -48,14 +63,11 @@ class _ServiceControlButtonState extends State<ServiceControlButton>
     // Trigger button scale animation
     _buttonAnimController.forward().then((_) => _buttonAnimController.reverse());
 
-    final isRunning = _locationService.isRunning.value;
     try {
       if (isRunning) {
         await _locationService.stop();
       } else {
         HapticFeedback.mediumImpact();
-        // TODO: surface a branded battery-optimization prompt (similar to Honeygain)
-        // once we have a reliable detection hook so users know how to keep the service alive.
         await _locationService.start();
       }
     } catch (e) {
@@ -71,6 +83,26 @@ class _ServiceControlButtonState extends State<ServiceControlButton>
         });
       }
     }
+  }
+
+  Future<bool> _ensureLocationAccess() async {
+    await _prefs.ensureInitialized();
+
+    final granted = await _locationPermissionHelper.requestLocation();
+    if (!granted) {
+      if (mounted) {
+        AppSnackbars.showInfo(
+          context,
+          'Location permission denied. Please allow access to start tracking.',
+        );
+      }
+      return false;
+    }
+
+    await _prefs.setShareLocation(true);
+    await _locationService.requestLocationPermission();
+
+    return true;
   }
 
   @override
@@ -102,7 +134,9 @@ class _ServiceControlButtonState extends State<ServiceControlButton>
                     ),
                   )
                 : Icon(
-                    isRunning ? Icons.stop_circle_outlined : Icons.play_circle_filled,
+                    isRunning
+                        ? Icons.stop_circle_outlined
+                        : Icons.play_circle_filled,
                     size: 24,
                   ),
             label: Text(
