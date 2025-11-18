@@ -552,8 +552,7 @@ async function upsertDailyResults(
       day, geohash, samples_count, device_count,
       avg_light, avg_light_min, avg_light_max, avg_accel_rms,
       avg_gyro_rms, movement_score, battery_avg, location_share,
-      device_hours, quality_samples, quality_valid_ratio, quality_pocket_ratio,
-      created_at, updated_at
+      device_hours, quality_samples, quality_valid_ratio, quality_pocket_ratio
     )
     SELECT * FROM UNNEST(
       $1::date[], $2::text[], $3::bigint[], $4::int[],
