@@ -5,7 +5,6 @@ import { verifyApiKey } from '../utils/security';
 import { hashDeviceId } from '../utils/security';
 import { getPool } from '../database';
 import { UploadBatchSchema, UploadBatch, SensorReading } from '../models/upload';
-import { Pool } from 'pg';
 
 interface Summary {
   count: number;
