@@ -27,7 +27,10 @@ fastify.addContentTypeParser(
 
 // Register CORS
 fastify.register(cors, {
-  origin: getAllowedOrigins(),
+  origin: (() => {
+    const origins = getAllowedOrigins();
+    return origins.length > 0 ? origins : false; // false = disable CORS (same-origin only)
+  })(),
   credentials: true,
 });
 

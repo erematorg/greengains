@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
 
 const String kBackendBaseUrl = String.fromEnvironment(
   'BACKEND_URL',
@@ -59,6 +60,17 @@ class BackendClient {
         compress ? gzip.encode(utf8.encode(jsonBody)) : utf8.encode(jsonBody);
     if (compress) {
       headers[HttpHeaders.contentEncodingHeader] = 'gzip';
+    }
+
+    // Add Firebase Auth Token if available
+    try {
+      final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (token != null) {
+        headers[HttpHeaders.authorizationHeader] = 'Bearer $token';
+      }
+    } catch (e) {
+      // Ignore auth errors for now (allow anonymous/legacy uploads)
+      print('Failed to get auth token: $e');
     }
 
     final response = await _client.post(

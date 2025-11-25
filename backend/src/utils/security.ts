@@ -8,6 +8,13 @@ export function hashDeviceId(deviceId: string): string {
   return hmac.digest('hex');
 }
 
+function parseAnalyticsKeys(): string[] {
+  return config.analyticsApiKeys
+    .split(',')
+    .map(key => key.trim())
+    .filter(key => key.length > 0);
+}
+
 export async function verifyApiKey(
   request: FastifyRequest,
   reply: FastifyReply
@@ -32,5 +39,33 @@ export async function verifyApiKey(
       message: 'Invalid API key',
     });
     throw new Error('Invalid API key');
+  }
+}
+
+export async function verifyAnalyticsApiKey(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  const apiKey = request.headers['x-api-key'] as string | undefined;
+  if (!apiKey) {
+    reply.code(401).send({ error: 'Unauthorized', message: 'Missing API key' });
+    throw new Error('Missing analytics API key');
+  }
+
+  const validKeys = parseAnalyticsKeys();
+  if (validKeys.length === 0) {
+    reply.code(500).send({ error: 'Server Misconfigured', message: 'Analytics API key not set' });
+    throw new Error('Analytics API key not configured');
+  }
+
+  const providedBuffer = Buffer.from(apiKey);
+  const authorized = validKeys.some(key => {
+    const expectedBuffer = Buffer.from(key);
+    return expectedBuffer.length === providedBuffer.length && timingSafeEqual(expectedBuffer, providedBuffer);
+  });
+
+  if (!authorized) {
+    reply.code(401).send({ error: 'Unauthorized', message: 'Invalid API key' });
+    throw new Error('Invalid analytics API key');
   }
 }

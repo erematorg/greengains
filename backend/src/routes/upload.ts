@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { Pool } from 'pg';
 import { decompressPayload, UnsupportedEncodingError } from '../utils/compression';
 import { verifyApiKey } from '../utils/security';
+import { verifyFirebaseToken } from '../utils/firebase-auth';
 import { hashDeviceId } from '../utils/security';
 import { getPool } from '../database';
 import { UploadBatchSchema, UploadBatch, SensorReading } from '../models/upload';
@@ -137,6 +138,7 @@ async function upsertUserStats(
   summary: Summary,
   readings: SensorReading[],
   timestamp: Date,
+  userId: string | null,
 ): Promise<void> {
   const totalSamples = summary?.count ?? readings.length;
   if (totalSamples <= 0) {
@@ -148,8 +150,8 @@ async function upsertUserStats(
 
   await pool.query(
     `INSERT INTO user_stats (
-      device_hash, samples_count, valid_samples, pocket_samples, uptime_seconds, last_upload_at
-    ) VALUES ($1, $2, $3, $4, $5, $6)
+      device_hash, samples_count, valid_samples, pocket_samples, uptime_seconds, last_upload_at, user_id
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
     ON CONFLICT (device_hash)
     DO UPDATE SET
       samples_count = user_stats.samples_count + EXCLUDED.samples_count,
@@ -157,6 +159,7 @@ async function upsertUserStats(
       pocket_samples = user_stats.pocket_samples + EXCLUDED.pocket_samples,
       uptime_seconds = user_stats.uptime_seconds + EXCLUDED.uptime_seconds,
       last_upload_at = GREATEST(user_stats.last_upload_at, EXCLUDED.last_upload_at),
+      user_id = COALESCE(EXCLUDED.user_id, user_stats.user_id), -- Update user_id if provided
       updated_at = NOW()`,
     [
       deviceHash,
@@ -165,6 +168,7 @@ async function upsertUserStats(
       quality.pocketLikely,
       uptimeSeconds,
       timestamp,
+      userId
     ],
   );
 }
@@ -176,7 +180,16 @@ export async function uploadRoutes(fastify: FastifyInstance) {
       preHandler: verifyApiKey,
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      console.log('Upload request received');
+      // 1. Verify Firebase Auth (The "Honeygain" Way)
+      let userId: string | null = null;
+      try {
+        userId = await verifyFirebaseToken(request, reply);
+      } catch (e) {
+        console.warn('Auth check failed or missing:', e);
+      }
+
+      console.log(`Upload request received. User: ${userId || 'Anonymous/Legacy'}`);
+
       try {
         // Decompress payload if needed
         const rawPayload = request.body as Buffer;
@@ -216,10 +229,10 @@ export async function uploadRoutes(fastify: FastifyInstance) {
         // Store in database
         const pool = getPool();
         await pool.query(
-          'INSERT INTO sensor_batches (device_hash, timestamp_utc, batch_json) VALUES ($1, $2, $3::jsonb)',
-          [deviceHash, batch.timestamp, payloadJson]
+          'INSERT INTO sensor_batches (device_hash, timestamp_utc, batch_json, user_id) VALUES ($1, $2, $3::jsonb, $4)',
+          [deviceHash, batch.timestamp, payloadJson, userId]
         );
-        await upsertUserStats(pool, deviceHash, sanitizedPayload.summary, batch.batch, batch.timestamp);
+        await upsertUserStats(pool, deviceHash, sanitizedPayload.summary, batch.batch, batch.timestamp, userId);
 
         // Log with stats
         const stats = sanitizedPayload.summary;
