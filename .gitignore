@@ -48,3 +48,6 @@ LAST_RESORT_MIUI_FIX.md
 MIUI_FALLBACK_FIX.md
 *.apk
 tmp/nodle-apk/
+
+#website
+public_html/

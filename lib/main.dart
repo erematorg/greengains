@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'core/app_preferences.dart';
@@ -16,6 +17,15 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Sign in anonymously (Honeygain Model: Frictionless Auth)
+  try {
+    final userCredential = await FirebaseAuth.instance.signInAnonymously();
+    print('Signed in anonymously: ${userCredential.user?.uid}');
+  } catch (e) {
+    print('Failed to sign in anonymously: $e');
+    // We continue anyway; the backend might reject uploads but the app should open.
+  }
 
   // Initialize preferences
   await AppPreferences.instance.init();

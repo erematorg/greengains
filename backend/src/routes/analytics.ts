@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getPool } from '../database';
 import { AGGREGATION_WINDOW_MINUTES } from '../jobs/aggregator';
+import { verifyAnalyticsApiKey } from '../utils/security';
 
 const aggregatesQuerySchema = z.object({
   from: z.string().datetime().optional(),
@@ -26,7 +27,7 @@ const deviceStatsQuerySchema = z.object({
 export async function analyticsRoutes(fastify: FastifyInstance) {
   const pool = getPool();
 
-  fastify.get('/analytics/aggregates', async (request) => {
+  fastify.get('/analytics/aggregates', { preHandler: verifyAnalyticsApiKey }, async (request) => {
     const query = aggregatesQuerySchema.parse(request.query);
     const table = query.bucket === 'day' ? 'sensor_aggregates_daily' : 'sensor_aggregates_5m';
 
@@ -112,7 +113,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     };
   });
 
-  fastify.get('/analytics/coverage', async (request) => {
+  fastify.get('/analytics/coverage', { preHandler: verifyAnalyticsApiKey }, async (request) => {
     const query = coverageQuerySchema.parse(request.query);
     const now = new Date();
     const from = new Date(now.getTime() - query.hours * 60 * 60 * 1000);
@@ -164,7 +165,7 @@ export async function analyticsRoutes(fastify: FastifyInstance) {
     };
   });
 
-  fastify.get('/analytics/device-stats', async (request) => {
+  fastify.get('/analytics/device-stats', { preHandler: verifyAnalyticsApiKey }, async (request) => {
     const query = deviceStatsQuerySchema.parse(request.query);
 
     const clauses: string[] = [];

@@ -12,10 +12,11 @@ const configSchema = z.object({
 
   // API Security
   apiKey: z.string().min(1, 'API_KEY is required'),
+  analyticsApiKeys: z.string().default(''), // Comma-separated list
   hashSecret: z.string().min(1, 'HASH_SECRET is required'),
 
   // CORS
-  allowedOrigins: z.string().default('*'),
+  allowedOrigins: z.string().default(''),
 
   // Rate Limiting
   rateLimitPerMinute: z.coerce.number().min(1).default(120),
@@ -34,6 +35,7 @@ function loadConfig(): Config {
     nodeEnv: process.env.NODE_ENV,
     databaseUrl: process.env.DATABASE_URL || process.env.GREENGAINS_DATABASE_URL,
     apiKey: process.env.API_KEY || process.env.GREENGAINS_API_KEY,
+    analyticsApiKeys: process.env.ANALYTICS_API_KEYS || process.env.ANALYTICS_API_KEY || '',
     hashSecret: process.env.HASH_SECRET || process.env.GREENGAINS_HASH_SECRET,
     allowedOrigins: process.env.ALLOWED_ORIGINS || process.env.GREENGAINS_ALLOWED_ORIGINS,
     rateLimitPerMinute: process.env.RATE_LIMIT_PER_MINUTE || process.env.GREENGAINS_RATE_LIMIT_PER_MINUTE,
