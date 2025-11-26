@@ -43,6 +43,26 @@ export function initFirebase(): void {
         projectId: serviceAccount.project_id,
       });
     } else {
+      // Auto-detect Render Secret File if available
+      const renderSecretPath = '/etc/secrets/firebase-key.json';
+      // We need to use require('fs') dynamically or import it at the top. 
+      // Since we are in a try block, let's use a simple check if we can.
+      // Better to rely on the standard GOOGLE_APPLICATION_CREDENTIALS if set, 
+      // but if not, and the file exists, set it.
+
+      if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const fs = require('fs');
+          if (fs.existsSync(renderSecretPath)) {
+            console.log(`✅ Detected Render Secret File at ${renderSecretPath}`);
+            process.env.GOOGLE_APPLICATION_CREDENTIALS = renderSecretPath;
+          }
+        } catch (e) {
+          // Ignore fs errors
+        }
+      }
+
       // Fallback to GOOGLE_APPLICATION_CREDENTIALS file path if available
       app = admin.initializeApp({
         credential: admin.credential.applicationDefault(),

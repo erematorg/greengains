@@ -41,7 +41,7 @@ function loadConfig(): Config {
     rateLimitPerMinute: process.env.RATE_LIMIT_PER_MINUTE || process.env.GREENGAINS_RATE_LIMIT_PER_MINUTE,
     rateLimitWindowSeconds: process.env.GREENGAINS_RATE_LIMIT_WINDOW_SECONDS,
     rateLimitCacheSize: process.env.GREENGAINS_RATE_LIMIT_IDENTIFIER_CACHE_SIZE,
-    firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
+    firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
   };
 
   const result = configSchema.safeParse(rawConfig);
