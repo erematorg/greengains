@@ -190,12 +190,32 @@ class NativeBackendUploader(
                 .url("$baseUrl/upload")
                 .addHeader("Content-Type", "application/json")
                 .addHeader("X-API-Key", apiKey)
-                .post(jsonPayload.toRequestBody("application/json".toMediaType()))
-                .build()
+
+            // Add Firebase Auth Token if available (The "Honeygain" Link)
+            val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            val token = prefs.getString("flutter.firebase_auth_token", null)
+            
+            if (token != null) {
+                Log.d(TAG, "Found Auth Token: ${token.take(10)}...")
+                try {
+                    val parts = token.split(".")
+                    if (parts.size == 3) {
+                        val payload = String(android.util.Base64.decode(parts[1], android.util.Base64.URL_SAFE))
+                        Log.d(TAG, "Token Payload: $payload")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to decode token", e)
+                }
+                request.addHeader("Authorization", "Bearer $token")
+            } else {
+                Log.w(TAG, "Auth Token NOT found in SharedPreferences")
+            }
+
+            val builtRequest = request.post(jsonPayload.toRequestBody("application/json".toMediaType())).build()
 
             totalUploadsAttempted++
 
-            val response = httpClient.newCall(request).execute()
+            val response = httpClient.newCall(builtRequest).execute()
             response.use {
                 if (it.isSuccessful) {
                     handleSuccess(readings.size, it.code)
