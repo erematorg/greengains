@@ -186,6 +186,8 @@ export async function uploadRoutes(fastify: FastifyInstance) {
         userId = await verifyFirebaseToken(request, reply);
       } catch (e) {
         console.warn('Auth check failed or missing:', e);
+        // If the auth check sent a response (e.g. 401), stop here.
+        if (reply.sent) return;
       }
 
       console.log(`Upload request received. User: ${userId || 'Anonymous/Legacy'}`);

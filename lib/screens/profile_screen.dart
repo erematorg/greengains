@@ -113,16 +113,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: AppTheme.spaceMd),
 
           // SIGN OUT BUTTON (bottom pinned)
-          OutlinedButton.icon(
-            onPressed: _handleSignOut,
-            icon: const Icon(Icons.logout),
-            label: const Text('Sign out'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.error,
-              side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
-              minimumSize: const Size.fromHeight(56),
+          // SIGN OUT / CREATE ACCOUNT BUTTON
+          if (user.isAnonymous)
+            // GUEST MODE: Show Official Google Sign-In Button
+            Center(
+              child: InkWell(
+                onTap: _handleGoogleSignIn,
+                borderRadius: BorderRadius.circular(4), // Match Google's border radius
+                child: Image.asset(
+                  'assets/brands/google_signin_button.png',
+                  height: 48, // Standard height
+                ),
+              ),
+            )
+          else
+            // LOGGED IN MODE: Show standard "Sign Out"
+            OutlinedButton.icon(
+              onPressed: _handleSignOut,
+              icon: const Icon(Icons.logout),
+              label: const Text('Sign out'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.error,
+                side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
+                minimumSize: const Size.fromHeight(56),
+              ),
             ),
-          ),
         ],
       ),
     );

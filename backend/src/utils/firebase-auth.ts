@@ -95,7 +95,7 @@ export async function verifyFirebaseToken(
       console.error('Firebase token verification failed:', error);
       reply.code(401).send({
         error: 'Unauthorized',
-        message: 'Token verification failed',
+        message: `Token verification failed: ${error.message}`,
       });
     }
     throw error;

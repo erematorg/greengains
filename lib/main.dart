@@ -21,7 +21,14 @@ void main() async {
   // Sign in anonymously (Honeygain Model: Frictionless Auth)
   try {
     final userCredential = await FirebaseAuth.instance.signInAnonymously();
+    final token = await userCredential.user?.getIdToken();
     print('Signed in anonymously: ${userCredential.user?.uid}');
+
+    // Save token for Native Code (Foreground Service)
+    if (token != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('firebase_auth_token', token);
+    }
   } catch (e) {
     print('Failed to sign in anonymously: $e');
     // We continue anyway; the backend might reject uploads but the app should open.

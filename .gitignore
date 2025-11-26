@@ -41,13 +41,56 @@ firebase-key.json
 # Node.js backend dependencies
 backend/node_modules/
 backend/.env
+android/app/google-services.json
+lib/firebase_options.dart
+.dart_tool/
+build/
+ios/Pods/
+macos/Pods/
+pubspec.lock
+**/.DS_Store
+.idea/
+.vscode/
+.gradle/
+**/DerivedData/
+**/xcuserdata/
+**/*.iml
+.packages
+.metadata
+.flutter-plugins
+.flutter-plugins-dependencies
+coverage/
+**/GeneratedPluginRegistrant.*
+linux/flutter/ephemeral/
+windows/flutter/ephemeral/
+web/.dart_tool/
+venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+uvicorn.log
+uvicorn_err.log
+.python-version
+.idea/.name
+
+# Dart defines with API keys (local only)
+dart_defines.json
+
+# Firebase Admin SDK credentials
+*-adminsdk-*.json
+firebase-key.json
+
+# Node.js backend dependencies
+backend/node_modules/
+backend/.env
 backend/dist/
 
 # Investigation notes (not for version control)
 LAST_RESORT_MIUI_FIX.md
 MIUI_FALLBACK_FIX.md
 *.apk
-tmp/nodle-apk/
+tmp/
 
 #website
 public_html/
