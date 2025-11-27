@@ -124,20 +124,6 @@ class AuthService {
     final tokenJson = jsonDecode(tokenRaw) as Map;
     final idToken = tokenJson['id_token'] as String?;
     final accessToken = tokenJson['access_token'] as String?;
-    if (idToken == null || accessToken == null) {
-      throw Exception('Token exchange failed: $tokenJson');
-    }
-
-    final credential = GoogleAuthProvider.credential(
-      idToken: idToken,
-      accessToken: accessToken,
-    );
-    await FirebaseAuth.instance.signInWithCredential(credential);
-  }
-
-  static String _randomUrlSafeString(int length) {
-    final rnd = Random.secure();
-    const chars =
         'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~';
     return List.generate(length, (_) => chars[rnd.nextInt(chars.length)])
         .join();

@@ -4,6 +4,7 @@ import rateLimit from '@fastify/rate-limit';
 import { config, getAllowedOrigins } from './config';
 import { initDatabase, closeDatabase } from './database';
 import { initFirebase, isFirebaseInitialized } from './utils/firebase-auth';
+import { deviceRoutes } from './routes/device';
 import { uploadRoutes } from './routes/upload';
 import { preferencesRoutes } from './routes/preferences';
 import { analyticsRoutes } from './routes/analytics';
@@ -47,6 +48,7 @@ fastify.get('/health', async () => {
 });
 
 // Register routes
+fastify.register(deviceRoutes);
 fastify.register(uploadRoutes);
 fastify.register(preferencesRoutes);
 fastify.register(analyticsRoutes);

@@ -9,6 +9,7 @@ import 'core/themes.dart';
 import 'app_shell.dart';
 import 'screens/onboarding_screen.dart';
 import 'services/network/backend_client.dart';
+import 'services/auth/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,20 +19,38 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Sign in anonymously (Honeygain Model: Frictionless Auth)
-  try {
-    final userCredential = await FirebaseAuth.instance.signInAnonymously();
-    final token = await userCredential.user?.getIdToken();
-    print('Signed in anonymously: ${userCredential.user?.uid}');
-
-    // Save token for Native Code (Foreground Service)
-    if (token != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('firebase_auth_token', token);
+  // Listen to Auth Changes & Sync Token to Native Code
+  FirebaseAuth.instance.idTokenChanges().listen((User? user) async {
+    if (user == null) {
+      print('User is currently signed out!');
+      // Optionally clear the token from prefs if you want native upload to stop
+      // final prefs = await SharedPreferences.getInstance();
+      // await prefs.remove('firebase_auth_token');
+    } else {
+      print('User is signed in: ${user.uid}');
+      try {
+        final token = await user.getIdToken();
+        if (token != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('firebase_auth_token', token);
+          print('Synced Firebase Token to SharedPreferences for Native Service');
+          
+          // Register device for long-lived auth
+          await AuthService.registerDevice(user);
+        }
+      } catch (e) {
+        print('Error syncing token: $e');
+      }
     }
-  } catch (e) {
-    print('Failed to sign in anonymously: $e');
-    // We continue anyway; the backend might reject uploads but the app should open.
+  });
+
+  // Sign in anonymously if not already signed in
+  if (FirebaseAuth.instance.currentUser == null) {
+    try {
+      await FirebaseAuth.instance.signInAnonymously();
+    } catch (e) {
+      print('Failed to sign in anonymously: $e');
+    }
   }
 
   // Initialize preferences

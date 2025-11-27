@@ -141,6 +141,31 @@ class GyroscopeData {
   }
 }
 
+/// Model for pressure sensor data (hPa)
+class PressureData {
+  final double hPa;
+  final int timestamp;
+
+  PressureData({
+    required this.hPa,
+    required this.timestamp,
+  });
+
+  factory PressureData.fromMap(Map<dynamic, dynamic> map) {
+    return PressureData(
+      hPa: (map['hPa'] as num).toDouble(),
+      timestamp: map['timestamp'] as int,
+    );
+  }
+
+  DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(timestamp);
+
+  @override
+  String toString() {
+    return 'PressureData(${hPa.toStringAsFixed(2)} hPa)';
+  }
+}
+
 /// Service for managing the native Android foreground service for sensor data collection
 class ForegroundLocationService {
   static const _fgChannel = MethodChannel('greengains/foreground');
@@ -150,6 +175,7 @@ class ForegroundLocationService {
   final _lightController = StreamController<LightData>.broadcast();
   final _accelerometerController = StreamController<AccelerometerData>.broadcast();
   final _gyroscopeController = StreamController<GyroscopeData>.broadcast();
+  final _pressureController = StreamController<PressureData>.broadcast();
   final _isRunningNotifier = ValueNotifier<bool>(false);
   final _statsRefreshTrigger = ValueNotifier<int>(0);
 
@@ -157,6 +183,7 @@ class ForegroundLocationService {
   Stream<LightData> get lightStream => _lightController.stream;
   Stream<AccelerometerData> get accelerometerStream => _accelerometerController.stream;
   Stream<GyroscopeData> get gyroscopeStream => _gyroscopeController.stream;
+  Stream<PressureData> get pressureStream => _pressureController.stream;
   ValueListenable<bool> get isRunning => _isRunningNotifier;
   ValueListenable<int> get statsRefreshTrigger => _statsRefreshTrigger;
 
@@ -171,6 +198,9 @@ class ForegroundLocationService {
 
   GyroscopeData? _lastGyroscope;
   GyroscopeData? get lastGyroscope => _lastGyroscope;
+
+  PressureData? _lastPressure;
+  PressureData? get lastPressure => _lastPressure;
 
   // Native upload status exposed to the UI
   final NativeUploadStatus uploadStatus = NativeUploadStatus();
@@ -204,6 +234,11 @@ class ForegroundLocationService {
           final gyro = GyroscopeData.fromMap(call.arguments as Map);
           _lastGyroscope = gyro;
           _gyroscopeController.add(gyro);
+          break;
+        case 'onPressureUpdate':
+          final pressure = PressureData.fromMap(call.arguments as Map);
+          _lastPressure = pressure;
+          _pressureController.add(pressure);
           break;
         case 'collectSensors':
           // This is called periodically by the native service
@@ -334,6 +369,9 @@ class ForegroundLocationService {
   void dispose() {
     _locationController.close();
     _lightController.close();
+    _accelerometerController.close();
+    _gyroscopeController.close();
+    _pressureController.close();
     _isRunningNotifier.dispose();
     uploadStatus.dispose();
   }
