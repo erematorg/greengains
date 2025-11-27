@@ -180,14 +180,43 @@ export async function uploadRoutes(fastify: FastifyInstance) {
       preHandler: verifyApiKey,
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      // 1. Verify Firebase Auth (The "Honeygain" Way)
+      // 1. Verify Auth (Device Secret OR Firebase Token)
       let userId: string | null = null;
-      try {
-        userId = await verifyFirebaseToken(request, reply);
-      } catch (e) {
-        console.warn('Auth check failed or missing:', e);
-        // If the auth check sent a response (e.g. 401), stop here.
-        if (reply.sent) return;
+      const deviceSecret = request.headers['x-device-secret'] as string;
+
+      if (deviceSecret) {
+        // Verify Device Secret
+        try {
+          const pool = getPool();
+          const result = await pool.query(
+            'SELECT user_id FROM device_secrets WHERE secret = $1',
+            [deviceSecret]
+          );
+          if (result.rows.length > 0) {
+            userId = result.rows[0].user_id;
+            console.log(`Authenticated via Device Secret. User: ${userId}`);
+            // Update last_used_at
+            await pool.query(
+              'UPDATE device_secrets SET last_used_at = NOW() WHERE secret = $1',
+              [deviceSecret]
+            );
+          } else {
+            console.warn('Invalid Device Secret provided');
+            return reply.code(401).send({ error: 'Unauthorized', message: 'Invalid Device Secret' });
+          }
+        } catch (e) {
+          console.error('Device Secret verification failed:', e);
+          return reply.code(500).send({ error: 'Internal Server Error' });
+        }
+      } else {
+        // Fallback to Firebase Token
+        try {
+          userId = await verifyFirebaseToken(request, reply);
+        } catch (e) {
+          console.warn('Auth check failed or missing:', e);
+          // If the auth check sent a response (e.g. 401), stop here.
+          if (reply.sent) return;
+        }
       }
 
       console.log(`Upload request received. User: ${userId || 'Anonymous/Legacy'}`);

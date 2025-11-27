@@ -139,233 +139,235 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       value: overlayStyle,
       child: Scaffold(
         appBar: AppBar(),
-        body: RefreshIndicator(
-          color: AppColors.primary,
-          onRefresh: _refreshData,
-          child: ListView(
-            padding: AppTheme.pagePadding,
-            children: [
-          // User greeting (compact)
-          if (user != null) ...[
-            Text(
-              'Hello, ${user.displayName?.split(' ').first ?? 'User'}!',
-              style: theme.textTheme.headlineSmall,
+        body: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMd),
+          children: [
+            const SizedBox(height: AppTheme.spaceSm),
+            ListenableBuilder(
+              listenable: _locationService.isRunning,
+              builder: (context, _) => _buildUploadStatus(theme),
             ),
+
             const SizedBox(height: AppTheme.spaceMd),
-          ],
+            const ServiceControlButton(),
+            const SizedBox(height: AppTheme.spaceLg),
 
-          // Service Control Button
-          const ServiceControlButton(),
+            // Contribution Statistics
+            ContributionStatsCard(key: _statsKey),
+            const SizedBox(height: AppTheme.spaceMd),
 
-          // Last Upload Status
-          const SizedBox(height: AppTheme.spaceSm),
-          ListenableBuilder(
-            listenable: _locationService.isRunning,
-            builder: (context, _) => _buildUploadStatus(theme),
-          ),
+            // Contextual Tips
+            if (_locationService.isRunning.value && _shouldShowTip('expand_sensors'))
+              ContextualTipCard(
+                tipId: 'expand_sensors',
+                icon: Icons.expand_more,
+                title: 'View live data',
+                message: 'Expand the sensor section below to verify data is streaming correctly',
+                onDismiss: () => _dismissTip('expand_sensors'),
+              ),
 
-          const SizedBox(height: AppTheme.spaceLg),
+            // Coverage Map Placeholder
+            _buildMapPlaceholder(theme, isDark),
+            const SizedBox(height: AppTheme.spaceMd),
 
-          // Contribution Statistics
-          ContributionStatsCard(key: _statsKey),
-          const SizedBox(height: AppTheme.spaceMd),
+            // Collapsible Sensor Details
+            ListenableBuilder(
+              listenable: _locationService.isRunning,
+              builder: (context, _) {
+                final isRunning = _locationService.isRunning.value;
 
-          // TODO: Introduce an optional CTA/education banner (à la Honeygain) once retention
-          // mechanics exist, but keep the core experience passive until then.
-          // Contextual Tips
-          if (_locationService.isRunning.value && _shouldShowTip('expand_sensors'))
-            ContextualTipCard(
-              tipId: 'expand_sensors',
-              icon: Icons.expand_more,
-              title: 'View live data',
-              message: 'Expand the sensor section below to verify data is streaming correctly',
-              onDismiss: () => _dismissTip('expand_sensors'),
-            ),
-
-          // Coverage Map Placeholder
-          _buildMapPlaceholder(theme, isDark),
-          const SizedBox(height: AppTheme.spaceMd),
-
-          // Collapsible Sensor Details
-          ListenableBuilder(
-            listenable: _locationService.isRunning,
-            builder: (context, _) {
-              final isRunning = _locationService.isRunning.value;
-
-              return Card(
-                child: ExpansionTile(
-                  onExpansionChanged: (expanded) {
-                    if (expanded) {
-                      HapticFeedback.lightImpact();
-                    }
-                  },
-                  title: Text(
-                    'Live sensor readings',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+                return Card(
+                  child: ExpansionTile(
+                    onExpansionChanged: (expanded) {
+                      if (expanded) {
+                        HapticFeedback.lightImpact();
+                      }
+                    },
+                    title: Text(
+                      'Live sensor readings',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  subtitle: Text(
-                    'Use these values to verify the device is streaming correctly',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  children: [
-                    if (!isRunning)
-                      Padding(
-                        padding: const EdgeInsets.all(AppTheme.spaceMd),
-                        child: Column(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(AppTheme.spaceMd),
-                              decoration: AppTheme.surfaceContainer(
-                                isDark: isDark,
-                                border: Border.all(
-                                  color: AppColors.primary.withValues(alpha: 0.3),
-                                  width: 1.5,
+                    subtitle: Text(
+                      'Use these values to verify the device is streaming correctly',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    children: [
+                      if (!isRunning)
+                        Padding(
+                          padding: const EdgeInsets.all(AppTheme.spaceMd),
+                          child: Column(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(AppTheme.spaceMd),
+                                decoration: AppTheme.surfaceContainer(
+                                  isDark: isDark,
+                                  border: Border.all(
+                                    color: AppColors.primary.withValues(alpha: 0.3),
+                                    width: 1.5,
+                                  ),
                                 ),
-                              ),
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    Icons.sensors_off,
-                                    size: 48,
-                                    color: AppColors.textSecondary(isDark),
-                                  ),
-                                  const SizedBox(height: AppTheme.spaceSm),
-                                  Text(
-                                    'Sensors inactive',
-                                    style: theme.textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: AppTheme.spaceXs),
-                                  Text(
-                                    'Start tracking above to begin collecting data',
-                                    style: theme.textTheme.bodySmall?.copyWith(
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.sensors_off,
+                                      size: 48,
                                       color: AppColors.textSecondary(isDark),
                                     ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
+                                    const SizedBox(height: AppTheme.spaceSm),
+                                    Text(
+                                      'Sensors inactive',
+                                      style: theme.textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: AppTheme.spaceXs),
+                                    Text(
+                                      'Start tracking above to begin collecting data',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: AppColors.textSecondary(isDark),
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                        )
+                      else
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(AppTheme.spaceMd, 0, AppTheme.spaceMd, AppTheme.spaceMd),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Environment Section
+                              Text(
+                                'Environment',
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: AppColors.textSecondary(isDark),
+                                ),
+                              ),
+                              const SizedBox(height: AppTheme.spaceXs),
+
+                              // Light Sensor
+                              StreamBuilder<LightData>(
+                                stream: _locationService.lightStream,
+                                builder: (context, snapshot) {
+                                  final light = snapshot.data;
+                                  final isRunning = _locationService.isRunning.value;
+                                  return SensorDataCard(
+                                    icon: Icons.light_mode,
+                                    title: 'Light',
+                                    value: light != null
+                                        ? '${light.lux.toStringAsFixed(0)} lux'
+                                        : null,
+                                    unit: light != null ? _getLightDescription(light.lux) : 'lux',
+                                    enabled: isRunning,
+                                    statusLabel: _sensorStatus(
+                                      isRunning: isRunning,
+                                      hasData: light != null,
+                                    ),
+                                    updatedAt: light?.dateTime,
+                                  );
+                                },
+                              ),
+
+                              const SizedBox(height: AppTheme.spaceMd),
+
+                              // Motion Section
+                              Text(
+                                'Motion',
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: AppColors.textSecondary(isDark),
+                                ),
+                              ),
+                              const SizedBox(height: AppTheme.spaceXs),
+
+                              // Accelerometer
+                              StreamBuilder<AccelerometerData>(
+                                stream: _locationService.accelerometerStream,
+                                builder: (context, snapshot) {
+                                  final accel = snapshot.data;
+                                  final isRunning = _locationService.isRunning.value;
+                                  return SensorDataCard(
+                                    icon: Icons.vibration,
+                                    title: 'Accelerometer',
+                                    value: accel != null
+                                        ? '${accel.magnitude.toStringAsFixed(1)} m/s²'
+                                        : null,
+                                    unit: accel != null
+                                        ? '(${accel.x.toStringAsFixed(1)}, ${accel.y.toStringAsFixed(1)}, ${accel.z.toStringAsFixed(1)})'
+                                        : 'm/s²',
+                                    enabled: isRunning,
+                                    statusLabel: _sensorStatus(
+                                      isRunning: isRunning,
+                                      hasData: accel != null,
+                                    ),
+                                    updatedAt: accel?.dateTime,
+                                  );
+                                },
+                              ),
+
+                              // Gyroscope
+                              StreamBuilder<GyroscopeData>(
+                                stream: _locationService.gyroscopeStream,
+                                builder: (context, snapshot) {
+                                  final gyro = snapshot.data;
+                                  final isRunning = _locationService.isRunning.value;
+                                  return SensorDataCard(
+                                    icon: Icons.rotate_90_degrees_ccw,
+                                    title: 'Gyroscope',
+                                    value: gyro != null
+                                        ? '${gyro.magnitude.toStringAsFixed(2)} rad/s'
+                                        : null,
+                                    unit: gyro != null
+                                        ? '(${gyro.x.toStringAsFixed(2)}, ${gyro.y.toStringAsFixed(2)}, ${gyro.z.toStringAsFixed(2)})'
+                                        : 'rad/s',
+                                    enabled: isRunning,
+                                    statusLabel: _sensorStatus(
+                                      isRunning: isRunning,
+                                      hasData: gyro != null,
+                                    ),
+                                    updatedAt: gyro?.dateTime,
+                                  );
+                                },
+                              ),
+
+                              // Barometer
+                              StreamBuilder<PressureData>(
+                                stream: _locationService.pressureStream,
+                                builder: (context, snapshot) {
+                                  final data = snapshot.data;
+                                  return SensorDataCard(
+                                    icon: Icons.compress,
+                                    title: 'Barometer',
+                                    value: data != null
+                                        ? '${data.hPa.toStringAsFixed(1)} hPa'
+                                        : null,
+                                    unit: 'Atmospheric Pressure',
+                                    enabled: isRunning,
+                                    statusLabel: _sensorStatus(
+                                      isRunning: isRunning,
+                                      hasData: data != null,
+                                    ),
+                                    updatedAt: data?.dateTime,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
                         ),
-                      )
-                    else
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(AppTheme.spaceMd, 0, AppTheme.spaceMd, AppTheme.spaceMd),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                      // Environment Section
-                      Text(
-                        'Environment',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: AppColors.textSecondary(isDark),
-                        ),
-                      ),
-                      const SizedBox(height: AppTheme.spaceXs),
-
-                      // Light Sensor
-                      StreamBuilder<LightData>(
-                        stream: _locationService.lightStream,
-                        builder: (context, snapshot) {
-                          final light = snapshot.data;
-                          final isRunning = _locationService.isRunning.value;
-                          return SensorDataCard(
-                            icon: Icons.light_mode,
-                            title: 'Light',
-                            value: light != null
-                                ? '${light.lux.toStringAsFixed(0)} lux'
-                                : null,
-                            unit: light != null ? _getLightDescription(light.lux) : 'lux',
-                            enabled: isRunning,
-                            statusLabel: _sensorStatus(
-                              isRunning: isRunning,
-                              hasData: light != null,
-                            ),
-                            updatedAt: light?.dateTime,
-                          );
-                        },
-                      ),
-
-                      const SizedBox(height: AppTheme.spaceMd),
-
-                      // Motion Section
-                      Text(
-                        'Motion',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: AppColors.textSecondary(isDark),
-                        ),
-                      ),
-                      const SizedBox(height: AppTheme.spaceXs),
-
-                      // Accelerometer
-                      StreamBuilder<AccelerometerData>(
-                        stream: _locationService.accelerometerStream,
-                        builder: (context, snapshot) {
-                          final accel = snapshot.data;
-                          final isRunning = _locationService.isRunning.value;
-                          return SensorDataCard(
-                            icon: Icons.vibration,
-                            title: 'Accelerometer',
-                            value: accel != null
-                                ? '${accel.magnitude.toStringAsFixed(1)} m/s²'
-                                : null,
-                            unit: accel != null
-                                ? '(${accel.x.toStringAsFixed(1)}, ${accel.y.toStringAsFixed(1)}, ${accel.z.toStringAsFixed(1)})'
-                                : 'm/s²',
-                            enabled: isRunning,
-                            statusLabel: _sensorStatus(
-                              isRunning: isRunning,
-                              hasData: accel != null,
-                            ),
-                            updatedAt: accel?.dateTime,
-                          );
-                        },
-                      ),
-
-                      // Gyroscope
-                      StreamBuilder<GyroscopeData>(
-                        stream: _locationService.gyroscopeStream,
-                        builder: (context, snapshot) {
-                          final gyro = snapshot.data;
-                          final isRunning = _locationService.isRunning.value;
-                          return SensorDataCard(
-                            icon: Icons.rotate_90_degrees_ccw,
-                            title: 'Gyroscope',
-                            value: gyro != null
-                                ? '${gyro.magnitude.toStringAsFixed(2)} rad/s'
-                                : null,
-                            unit: gyro != null
-                                ? '(${gyro.x.toStringAsFixed(2)}, ${gyro.y.toStringAsFixed(2)}, ${gyro.z.toStringAsFixed(2)})'
-                                : 'rad/s',
-                            enabled: isRunning,
-                            statusLabel: _sensorStatus(
-                              isRunning: isRunning,
-                              hasData: gyro != null,
-                            ),
-                            updatedAt: gyro?.dateTime,
-                          );
-                        },
-                      ),
-
-                            // Location tracking in background (no UI card)
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            },
-          ),
-
-        ],
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
       ),
-    ),
-    ),
-  );
+    );
   }
 
   Widget _buildMapPlaceholder(ThemeData theme, bool isDark) {

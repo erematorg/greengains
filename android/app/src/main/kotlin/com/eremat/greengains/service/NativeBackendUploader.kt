@@ -195,17 +195,18 @@ class NativeBackendUploader(
             val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
             val token = prefs.getString("flutter.firebase_auth_token", null)
             
+            // Add Device Secret (Long-lived Auth)
+            val deviceSecret = prefs.getString("flutter.device_secret", null)
+            if (deviceSecret != null) {
+                Log.d(TAG, "Found Device Secret: ${deviceSecret.take(5)}...")
+                request.addHeader("x-device-secret", deviceSecret)
+            } else {
+                Log.w(TAG, "Device Secret NOT found in SharedPreferences")
+            }
+
             if (token != null) {
                 Log.d(TAG, "Found Auth Token: ${token.take(10)}...")
-                try {
-                    val parts = token.split(".")
-                    if (parts.size == 3) {
-                        val payload = String(android.util.Base64.decode(parts[1], android.util.Base64.URL_SAFE))
-                        Log.d(TAG, "Token Payload: $payload")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to decode token", e)
-                }
+                // ... (existing token decoding logic if needed, or just add header)
                 request.addHeader("Authorization", "Bearer $token")
             } else {
                 Log.w(TAG, "Auth Token NOT found in SharedPreferences")
@@ -318,6 +319,7 @@ class NativeBackendUploader(
                 "light" to reading.light,
                 "accel" to reading.accelerometer?.let { listOf(it.x, it.y, it.z) },
                 "gyro" to reading.gyroscope?.let { listOf(it.x, it.y, it.z) },
+                "pressure" to reading.pressure,
                 "quality" to reading.quality?.toPayloadMap()?.takeIf { it.isNotEmpty() }
             ).filterValues { it != null }
         }
@@ -454,6 +456,7 @@ data class SensorReading(
     val light: Float?,
     val accelerometer: AccelData?,
     val gyroscope: GyroData?,
+    val pressure: Float?,
     val location: LocationData?,
     val quality: QualityMetadata?
 )
