@@ -17,14 +17,8 @@ const fastify = Fastify({
   bodyLimit: 1048576 * 10, // 10MB limit for uploads
 });
 
-// Configure raw body parser for upload endpoint
-fastify.addContentTypeParser(
-  'application/json',
-  { parseAs: 'buffer' },
-  (req, body, done) => {
-    done(null, body);
-  },
-);
+// Configure raw body parser for upload endpoint - MOVED to upload.ts
+// fastify.addContentTypeParser... removed
 
 // Register CORS
 fastify.register(cors, {
