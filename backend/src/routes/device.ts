@@ -9,7 +9,11 @@ export async function deviceRoutes(fastify: FastifyInstance) {
         '/register-device',
         async (request: FastifyRequest, reply: FastifyReply) => {
             try {
-                const body = DeviceRegistrationSchema.parse(request.body);
+                let bodyData = request.body;
+                if (Buffer.isBuffer(bodyData)) {
+                    bodyData = JSON.parse(bodyData.toString());
+                }
+                const body = DeviceRegistrationSchema.parse(bodyData);
                 const { device_id, firebase_token } = body;
 
                 // 1. Verify Firebase Token

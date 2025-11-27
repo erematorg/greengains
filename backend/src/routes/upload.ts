@@ -174,6 +174,15 @@ async function upsertUserStats(
 }
 
 export async function uploadRoutes(fastify: FastifyInstance) {
+  // Configure raw body parser ONLY for this route context
+  fastify.addContentTypeParser(
+    'application/json',
+    { parseAs: 'buffer' },
+    (req, body, done) => {
+      done(null, body);
+    },
+  );
+
   fastify.post(
     '/upload',
     {
