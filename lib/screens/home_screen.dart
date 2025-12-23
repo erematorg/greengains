@@ -11,6 +11,8 @@ import '../widgets/contribution_stats_card.dart';
 import '../widgets/contextual_tip_card.dart';
 import '../widgets/sensor_data_card.dart';
 import '../widgets/service_control_button.dart';
+import '../widgets/battery_optimization_dialog.dart';
+
 import '../widgets/time_ago_text.dart';
 
 /// Home screen showing live sensor data and tracking status
@@ -35,6 +37,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _checkServiceStatus();
     _setupUploadSuccessListener();
     _loadDismissedTips();
+    _checkBatteryOptimization();
+  }
+
+  Future<void> _checkBatteryOptimization() async {
+    // Wait for the UI to be ready
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
+    try {
+      const platform = MethodChannel('greengains/foreground');
+      final bool isIgnoring = await platform.invokeMethod('isIgnoringBatteryOptimizations');
+      
+      if (!isIgnoring && mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => const BatteryOptimizationDialog(),
+        );
+      }
+    } on PlatformException catch (e) {
+      print("Failed to check battery optimization: '${e.message}'.");
+    }
   }
 
   void _loadDismissedTips() {

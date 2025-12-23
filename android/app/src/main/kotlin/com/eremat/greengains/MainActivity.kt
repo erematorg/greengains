@@ -2,26 +2,24 @@ package com.eremat.greengains
 
 import android.Manifest.permission.ACCESS_COARSE_LOCATION
 import android.Manifest.permission.ACCESS_FINE_LOCATION
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.eremat.greengains.service.ForegroundService
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
-import com.eremat.greengains.service.ForegroundService
 
 /**
- * MainActivity - based on ForegroundServiceSamples pattern
- * Handles permission requests and service lifecycle
- *
- * Pattern differences from ComponentActivity sample:
- * - FlutterActivity doesn't support ActivityResultContracts
- * - Uses older requestPermissions() API for compatibility
- * - MethodChannel for Flutter communication instead of Binder/ServiceConnection
+ * Bridges Flutter <-> native foreground service and handles permission requests.
  */
 class MainActivity : FlutterActivity() {
 
@@ -38,55 +36,64 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        // Create sensor trigger channel and pass to ForegroundService
-        val sensorTriggerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "greengains/sensor_trigger")
+        // Sensor trigger channel used by the ForegroundService to push data to Flutter.
+        val sensorTriggerChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "greengains/sensor_trigger"
+        )
         ForegroundService.methodChannel = sensorTriggerChannel
 
-        // Flutter → Native: Start/Stop foreground service
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "greengains/foreground").setMethodCallHandler { call, result ->
-            when (call.method) {
-                "startForegroundService" -> {
-                    // Just start the service, don't request permissions here
-                    startForegroundService()
-                    result.success(true)
+        // Foreground service control channel.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "greengains/foreground")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "startForegroundService" -> {
+                        startForegroundService()
+                        result.success(true)
+                    }
+                    "stopForegroundService" -> {
+                        result.success(stopFgService())
+                    }
+                    "isForegroundServiceRunning" -> {
+                        result.success(ForegroundService.running)
+                    }
+                    "requestLocationPermission" -> {
+                        requestLocationPermissions()
+                        result.success(true)
+                    }
+                    "requestIgnoreBatteryOptimizations" -> {
+                        requestIgnoreBatteryOptimizations()
+                        result.success(true)
+                    }
+                    "isIgnoringBatteryOptimizations" -> {
+                        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                        val ignoring = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            pm.isIgnoringBatteryOptimizations(packageName)
+                        } else {
+                            true
+                        }
+                        result.success(ignoring)
+                    }
+                    else -> result.notImplemented()
                 }
-                "stopForegroundService" -> {
-                    val ok = stopFgService()
-                    result.success(ok)
-                }
-                "isForegroundServiceRunning" -> {
-                    result.success(ForegroundService.running)
-                }
-                "requestLocationPermission" -> {
-                    // Request location permission from Flutter (Settings screen)
-                    requestLocationPermissions()
-                    result.success(true)
-                }
-                else -> result.notImplemented()
             }
-        }
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         super.cleanUpFlutterEngine(flutterEngine)
-        // CRITICAL: Clear the method channel when Flutter engine is destroyed
-        // This prevents crashes when app is backgrounded/locked/swiped
+        // Avoid leaking the MethodChannel when the engine is torn down
         ForegroundService.methodChannel = null
     }
 
     /**
-     * Check for notification permission before starting the service so that the notification is visible
+     * Check for notification permission before starting the service so that the notification is visible.
      */
     private fun checkAndRequestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            when (ContextCompat.checkSelfPermission(
-                this,
-                android.Manifest.permission.POST_NOTIFICATIONS
-            )) {
+            when (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)) {
                 PackageManager.PERMISSION_GRANTED -> {
-                    // permission already granted
+                    // already granted
                 }
-
                 else -> {
                     ActivityCompat.requestPermissions(
                         this,
@@ -99,17 +106,15 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * Request location permissions (FINE + COARSE)
-     * Using older API since FlutterActivity doesn't support ActivityResultContracts
-     * Note: This only requests permissions, doesn't start the service
+     * Request location permissions (FINE + COARSE).
      */
     private fun requestLocationPermissions() {
         val fineGranted = ContextCompat.checkSelfPermission(this, ACCESS_FINE_LOCATION)
         val coarseGranted = ContextCompat.checkSelfPermission(this, ACCESS_COARSE_LOCATION)
 
         if (fineGranted != PackageManager.PERMISSION_GRANTED &&
-            coarseGranted != PackageManager.PERMISSION_GRANTED) {
-            // Request permissions
+            coarseGranted != PackageManager.PERMISSION_GRANTED
+        ) {
             ActivityCompat.requestPermissions(
                 this,
                 arrayOf(ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION),
@@ -120,10 +125,6 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    /**
-     * Handle permission request results
-     * Note: This doesn't start the service, just shows feedback
-     */
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -135,20 +136,17 @@ class MainActivity : FlutterActivity() {
             LOCATION_PERMISSION_REQUEST_CODE -> {
                 val fineGranted = grantResults.getOrNull(0) == PackageManager.PERMISSION_GRANTED
                 val coarseGranted = grantResults.getOrNull(1) == PackageManager.PERMISSION_GRANTED
-
                 when {
                     fineGranted || coarseGranted -> {
-                        // Location access granted
                         Toast.makeText(this, "Location permission granted", Toast.LENGTH_SHORT).show()
                     }
                     else -> {
-                        // No location access granted
                         Toast.makeText(this, "Location permission denied", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
             NOTIFICATION_PERMISSION_REQUEST_CODE -> {
-                // if permission was denied, the service can still run only the notification won't be visible
+                // If denied, service still runs; notification may not show.
             }
         }
     }
@@ -157,12 +155,32 @@ class MainActivity : FlutterActivity() {
      * Creates and starts the ForegroundService as a foreground service.
      */
     private fun startForegroundService() {
-        // start the service
         val serviceIntent = Intent(this, ForegroundService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)
         } else {
             startService(serviceIntent)
+        }
+    }
+
+    private fun requestIgnoreBatteryOptimizations() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return
+        }
+
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (pm.isIgnoringBatteryOptimizations(packageName)) {
+            return
+        }
+
+        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+            data = Uri.parse("package:$packageName")
+        }
+
+        try {
+            startActivity(intent)
+        } catch (_: Exception) {
+            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
         }
     }
 
