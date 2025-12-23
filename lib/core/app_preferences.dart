@@ -12,6 +12,9 @@ class PreferenceKeys {
   static const shareLocation = 'share_location';
   static const lastUploadAt = 'last_upload_at';
   static const dismissedTips = 'dismissed_tips';
+  static const batteryOptimizationPromptDismissed = 'battery_optimization_prompt_dismissed';
+  static const batteryOptimizationPromptLastShown = 'battery_optimization_prompt_last_shown';
+  static const postOnboardingAuthPrompted = 'post_onboarding_auth_prompted';
 }
 
 class AppPreferences {
@@ -69,6 +72,35 @@ class AppPreferences {
 
   Future<void> setShareLocation(bool value) async {
     await _sp.setBool(PreferenceKeys.shareLocation, value);
+  }
+
+  bool get batteryOptimizationPromptDismissed =>
+      _sp.getBool(PreferenceKeys.batteryOptimizationPromptDismissed) ?? false;
+
+  Future<void> setBatteryOptimizationPromptDismissed(bool value) async {
+    await _sp.setBool(PreferenceKeys.batteryOptimizationPromptDismissed, value);
+  }
+
+  DateTime? get batteryOptimizationPromptLastShown {
+    final raw = _sp.getString(PreferenceKeys.batteryOptimizationPromptLastShown);
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    return DateTime.tryParse(raw);
+  }
+
+  Future<void> setBatteryOptimizationPromptLastShown(DateTime timestamp) async {
+    await _sp.setString(
+      PreferenceKeys.batteryOptimizationPromptLastShown,
+      timestamp.toIso8601String(),
+    );
+  }
+
+  bool get postOnboardingAuthPrompted =>
+      _sp.getBool(PreferenceKeys.postOnboardingAuthPrompted) ?? false;
+
+  Future<void> setPostOnboardingAuthPrompted(bool value) async {
+    await _sp.setBool(PreferenceKeys.postOnboardingAuthPrompted, value);
   }
 
 

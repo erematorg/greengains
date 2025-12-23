@@ -1,5 +1,6 @@
 import '../local/database_helper.dart';
 import '../models/contribution_stats.dart';
+import '../models/tile_coverage_stats.dart';
 
 /// Repository for contribution statistics
 class ContributionRepository {
@@ -18,5 +19,9 @@ class ContributionRepository {
       uploadsToday: results[1],
       currentStreak: results[2],
     );
+  }
+
+  Future<TileCoverageStats> getTodayTileCoverage() async {
+    return _db.getTodayTileCoverage();
   }
 }

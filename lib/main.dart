@@ -10,6 +10,7 @@ import 'app_shell.dart';
 import 'screens/onboarding_screen.dart';
 import 'services/network/backend_client.dart';
 import 'services/auth/auth_service.dart';
+import 'widgets/post_onboarding_sign_in_sheet.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -108,6 +109,7 @@ class OnboardingWrapper extends StatefulWidget {
 
 class _OnboardingWrapperState extends State<OnboardingWrapper> {
   bool _showOnboarding = true;
+  bool _authPromptChecked = false;
 
   @override
   void initState() {
@@ -122,6 +124,46 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
         _showOnboarding = !completed;
       });
     }
+    if (completed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _maybePromptPostOnboardingAuth();
+      });
+    }
+  }
+
+  Future<void> _handleOnboardingComplete() async {
+    await AppPreferences.instance.setOnboardingComplete(true);
+    if (!mounted) return;
+    setState(() {
+      _showOnboarding = false;
+    });
+    await _maybePromptPostOnboardingAuth();
+  }
+
+  Future<void> _maybePromptPostOnboardingAuth() async {
+    if (!mounted || _authPromptChecked) return;
+    _authPromptChecked = true;
+
+    await AppPreferences.instance.ensureInitialized();
+    if (AppPreferences.instance.postOnboardingAuthPrompted) {
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && !user.isAnonymous) {
+      await AppPreferences.instance.setPostOnboardingAuthPrompted(true);
+      return;
+    }
+
+    await AppPreferences.instance.setPostOnboardingAuthPrompted(true);
+    if (!mounted) return;
+
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => const PostOnboardingSignInSheet(),
+    );
   }
 
   @override
@@ -129,9 +171,7 @@ class _OnboardingWrapperState extends State<OnboardingWrapper> {
     if (_showOnboarding) {
       return OnboardingScreen(
         onComplete: () {
-          setState(() {
-            _showOnboarding = false;
-          });
+          _handleOnboardingComplete();
         },
       );
     }

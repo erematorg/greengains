@@ -1,19 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../core/app_preferences.dart';
+import '../utils/app_snackbars.dart';
 
 class BatteryOptimizationDialog extends StatelessWidget {
   const BatteryOptimizationDialog({super.key});
 
   static const platform = MethodChannel('greengains/foreground');
 
+  Future<void> _markPromptShown() async {
+    await AppPreferences.instance.setBatteryOptimizationPromptLastShown(DateTime.now());
+  }
+
+  Future<void> _dismissPrompt(BuildContext context, {bool permanently = false}) async {
+    await _markPromptShown();
+    if (permanently) {
+      await AppPreferences.instance.setBatteryOptimizationPromptDismissed(true);
+    }
+    if (context.mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   Future<void> _openSettings(BuildContext context) async {
     try {
+      await _markPromptShown();
       await platform.invokeMethod('requestIgnoreBatteryOptimizations');
       if (context.mounted) {
         Navigator.of(context).pop();
       }
     } on PlatformException catch (e) {
-      print("Failed to open settings: '${e.message}'.");
+      if (context.mounted) {
+        AppSnackbars.showError(context, 'Unable to open battery settings');
+      }
     }
   }
 
@@ -37,10 +56,12 @@ class BatteryOptimizationDialog extends StatelessWidget {
       ),
       actions: <Widget>[
         TextButton(
+          onPressed: () => _dismissPrompt(context, permanently: true),
+          child: const Text('Don\'t show again'),
+        ),
+        TextButton(
+          onPressed: () => _dismissPrompt(context),
           child: const Text('Later'),
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
         ),
         FilledButton(
           onPressed: () => _openSettings(context),

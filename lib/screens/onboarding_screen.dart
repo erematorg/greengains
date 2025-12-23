@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
-import '../core/app_preferences.dart';
 import '../core/themes.dart';
 import 'webview_screen.dart';
 
@@ -204,8 +203,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                     ],
                   ),
                   child: FilledButton(
-                    onPressed: () async {
-                      await AppPreferences.instance.setOnboardingComplete(true);
+                    onPressed: () {
                       widget.onComplete();
                     },
                     style: FilledButton.styleFrom(
