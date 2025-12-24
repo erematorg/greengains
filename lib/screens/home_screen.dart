@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../data/models/tile_coverage_stats.dart';
+import '../data/models/contribution_stats.dart';
 import '../data/repositories/contribution_repository.dart';
 import '../core/extensions/context_extensions.dart';
 import '../core/themes.dart';

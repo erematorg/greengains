@@ -1,6 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import '../models/tile_coverage_stats.dart';
+import '../models/contribution_stats.dart';
 
 /// Minimal SQLite database for tracking contributions locally
 class DatabaseHelper {
