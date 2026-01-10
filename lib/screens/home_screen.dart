@@ -150,12 +150,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _prefs.ensureInitialized();
     final lastUpload = _prefs.lastUploadAt;
     if (lastUpload != null) {
+      debugPrint('✅ Reloaded last upload from SharedPreferences: $lastUpload');
       _locationService.uploadStatus.lastUpload.value = lastUpload;
+    } else {
+      debugPrint('⚠️ No last upload timestamp found in SharedPreferences');
     }
   }
 
   Future<void> _checkServiceStatus() async {
-    await _locationService.isServiceRunning();
+    final isRunning = await _locationService.isServiceRunning();
+
+    // Auto-restart service if it was running before but got killed (e.g., force-stop)
+    if (!isRunning && _prefs.foregroundServiceEnabled) {
+      debugPrint('Service was running before but is now stopped. Auto-restarting...');
+      await _locationService.start();
+    }
   }
 
   Future<void> _refreshData() async {

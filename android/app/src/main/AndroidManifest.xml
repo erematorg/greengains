@@ -60,7 +60,7 @@
 
         <!-- Boot receiver for auto-starting service after device reboot -->
         <receiver
-            android:name="com.eremat.greengains.receivers.BootReceiver"
+            android:name="com.eremat.greengains.BootReceiver"
             android:enabled="true"
             android:exported="false">
             <intent-filter>
