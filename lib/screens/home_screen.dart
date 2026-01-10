@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../data/models/contribution_stats.dart';
+import '../data/repositories/contribution_repository.dart';
 import '../core/extensions/context_extensions.dart';
 import '../core/themes.dart';
 import '../services/location/foreground_location_service.dart';
@@ -11,6 +12,8 @@ import '../widgets/contribution_stats_card.dart';
 import '../widgets/contextual_tip_card.dart';
 import '../widgets/sensor_data_card.dart';
 import '../widgets/service_control_button.dart';
+import '../widgets/battery_optimization_dialog.dart';
+
 import '../widgets/time_ago_text.dart';
 
 /// Home screen showing live sensor data and tracking status
@@ -25,16 +28,68 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _locationService = ForegroundLocationService.instance;
   final _statsKey = GlobalKey<ContributionStatsCardState>();
+  final _contributionRepo = ContributionRepository();
   final _prefs = AppPreferences.instance;
   final Set<String> _dismissedTips = {};
+  TileCoverageStats? _tileCoverage;
+  bool _tileCoverageLoading = true;
+  bool _batteryPromptOpen = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _locationService.isRunning.addListener(_handleServiceRunningChange);
     _checkServiceStatus();
     _setupUploadSuccessListener();
     _loadDismissedTips();
+    _checkBatteryOptimization();
+    _loadTileCoverage();
+  }
+
+  void _handleServiceRunningChange() {
+    if (_locationService.isRunning.value) {
+      _checkBatteryOptimization();
+    }
+  }
+
+  Future<void> _checkBatteryOptimization() async {
+    // Wait for the UI to be ready
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    if (_batteryPromptOpen) return;
+
+    try {
+      await _prefs.ensureInitialized();
+      if (_prefs.batteryOptimizationPromptDismissed) return;
+
+      final lastShown = _prefs.batteryOptimizationPromptLastShown;
+      if (lastShown != null &&
+          DateTime.now().difference(lastShown) < const Duration(days: 2)) {
+        return;
+      }
+
+      if (!_locationService.isRunning.value) {
+        return;
+      }
+
+      const platform = MethodChannel('greengains/foreground');
+      final bool isIgnoring = await platform.invokeMethod('isIgnoringBatteryOptimizations');
+      
+      if (!isIgnoring && mounted) {
+        _batteryPromptOpen = true;
+        await _prefs.setBatteryOptimizationPromptLastShown(DateTime.now());
+        showDialog(
+          context: context,
+          barrierDismissible: true,
+          builder: (context) => const BatteryOptimizationDialog(),
+        ).whenComplete(() {
+          _batteryPromptOpen = false;
+        });
+      }
+    } on PlatformException catch (e) {
+      print("Failed to check battery optimization: '${e.message}'.");
+    }
   }
 
   void _loadDismissedTips() {
@@ -65,6 +120,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!mounted) return;
 
     AppSnackbars.showSuccess(context, 'Contribution uploaded successfully!');
+    _loadTileCoverage();
   }
 
   @override
@@ -72,6 +128,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     // Clean up upload success listener
     _locationService.uploadStatus.uploadSuccess.removeListener(_onUploadSuccess);
+    _locationService.isRunning.removeListener(_handleServiceRunningChange);
 
     super.dispose();
   }
@@ -85,6 +142,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _reloadUploadStatus();
       // Auto-refresh stats when user returns to app
       _statsKey.currentState?.refresh();
+      _loadTileCoverage();
     }
   }
 
@@ -104,8 +162,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     HapticFeedback.lightImpact();
     // Refresh contribution stats
     await _statsKey.currentState?.refresh();
+    await _loadTileCoverage();
     // Min duration for better UX feedback
     await Future.delayed(const Duration(milliseconds: 300));
+  }
+
+  Future<void> _loadTileCoverage() async {
+    try {
+      final stats = await _contributionRepo.getTodayTileCoverage();
+      if (mounted) {
+        setState(() {
+          _tileCoverage = stats;
+          _tileCoverageLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _tileCoverageLoading = false;
+        });
+      }
+    }
   }
 
   String _getLightDescription(double lux) {
@@ -127,7 +204,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
     final theme = context.theme;
     final isDark = context.isDarkMode;
     final isRunningNow = _locationService.isRunning.value;
@@ -166,8 +242,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 onDismiss: () => _dismissTip('expand_sensors'),
               ),
 
-            // Coverage Map Placeholder
-            _buildMapPlaceholder(theme, isDark),
+            // Coverage Summary
+            _buildCoverageSummary(theme, isDark),
             const SizedBox(height: AppTheme.spaceMd),
 
             // Collapsible Sensor Details
@@ -295,11 +371,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                     icon: Icons.vibration,
                                     title: 'Accelerometer',
                                     value: accel != null
-                                        ? '${accel.magnitude.toStringAsFixed(1)} m/s²'
+                                        ? '${accel.magnitude.toStringAsFixed(1)} m/s^2'
                                         : null,
                                     unit: accel != null
                                         ? '(${accel.x.toStringAsFixed(1)}, ${accel.y.toStringAsFixed(1)}, ${accel.z.toStringAsFixed(1)})'
-                                        : 'm/s²',
+                                        : 'm/s^2',
                                     enabled: isRunning,
                                     statusLabel: _sensorStatus(
                                       isRunning: isRunning,
@@ -370,11 +446,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildMapPlaceholder(ThemeData theme, bool isDark) {
+  Widget _buildCoverageSummary(ThemeData theme, bool isDark) {
+    final coverage = _tileCoverage;
+    final hasData = coverage != null;
+    final hasTiles = coverage != null && coverage.totalTiles > 0;
+
     return Container(
       padding: const EdgeInsets.all(AppTheme.spaceMd),
       decoration: AppTheme.surfaceContainer(isDark: isDark),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             padding: const EdgeInsets.all(10),
@@ -394,16 +475,57 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Your Coverage',
+                  'Coverage Today',
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
+                if (_tileCoverageLoading)
+                  Text(
+                    'Loading tile stats...',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary(isDark),
+                    ),
+                  )
+                else if (!hasData)
+                  Text(
+                    'Coverage data is not available yet',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary(isDark),
+                    ),
+                  )
+                else if (!hasTiles)
+                  Text(
+                    'Start tracking to create your first tiles',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary(isDark),
+                    ),
+                  )
+                else
+                  Wrap(
+                    spacing: AppTheme.spaceSm,
+                    runSpacing: AppTheme.spaceXs,
+                    children: [
+                      _buildTileChip(
+                        label: 'Day',
+                        count: coverage!.dayTiles,
+                        color: AppColors.tileMediumCoverage,
+                        isDark: isDark,
+                      ),
+                      _buildTileChip(
+                        label: 'Night',
+                        count: coverage.nightTiles,
+                        color: AppColors.accentBlue,
+                        isDark: isDark,
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 6),
                 Text(
                   'Map visualization coming soon',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary(isDark),
+                    color: AppColors.textTertiary(isDark),
                   ),
                 ),
               ],
@@ -415,6 +537,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             size: 20,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTileChip({
+    required String label,
+    required int count,
+    required Color color,
+    required bool isDark,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spaceSm,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isDark ? 0.25 : 0.18),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: color.withValues(alpha: 0.45),
+        ),
+      ),
+      child: Text(
+        '$label $count',
+        style: TextStyle(
+          color: isDark ? Colors.white : color,
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
       ),
     );
   }

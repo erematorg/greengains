@@ -19,4 +19,8 @@ class ContributionRepository {
       currentStreak: results[2],
     );
   }
+
+  Future<TileCoverageStats> getTodayTileCoverage() async {
+    return _db.getTodayTileCoverage();
+  }
 }

@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import '../models/contribution_stats.dart';
 
 /// Minimal SQLite database for tracking contributions locally
 class DatabaseHelper {
@@ -83,6 +84,51 @@ class DatabaseHelper {
       [todayStart.millisecondsSinceEpoch],
     );
     return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  /// Get today's tile coverage split by day/night (distinct geohash per period)
+  Future<TileCoverageStats> getTodayTileCoverage() async {
+    final db = await database;
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+
+    final results = await db.rawQuery(
+      '''
+        SELECT part, COUNT(*) as count
+        FROM (
+          SELECT DISTINCT
+            geohash,
+            CASE
+              WHEN CAST(STRFTIME('%H', datetime(timestamp / 1000, 'unixepoch', 'localtime')) AS INTEGER)
+                BETWEEN 6 AND 19 THEN 'day'
+              ELSE 'night'
+            END as part
+          FROM contributions
+          WHERE success = 1
+            AND geohash IS NOT NULL
+            AND geohash != ''
+            AND timestamp >= ?
+        ) t
+        GROUP BY part
+      ''',
+      [todayStart.millisecondsSinceEpoch],
+    );
+
+    var day = 0;
+    var night = 0;
+    for (final row in results) {
+      final part = row['part']?.toString();
+      final count = row['count'] is int
+          ? row['count'] as int
+          : int.tryParse(row['count']?.toString() ?? '') ?? 0;
+      if (part == 'day') {
+        day = count;
+      } else if (part == 'night') {
+        night = count;
+      }
+    }
+
+    return TileCoverageStats(dayTiles: day, nightTiles: night);
   }
 
   /// Get current streak (consecutive days with uploads)
