@@ -53,15 +53,14 @@ class NativeBackendUploader(
 
     init {
         // Load API key from SharedPreferences (Flutter writes it on startup)
+        // NOTE: apiKey might be empty on first launch - uploads will be skipped until Flutter initializes
         val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         baseUrl = prefs.getString("flutter.backend_url", null)
             ?: "https://greengains.onrender.com"
-        apiKey = prefs.getString("flutter.backend_api_key", null)
-            ?: throw IllegalStateException(
-                "Backend API key not set.\n" +
-                "Make sure to run with: flutter run --dart-define-from-file=dart_defines.json\n" +
-                "Or use: .\\run-debug.ps1"
-            )
+        apiKey = prefs.getString("flutter.backend_api_key", null) ?: run {
+            Log.w(TAG, "Backend API key not yet available - uploads will be skipped until Flutter initializes")
+            "" // Empty string - uploads will be skipped
+        }
     }
 
     // HTTP client with reasonable timeouts for shaky mobile networks
@@ -134,6 +133,12 @@ class NativeBackendUploader(
     fun getBufferSize(): Int = synchronized(sensorBuffer) { sensorBuffer.size }
 
     private suspend fun uploadBatch() = withContext(Dispatchers.IO) {
+        // Skip if API key not yet loaded
+        if (apiKey.isEmpty()) {
+            Log.d(TAG, "Upload skipped: API key not yet available (Flutter still initializing)")
+            return@withContext
+        }
+
         // Check battery state before attempting upload
         if (batteryMonitor?.shouldPauseForBattery() == true) {
             Log.i(TAG, "Upload skipped: battery low and not charging")

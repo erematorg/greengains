@@ -165,9 +165,17 @@ class ForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Handle explicit stop action
         if (intent?.action == ACTION_STOP_SERVICE) {
             stopForegroundService()
             return START_NOT_STICKY
+        }
+
+        // Handle null intent (service restarted by system after being killed)
+        if (intent == null) {
+            Log.i(TAG, "Service restarted by system (null intent). Recreating state...")
+            // Service was restarted by Android due to START_STICKY
+            // All state is preserved in the Service object, just need to ensure it starts
         }
 
         startForegroundService()

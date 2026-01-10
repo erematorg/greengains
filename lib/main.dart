@@ -12,76 +12,110 @@ import 'services/network/backend_client.dart';
 import 'services/auth/auth_service.dart';
 import 'utils/app_snackbars.dart';
 
-void main() async {
+// MINIMAL main - start UI immediately
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  // Listen to Auth Changes & Sync Token to Native Code
-  FirebaseAuth.instance.idTokenChanges().listen((User? user) async {
-    if (user == null) {
-      print('User is currently signed out!');
-      // Optionally clear the token from prefs if you want native upload to stop
-      // final prefs = await SharedPreferences.getInstance();
-      // await prefs.remove('firebase_auth_token');
-    } else {
-      print('User is signed in: ${user.uid}');
-      try {
-        final token = await user.getIdToken();
-        if (token != null) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('firebase_auth_token', token);
-          print('Synced Firebase Token to SharedPreferences for Native Service');
-          
-          // Register device for long-lived auth
-          await AuthService.registerDevice(user);
-        }
-      } catch (e) {
-        print('Error syncing token: $e');
-      }
-    }
-  });
-
-  // Sign in anonymously if not already signed in
-  if (FirebaseAuth.instance.currentUser == null) {
-    try {
-      await FirebaseAuth.instance.signInAnonymously();
-    } catch (e) {
-      print('Failed to sign in anonymously: $e');
-    }
-  }
-
-  // Initialize preferences
-  await AppPreferences.instance.init();
-
-  // Save API key to SharedPreferences for native code access
-  if (kBackendApiKey.isEmpty) {
-    throw Exception(
-      'Backend API key not provided!\n\n'
-      'Run with: flutter run --dart-define-from-file=dart_defines.json\n'
-      'Or use: .\\run-debug.ps1\n\n'
-      'See SETUP_DEV.md for setup instructions.',
-    );
-  }
-
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setString('backend_api_key', kBackendApiKey);
-  await prefs.setString('backend_url', kBackendBaseUrl);
-
-  // Load theme preference
-  await ThemeController.instance.load();
-
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeApp();
+  }
+
+  // Background initialization - doesn't block UI
+  Future<void> _initializeApp() async {
+    try {
+      // Firebase is required for auth
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+
+      // Setup auth listener (non-blocking background work)
+      _setupAuthTokenSync();
+
+      // Sign in anonymously (if needed)
+      if (FirebaseAuth.instance.currentUser == null) {
+        await FirebaseAuth.instance.signInAnonymously();
+      }
+
+      // Load preferences
+      await AppPreferences.instance.init();
+
+      // Save backend config
+      await _persistBackendConfig();
+
+      // Load theme
+      await ThemeController.instance.load();
+
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
+      }
+    } catch (e) {
+      print('❌ Initialization error: $e');
+      // Still mark as initialized to show UI (with potential error state)
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
+      }
+    }
+  }
+
+  void _setupAuthTokenSync() {
+    FirebaseAuth.instance.idTokenChanges().listen((User? user) async {
+      if (user == null) {
+        print('User is currently signed out!');
+      } else {
+        print('User is signed in: ${user.uid}');
+        try {
+          final token = await user.getIdToken();
+          if (token != null) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('firebase_auth_token', token);
+            print('Synced Firebase Token to SharedPreferences');
+
+            // Device registration - FIRE AND FORGET (non-blocking)
+            AuthService.registerDevice(user).catchError((e) {
+              print('Device registration failed (non-critical): $e');
+            });
+          }
+        } catch (e) {
+          print('Error syncing token: $e');
+        }
+      }
+    });
+  }
+
+  Future<void> _persistBackendConfig() async {
+    if (kBackendApiKey.isEmpty) {
+      throw Exception(
+        'Backend API key not provided!\n\n'
+        'Run with: flutter run --dart-define-from-file=dart_defines.json',
+      );
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('backend_api_key', kBackendApiKey);
+    await prefs.setString('backend_url', kBackendBaseUrl);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Show app immediately, even if not fully initialized
     return ListenableBuilder(
       listenable: ThemeController.instance,
       builder: (context, _) {
@@ -91,10 +125,31 @@ class MyApp extends StatelessWidget {
           theme: AppTheme.theme(),
           darkTheme: AppTheme.themeDark(),
           themeMode: ThemeController.instance.mode,
-          themeAnimationDuration: Duration.zero, // Instant theme switching
-          home: const OnboardingWrapper(),
+          themeAnimationDuration: Duration.zero,
+          // Show loading indicator if not ready, otherwise show onboarding
+          home: _isInitialized
+              ? const OnboardingWrapper()
+              : const _InitializingScreen(),
         );
       },
+    );
+  }
+}
+
+/// Simple loading screen shown during initialization
+class _InitializingScreen extends StatelessWidget {
+  const _InitializingScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Scaffold(
+      backgroundColor: AppColors.surface(isDark),
+      body: Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation(AppColors.primary),
+        ),
+      ),
     );
   }
 }
