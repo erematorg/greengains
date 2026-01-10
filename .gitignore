@@ -93,3 +93,10 @@ MIUI_FALLBACK_FIX.md
 tmp/
 
 #website
+
+# Debug logs
+*.txt
+\!SETUP*.txt
+\!README.txt
+\!SECURITY*.txt
+\!NATIVE*.txt

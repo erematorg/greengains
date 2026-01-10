@@ -155,6 +155,25 @@ class MainActivity : FlutterActivity() {
      * Creates and starts the ForegroundService as a foreground service.
      */
     private fun startForegroundService() {
+        // CRITICAL: On Android 14+, location permissions MUST be granted before starting
+        // a foreground service with type location. Otherwise it will crash with SecurityException.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val hasFineLocation = ContextCompat.checkSelfPermission(
+                this,
+                ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+
+            val hasCoarseLocation = ContextCompat.checkSelfPermission(
+                this,
+                ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!hasFineLocation && !hasCoarseLocation) {
+                android.util.Log.e("GreenGains", "Cannot start foreground service: location permission not granted")
+                return
+            }
+        }
+
         val serviceIntent = Intent(this, ForegroundService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)

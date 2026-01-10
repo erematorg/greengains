@@ -46,9 +46,9 @@ android {
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.debug
 
-            // Enable code shrinking and obfuscation for smaller APK
-            minifyEnabled true
-            shrinkResources true
+            // Temporarily disable code shrinking to debug crash
+            minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
