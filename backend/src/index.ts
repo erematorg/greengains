@@ -8,6 +8,7 @@ import { deviceRoutes } from './routes/device';
 import { uploadRoutes } from './routes/upload';
 import { preferencesRoutes } from './routes/preferences';
 import { analyticsRoutes } from './routes/analytics';
+import { dailyPotRoutes } from './routes/daily-pot';
 import { startAggregationJob, stopAggregationJob } from './jobs/aggregator';
 
 const fastify = Fastify({
@@ -46,6 +47,7 @@ fastify.register(deviceRoutes);
 fastify.register(uploadRoutes);
 fastify.register(preferencesRoutes);
 fastify.register(analyticsRoutes);
+fastify.register(dailyPotRoutes);
 
 // Graceful shutdown
 const shutdown = async (signal: string) => {
