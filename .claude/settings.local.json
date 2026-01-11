@@ -92,7 +92,15 @@
       "Bash(\"C:\\\\Users\\\\mathi\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" wait-for-device)",
       "Bash(\"C:\\\\Users\\\\mathi\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\emulator\\\\emulator.exe\" -list-avds)",
       "Bash(start \"\" \"C:\\\\Users\\\\mathi\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\emulator\\\\emulator.exe\" -avd Pixel_3a_API_34_extension_level_7_x86_64)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(\"C:\\\\Users\\\\mathi\\\\flutter\\\\bin\\\\flutter.bat\" --version)",
+      "Bash(\"C:\\\\Users\\\\mathi\\\\flutter\\\\bin\\\\flutter.bat\" run --debug)",
+      "Bash(\"C:\\\\Users\\\\mathi\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" shell pm clear com.eremat.greengains)",
+      "Bash(\"C:\\\\Users\\\\mathi\\\\flutter\\\\bin\\\\flutter.bat\" run --debug -d emulator-5554)",
+      "Bash(\"C:\\\\Users\\\\mathi\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install:*)",
+      "Bash(\"C:\\\\Users\\\\mathi\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" shell am start -n com.eremat.greengains/.MainActivity)",
+      "Bash(\"C:\\\\Users\\\\mathi\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" logcat -d -s flutter:V,AndroidRuntime:E)",
+      "Bash(\"C:\\\\Users\\\\mathi\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" logcat -d -s flutter:V)"
     ],
     "deny": [],
     "ask": []

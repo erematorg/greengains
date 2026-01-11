@@ -45,10 +45,8 @@ class _MyAppState extends State<MyApp> {
       // Setup auth listener (non-blocking background work)
       _setupAuthTokenSync();
 
-      // Sign in anonymously (if needed)
-      if (FirebaseAuth.instance.currentUser == null) {
-        await FirebaseAuth.instance.signInAnonymously();
-      }
+      // No anonymous sign-in - all users must authenticate with Google
+      // If not signed in, they'll see the login screen
 
       // Load preferences
       await AppPreferences.instance.init();

@@ -27,14 +27,9 @@ class BootReceiver : BroadcastReceiver() {
         val wasServiceRunning = prefs.getBoolean(PREF_FOREGROUND_ENABLED, false)
 
         if (wasServiceRunning) {
-            Log.i(TAG, "Service was running before reboot. Restarting...")
-
-            val serviceIntent = Intent(context, ForegroundService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(serviceIntent)
-            } else {
-                context.startService(serviceIntent)
-            }
+            // Android 14+ (SDK 35) doesn't allow starting location services from background
+            // Service will auto-start when user opens the app instead
+            Log.i(TAG, "Service was running before reboot. Will auto-start when app opens.")
         } else {
             Log.i(TAG, "Service was not running before reboot. Skipping restart.")
         }
