@@ -66,9 +66,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  void _skipSignIn() {
-    widget.onComplete();
-  }
+  // Removed _skipSignIn() - all users must sign in with Google (no anonymous mode)
 
   @override
   Widget build(BuildContext context) {
@@ -92,16 +90,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ],
           ),
 
-          // Skip button (top-right, only on pages 0-2)
-          if (_currentPage < 3)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 8,
-              right: 16,
-              child: TextButton(
-                onPressed: _skipSignIn,
-                child: const Text('Skip'),
-              ),
-            ),
+          // Skip button removed - all users must sign in
 
           // Bottom navigation
           Positioned(
@@ -471,11 +460,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
             const SizedBox(height: AppTheme.spaceMd),
 
-            // Skip button
-            TextButton(
-              onPressed: _skipSignIn,
-              child: const Text('Skip for now (use app anonymously)'),
-            ),
+            // Anonymous mode removed - Google Sign In required for all users
 
             const SizedBox(height: AppTheme.spaceLg),
           ],

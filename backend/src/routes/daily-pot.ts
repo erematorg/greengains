@@ -65,7 +65,10 @@ export async function dailyPotRoutes(fastify: FastifyInstance) {
             WHEN last_claim_date = CURRENT_DATE THEN true
             ELSE false
           END as has_claimed_today,
-          TO_CHAR(last_claim_date, 'YYYY-MM-DD') as last_claim_date
+          CASE
+            WHEN last_claim_date IS NOT NULL THEN TO_CHAR(last_claim_date, 'YYYY-MM-DD')
+            ELSE NULL
+          END as last_claim_date
         `,
         [userId]
       );
@@ -112,7 +115,10 @@ export async function dailyPotRoutes(fastify: FastifyInstance) {
             WHEN last_claim_date = CURRENT_DATE THEN true
             ELSE false
           END as has_claimed_today,
-          TO_CHAR(last_claim_date, 'YYYY-MM-DD') as last_claim_date
+          CASE
+            WHEN last_claim_date IS NOT NULL THEN TO_CHAR(last_claim_date, 'YYYY-MM-DD')
+            ELSE NULL
+          END as last_claim_date
         `,
         [userId]
       );
@@ -149,7 +155,10 @@ export async function dailyPotRoutes(fastify: FastifyInstance) {
             WHEN last_claim_date = CURRENT_DATE THEN true
             ELSE false
           END as has_claimed_today,
-          TO_CHAR(last_claim_date, 'YYYY-MM-DD') as last_claim_date
+          CASE
+            WHEN last_claim_date IS NOT NULL THEN TO_CHAR(last_claim_date, 'YYYY-MM-DD')
+            ELSE NULL
+          END as last_claim_date
         FROM daily_pots
         WHERE user_id = $1
         `,
@@ -196,7 +205,10 @@ export async function dailyPotRoutes(fastify: FastifyInstance) {
             WHEN last_claim_date = CURRENT_DATE THEN true
             ELSE false
           END as has_claimed_today,
-          TO_CHAR(last_claim_date, 'YYYY-MM-DD') as last_claim_date,
+          CASE
+            WHEN last_claim_date IS NOT NULL THEN TO_CHAR(last_claim_date, 'YYYY-MM-DD')
+            ELSE NULL
+          END as last_claim_date,
           $2::integer as claimed_amount
         `,
         [userId, claimedAmount]

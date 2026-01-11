@@ -23,15 +23,15 @@ class DailyPotService {
   bool _isInitialized = false;
 
   /// Initialize and fetch current pot state
-  /// Only available for signed-in users (not anonymous)
+  /// All users must be authenticated (no anonymous users)
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null || user.isAnonymous) {
-        debugPrint('DailyPot: Only available for signed-in users (not anonymous)');
-        _potNotifier.value = null; // Hide daily pot for anonymous users
+      if (user == null) {
+        debugPrint('DailyPot: User not signed in');
+        _potNotifier.value = null;
         return;
       }
 
@@ -44,11 +44,10 @@ class DailyPotService {
   }
 
   /// Fetch current pot state from backend
-  /// Only available for signed-in users (not anonymous)
   Future<void> fetchPotState() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null || user.isAnonymous) {
+      if (user == null) {
         _potNotifier.value = null;
         return;
       }
@@ -68,12 +67,11 @@ class DailyPotService {
 
   /// Record an upload (called by upload service)
   /// Increments progress toward unlocking pot
-  /// Silently skips for anonymous users
   Future<void> recordUpload() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null || user.isAnonymous) {
-        return; // Silently skip for anonymous users
+      if (user == null) {
+        return; // No user signed in
       }
 
       final response = await BackendClient.post('/daily-pot/upload', {});
@@ -95,11 +93,10 @@ class DailyPotService {
 
   /// Claim pot (if unlocked)
   /// Returns claimed amount or 0 if already claimed/not unlocked
-  /// Throws exception for anonymous users
   Future<int> claimPot() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null || user.isAnonymous) {
+      if (user == null) {
         throw Exception('Sign in required to claim rewards');
       }
 
