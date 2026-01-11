@@ -4,6 +4,7 @@ import rateLimit from '@fastify/rate-limit';
 import { config, getAllowedOrigins } from './config';
 import { initDatabase, closeDatabase } from './database';
 import { initFirebase, isFirebaseInitialized } from './utils/firebase-auth';
+import { runPendingMigrations } from './migrations';
 import { deviceRoutes } from './routes/device';
 import { uploadRoutes } from './routes/upload';
 import { preferencesRoutes } from './routes/preferences';
@@ -72,6 +73,9 @@ const start = async () => {
   try {
     // Initialize database
     await initDatabase();
+
+    // Run pending migrations (auto-creates daily_pots table, etc.)
+    await runPendingMigrations();
 
     // Initialize Firebase
     initFirebase();

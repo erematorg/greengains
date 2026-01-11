@@ -243,7 +243,7 @@ class ForegroundService : Service() {
 
         val request = LocationRequest.create().apply {
             interval = LOCATION_UPDATES_INTERVAL_MS
-            fastestInterval = LOCATION_UPDATES_INTERVAL_MS / 2
+            fastestInterval = LOCATION_UPDATES_INTERVAL_MS
             priority = LocationRequest.PRIORITY_HIGH_ACCURACY
         }
 
@@ -588,7 +588,8 @@ class ForegroundService : Service() {
 
     companion object {
         private const val TAG = "GreenGainsFGService"
-        private val LOCATION_UPDATES_INTERVAL_MS = 1.seconds.inWholeMilliseconds
+        // Align GPS interval to snapshot interval (10s) - saves 90% GPS battery with zero data loss
+        private val LOCATION_UPDATES_INTERVAL_MS = 10.seconds.inWholeMilliseconds
         private const val NATIVE_SAMPLE_INTERVAL_MS = 10_000L
         const val ACTION_STOP_SERVICE = "com.eremat.greengains.action.STOP_SERVICE"
         private const val PREFS_NAME = "FlutterSharedPreferences"
