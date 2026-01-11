@@ -41,12 +41,10 @@ export async function dailyPotRoutes(fastify: FastifyInstance) {
   fastify.get('/daily-pot', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       // Verify Firebase token
-      const decodedToken = await verifyFirebaseToken(request);
-      if (!decodedToken) {
+      const userId = await verifyFirebaseToken(request, reply);
+      if (!userId) {
         return reply.code(401).send({ error: 'Unauthorized' });
       }
-
-      const userId = decodedToken.uid;
 
       // Get or create daily pot state
       const result = await pool.query<DailyPotState>(
@@ -83,12 +81,10 @@ export async function dailyPotRoutes(fastify: FastifyInstance) {
   fastify.post('/daily-pot/upload', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       // Verify Firebase token
-      const decodedToken = await verifyFirebaseToken(request);
-      if (!decodedToken) {
+      const userId = await verifyFirebaseToken(request, reply);
+      if (!userId) {
         return reply.code(401).send({ error: 'Unauthorized' });
       }
-
-      const userId = decodedToken.uid;
 
       // Increment upload count (only if not already unlocked today)
       const result = await pool.query<DailyPotState>(
@@ -132,12 +128,10 @@ export async function dailyPotRoutes(fastify: FastifyInstance) {
   fastify.post('/daily-pot/claim', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       // Verify Firebase token
-      const decodedToken = await verifyFirebaseToken(request);
-      if (!decodedToken) {
+      const userId = await verifyFirebaseToken(request, reply);
+      if (!userId) {
         return reply.code(401).send({ error: 'Unauthorized' });
       }
-
-      const userId = decodedToken.uid;
 
       // Check if can claim (unlocked and not claimed today)
       const checkResult = await pool.query<DailyPotState>(
