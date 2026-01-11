@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Centralized color system following UI/UX design guide
 class AppColors {
@@ -236,7 +237,10 @@ class AppTheme {
   static const _seed = Color(0xFF2F6D5F);
 
   static ThemeData theme() {
-    final base = ThemeData(useMaterial3: true);
+    final base = ThemeData(
+      useMaterial3: true,
+      fontFamily: GoogleFonts.inter().fontFamily,
+    );
     final scheme = ColorScheme.fromSeed(
       seedColor: _seed,
       brightness: Brightness.light,
@@ -381,7 +385,10 @@ class AppTheme {
   }
 
   static ThemeData themeDark() {
-    final base = ThemeData(useMaterial3: true);
+    final base = ThemeData(
+      useMaterial3: true,
+      fontFamily: GoogleFonts.inter().fontFamily,
+    );
     final scheme = ColorScheme.fromSeed(seedColor: _seed, brightness: Brightness.dark)
         .copyWith(
       onSurfaceVariant: const Color(0xFF9DA7A2),

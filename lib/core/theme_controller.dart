@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'app_preferences.dart';
 
 class ThemeController extends ChangeNotifier {
   ThemeController._();
   static final ThemeController instance = ThemeController._();
 
-  ThemeMode _mode = ThemeMode.light;
+  ThemeMode _mode = ThemeMode.system; // Default to system preference
   ThemeMode get mode => _mode;
   bool get isDark => _mode == ThemeMode.dark;
 
@@ -20,8 +21,13 @@ class ThemeController extends ChangeNotifier {
     _mode = m;
     notifyListeners(); // Instant UI update
 
-    // Save to SharedPreferences in background (non-blocking)
-    final prefs = AppPreferences.instance;
-    prefs.setThemeModeRaw(prefs.encodeThemeMode(m));
+    // Only save to SharedPreferences if user is signed in (not anonymous)
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && !user.isAnonymous) {
+      final prefs = AppPreferences.instance;
+      prefs.setThemeModeRaw(prefs.encodeThemeMode(m));
+    }
+    // Anonymous users: Theme not saved (resets to system default on app restart)
+    // This encourages sign-in for a better, persistent experience
   }
 }

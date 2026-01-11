@@ -13,6 +13,7 @@ import '../widgets/contextual_tip_card.dart';
 import '../widgets/sensor_data_card.dart';
 import '../widgets/service_control_button.dart';
 import '../widgets/battery_optimization_dialog.dart';
+import '../widgets/daily_pot_icon.dart';
 
 import '../widgets/time_ago_text.dart';
 
@@ -224,17 +225,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       value: overlayStyle,
       child: Scaffold(
         appBar: AppBar(),
-        body: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMd),
+        body: Stack(
           children: [
+            // Main content
+            ListView(
+              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMd),
+              children: [
+                const SizedBox(height: AppTheme.spaceLg),
+                const ServiceControlButton(),
+
             const SizedBox(height: AppTheme.spaceSm),
             ListenableBuilder(
               listenable: _locationService.isRunning,
               builder: (context, _) => _buildUploadStatus(theme),
             ),
 
-            const SizedBox(height: AppTheme.spaceMd),
-            const ServiceControlButton(),
             const SizedBox(height: AppTheme.spaceLg),
 
             // Contribution Statistics
@@ -451,7 +456,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ],
         ),
-      ),
+
+        // Floating daily pot icon (top-right corner)
+        const Positioned(
+          top: 16,
+          right: 16,
+          child: DailyPotIcon(),
+        ),
+      ],
+    ),
+    ),
     );
   }
 
@@ -590,14 +604,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         children: [
           Icon(
             Icons.sensors_off,
-            size: 16,
-            color: theme.colorScheme.outline,
+            size: 14,
+            color: AppColors.textSecondary(isDark),
           ),
           const SizedBox(width: 6),
           Text(
             'Tracking paused',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.outline,
+              color: AppColors.textSecondary(isDark),
             ),
           ),
         ],
@@ -650,7 +664,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation(
-                              AppColors.textSecondary(isDark),
+                              AppColors.primary,
                             ),
                           ),
                         ),
@@ -658,15 +672,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ] else ...[
                         Icon(
                           Icons.cloud_queue,
-                          size: 16,
+                          size: 14,
                           color: AppColors.textSecondary(isDark),
                         ),
                         const SizedBox(width: 6),
                       ],
                       Text(
-                        uploading ? 'Uploading data...' : 'Waiting for data...',
+                        uploading
+                            ? 'Uploading data...'
+                            : 'Waiting for data...',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary(isDark),
+                          color: uploading
+                              ? AppColors.primary
+                              : AppColors.textSecondary(isDark),
                         ),
                       ),
                     ],
@@ -680,7 +698,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               children: [
                 Icon(
                   Icons.cloud_done,
-                  size: 16,
+                  size: 14,
                   color: AppColors.success,
                 ),
                 const SizedBox(width: 6),
@@ -688,7 +706,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   timestamp: lastUpload,
                   prefix: 'Last upload: ',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary(isDark),
+                    color: AppColors.success,
                   ),
                 ),
               ],
