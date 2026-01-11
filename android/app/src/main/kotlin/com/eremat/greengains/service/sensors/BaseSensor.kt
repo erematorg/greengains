@@ -34,7 +34,8 @@ abstract class BaseSensor<T>(
 
     fun start() {
         sensor?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+            // SENSOR_DELAY_NORMAL (~200ms) instead of UI (~67ms) - saves battery with zero data loss
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
             Log.d(tag, "Listener registered")
         }
     }

@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit
  */
 class NativeBackendUploader(
     private val context: Context,
-    private val uploadIntervalMs: Long = 120_000L,
+    private val uploadIntervalMs: Long = 300_000L, // 5 min - reduces backend costs by 60%
     private val batteryMonitor: BatteryStateMonitor? = null,
     private val networkMonitor: NetworkStateMonitor? = null,
     private val statusListener: NativeUploadStatusListener? = null
@@ -43,7 +43,7 @@ class NativeBackendUploader(
     private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var uploadJob: Job? = null
 
-    // Buffer for sensor readings (max 1000 entries ~ 10 minutes of data at 600 ms sampling)
+    // Buffer for sensor readings (max 1000 entries ~ 166 minutes of data at 10s sampling)
     private val sensorBuffer = mutableListOf<SensorReading>()
     private val maxBufferSize = 1000
 
@@ -63,11 +63,12 @@ class NativeBackendUploader(
         }
     }
 
-    // HTTP client with reasonable timeouts for shaky mobile networks
+    // HTTP client with generous timeouts for Render.com cold starts (free tier)
+    // Free tier spins down after 15min inactivity, takes 30-60s to wake up
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(90, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
         .retryOnConnectionFailure(true)
         .build()
 

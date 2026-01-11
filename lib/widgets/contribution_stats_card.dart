@@ -26,10 +26,10 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
   void initState() {
     super.initState();
     _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 0.85).animate(
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
     _loadStats();
@@ -249,29 +249,70 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
     return AnimatedBuilder(
       animation: _pulseAnimation,
       builder: (context, child) {
-        return Opacity(
-          opacity: _pulseAnimation.value,
+        return Transform.scale(
+          scale: _pulseAnimation.value,
           child: child,
         );
       },
       child: Container(
       padding: const EdgeInsets.all(AppTheme.spaceMd),
-      decoration: AppTheme.surfaceContainer(isDark: isDark),
+      decoration: BoxDecoration(
+        gradient: (isMilestone || isFirstUpload)
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.primary.withValues(alpha: 0.08),
+                  AppColors.primaryLight.withValues(alpha: 0.12),
+                ],
+              )
+            : null,
+        color: (isMilestone || isFirstUpload) ? null : AppColors.surface(isDark),
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        border: Border.all(
+          color: (isMilestone || isFirstUpload)
+              ? AppColors.primary.withValues(alpha: 0.3)
+              : AppColors.border(isDark),
+          width: (isMilestone || isFirstUpload) ? 2 : 1,
+        ),
+        boxShadow: (isMilestone || isFirstUpload)
+            ? [
+                ...AppColors.glowEffect(AppColors.primary, opacity: 0.2),
+                ...(isDark
+                    ? AppColors.elevationDark(active: true)
+                    : AppColors.elevationLight(active: true)),
+              ]
+            : (isDark
+                ? AppColors.elevationDark(active: false)
+                : AppColors.elevationLight(active: false)),
+      ),
       child: Row(
         children: [
-          // Icon - simple, no animation
+          // Icon with better visual treatment
           Container(
-            padding: const EdgeInsets.all(AppTheme.spaceXs),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
+              gradient: (isMilestone || isFirstUpload)
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [AppColors.primaryLight, AppColors.primary],
+                    )
+                  : null,
               color: (isMilestone || isFirstUpload)
-                  ? AppColors.primaryAlpha(0.2)
-                  : AppColors.primaryAlpha(0.1),
-              borderRadius: BorderRadius.circular(8),
+                  ? null
+                  : AppColors.primaryAlpha(0.12),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: (isMilestone || isFirstUpload)
+                  ? AppColors.glowEffect(AppColors.primary, opacity: 0.3)
+                  : null,
             ),
             child: Icon(
               (isMilestone || isFirstUpload) ? Icons.celebration : Icons.eco,
-              color: AppColors.primary,
-              size: 20,
+              color: (isMilestone || isFirstUpload)
+                  ? Colors.white
+                  : AppColors.primary,
+              size: 22,
             ),
           ),
           const SizedBox(width: AppTheme.spaceMd),
@@ -333,13 +374,17 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (icon != null) Icon(icon, size: 16, color: iconColor ?? AppColors.primary),
+        if (icon != null) ...[
+          Icon(icon, size: 16, color: iconColor ?? AppColors.primary),
+          const SizedBox(height: 2),
+        ],
         Text(
           value,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
             color: AppColors.textPrimary(isDark),
             height: 1.2,
+            letterSpacing: -0.3,
           ),
         ),
         const SizedBox(height: 2),
