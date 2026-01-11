@@ -9,7 +9,13 @@ import 'network/backend_client.dart';
 class DailyPotService {
   static final DailyPotService _instance = DailyPotService._();
   static DailyPotService get instance => _instance;
-  DailyPotService._();
+  DailyPotService._() {
+    // Listen to auth state changes - re-initialize when user signs in/out
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      _isInitialized = false; // Reset flag
+      initialize(); // Re-initialize with new auth state
+    });
+  }
 
   final _potNotifier = ValueNotifier<DailyPot?>(null);
   ValueListenable<DailyPot?> get pot => _potNotifier;
