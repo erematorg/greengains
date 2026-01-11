@@ -91,6 +91,51 @@ class BackendClient {
     _client.close();
   }
 
+  /// Static helper for GET requests (used by daily pot service)
+  static Future<http.Response> get(String path) async {
+    final uri = Uri.parse('$kBackendBaseUrl$path');
+    final headers = <String, String>{
+      HttpHeaders.acceptHeader: 'application/json',
+      HttpHeaders.contentTypeHeader: 'application/json',
+    };
+
+    // Add Firebase Auth Token
+    try {
+      final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (token != null) {
+        headers[HttpHeaders.authorizationHeader] = 'Bearer $token';
+      }
+    } catch (e) {
+      print('Failed to get auth token: $e');
+    }
+
+    return await http.get(uri, headers: headers);
+  }
+
+  /// Static helper for POST requests (used by daily pot service)
+  static Future<http.Response> post(String path, Map<String, dynamic> body) async {
+    final uri = Uri.parse('$kBackendBaseUrl$path');
+    final headers = <String, String>{
+      HttpHeaders.contentTypeHeader: 'application/json',
+    };
+
+    // Add Firebase Auth Token
+    try {
+      final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (token != null) {
+        headers[HttpHeaders.authorizationHeader] = 'Bearer $token';
+      }
+    } catch (e) {
+      print('Failed to get auth token: $e');
+    }
+
+    return await http.post(
+      uri,
+      headers: headers,
+      body: jsonEncode(body),
+    );
+  }
+
   Future<List<CoverageTile>> fetchCoverage({
     int hours = 24,
     int minDevices = 0,

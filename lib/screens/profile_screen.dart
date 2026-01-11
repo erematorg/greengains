@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/extensions/context_extensions.dart';
 import '../core/themes.dart';
-import '../services/auth/auth_service.dart';
 import '../utils/app_snackbars.dart';
 import '../widgets/referral_invite_card.dart';
 import 'settings_screen.dart';
@@ -46,41 +45,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Signed-out state (keep existing design)
+  /// Signed-out state (anonymous user)
+  /// Note: This state should rarely be seen since we auto-sign-in anonymously
   Widget _buildSignedOutState(ThemeData theme, bool isDark) {
     return Padding(
       padding: AppTheme.pagePadding,
       child: Card(
         child: Padding(
-          padding: const EdgeInsets.all(AppTheme.spaceMd),
+          padding: const EdgeInsets.all(AppTheme.spaceLg),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(
-                child: Icon(
-                  Icons.account_circle_outlined,
-                  size: 80,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+              Icon(
+                Icons.account_circle_outlined,
+                size: 80,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
               const SizedBox(height: AppTheme.spaceMd),
               Text(
-                'Sign in to get started',
+                'Anonymous User',
                 style: theme.textTheme.titleLarge,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppTheme.spaceSm),
               Text(
-                'Sync your contributions across devices and earn rewards',
-                style: theme.textTheme.bodyMedium,
+                'Using app anonymously. To unlock daily pot rewards and sync data, restart the app and sign in during onboarding.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary(isDark),
+                ),
                 textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: AppTheme.spaceLg),
-              FilledButton.icon(
-                onPressed: _handleGoogleSignIn,
-                icon: const Icon(Icons.login),
-                label: const Text('Sign in with Google'),
               ),
             ],
           ),
@@ -113,21 +106,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: AppTheme.spaceMd),
 
           // SIGN OUT BUTTON (bottom pinned)
-          // SIGN OUT / CREATE ACCOUNT BUTTON
-          if (user.isAnonymous)
-            // GUEST MODE: Show Official Google Sign-In Button
-            Center(
-              child: InkWell(
-                onTap: _handleGoogleSignIn,
-                borderRadius: BorderRadius.circular(4), // Match Google's border radius
-                child: Image.asset(
-                  'assets/brands/google_signin_button.png',
-                  height: 48, // Standard height
-                ),
-              ),
-            )
-          else
-            // LOGGED IN MODE: Show standard "Sign Out"
+          if (!user.isAnonymous)
             OutlinedButton.icon(
               onPressed: _handleSignOut,
               icon: const Icon(Icons.logout),
@@ -136,6 +115,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 foregroundColor: AppColors.error,
                 side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
                 minimumSize: const Size.fromHeight(56),
+              ),
+            )
+          else
+            // Anonymous users: Show informational text
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(AppTheme.spaceMd),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: AppTheme.spaceSm),
+                    Expanded(
+                      child: Text(
+                        'Using anonymously. Daily pot rewards unavailable.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary(isDark),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
         ],
@@ -250,21 +253,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     return '${months[date.month - 1]} ${date.year}';
-  }
-
-  Future<void> _handleGoogleSignIn() async {
-    HapticFeedback.mediumImpact();
-    try {
-      await AuthService.signInWithGoogleUniversal();
-      if (mounted) {
-        setState(() {});
-        AppSnackbars.showSuccess(context, 'Signed in successfully');
-      }
-    } catch (e) {
-      if (mounted) {
-        AppSnackbars.showError(context, 'Sign-in failed: $e');
-      }
-    }
   }
 
   Future<void> _handleSignOut() async {

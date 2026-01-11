@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/app_preferences.dart';
+import '../daily_pot_service.dart';
 
 /// Model for location data received from the native foreground service
 class LocationData {
@@ -353,6 +354,10 @@ class ForegroundLocationService {
         // Note: Native code already saved contribution to SQLite database
         // Trigger stats refresh in UI
         _statsRefreshTrigger.value++;
+        // Record upload for daily pot progress (non-blocking)
+        DailyPotService.instance.recordUpload().catchError((e) {
+          debugPrint('Daily pot record upload failed (non-critical): $e');
+        });
         break;
       case 'failure':
         uploadStatus.uploading.value = false;
