@@ -3,17 +3,20 @@ class ContributionStats {
   final int totalUploads;
   final int uploadsToday;
   final int currentStreak;
+  final DateTime? loadedAt; // When these stats were last fetched
 
   const ContributionStats({
     required this.totalUploads,
     required this.uploadsToday,
     required this.currentStreak,
+    this.loadedAt,
   });
 
-  static const ContributionStats empty = ContributionStats(
+  static final ContributionStats empty = ContributionStats(
     totalUploads: 0,
     uploadsToday: 0,
     currentStreak: 0,
+    loadedAt: DateTime.now(),
   );
 }
 

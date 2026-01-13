@@ -17,6 +17,7 @@ class ContributionRepository {
       totalUploads: results[0],
       uploadsToday: results[1],
       currentStreak: results[2],
+      loadedAt: DateTime.now(),
     );
   }
 

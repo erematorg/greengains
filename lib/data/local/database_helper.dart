@@ -1,8 +1,17 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/contribution_stats.dart';
+import '../models/daily_pot.dart';
+import 'package:flutter/foundation.dart';
 
-/// Minimal SQLite database for tracking contributions locally
+/// Enhanced SQLite database for comprehensive app state persistence
+///
+/// Schema:
+/// - contributions: Upload history with geohash for tile coverage
+/// - tracking_sessions: Start/stop history for analytics
+/// - daily_pot_cache: Offline-first daily pot state
+/// - upload_queue: Pending uploads (for future retry logic)
+/// - app_state: Key-value store for misc state
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._();
   static Database? _database;
@@ -21,13 +30,14 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // Incremented for new tables
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    // Minimal schema: just track uploads
+    // Contributions table (existing + enhanced)
     await db.execute('''
       CREATE TABLE contributions (
         id TEXT PRIMARY KEY,
@@ -39,11 +49,127 @@ class DatabaseHelper {
       )
     ''');
 
-    // Index for fast queries
     await db.execute(
       'CREATE INDEX idx_timestamp ON contributions(timestamp)',
     );
+
+    // Tracking sessions - when did user start/stop tracking?
+    await db.execute('''
+      CREATE TABLE tracking_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        started_at INTEGER NOT NULL,
+        stopped_at INTEGER,
+        duration_ms INTEGER,
+        samples_collected INTEGER DEFAULT 0,
+        uploads_completed INTEGER DEFAULT 0,
+        ended_reason TEXT
+      )
+    ''');
+
+    await db.execute(
+      'CREATE INDEX idx_session_started ON tracking_sessions(started_at)',
+    );
+
+    // Daily pot cache - offline-first design
+    await db.execute('''
+      CREATE TABLE daily_pot_cache (
+        user_id TEXT PRIMARY KEY,
+        total_credits INTEGER NOT NULL,
+        uploads_today INTEGER NOT NULL,
+        uploads_required INTEGER NOT NULL,
+        is_unlocked INTEGER NOT NULL,
+        has_claimed_today INTEGER NOT NULL,
+        last_claim_date TEXT,
+        last_synced_at INTEGER NOT NULL,
+        cached_at INTEGER NOT NULL
+      )
+    ''');
+
+    // Upload queue (for future retry mechanism)
+    await db.execute('''
+      CREATE TABLE upload_queue (
+        id TEXT PRIMARY KEY,
+        payload TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        retry_count INTEGER DEFAULT 0,
+        last_error TEXT,
+        next_retry_at INTEGER
+      )
+    ''');
+
+    // Generic key-value state store
+    await db.execute('''
+      CREATE TABLE app_state (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    ''');
   }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    debugPrint('Upgrading database from v$oldVersion to v$newVersion');
+
+    if (oldVersion < 2) {
+      // Add new tables for v2
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS tracking_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            started_at INTEGER NOT NULL,
+            stopped_at INTEGER,
+            duration_ms INTEGER,
+            samples_collected INTEGER DEFAULT 0,
+            uploads_completed INTEGER DEFAULT 0,
+            ended_reason TEXT
+          )
+        ''');
+
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_session_started ON tracking_sessions(started_at)',
+        );
+
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS daily_pot_cache (
+            user_id TEXT PRIMARY KEY,
+            total_credits INTEGER NOT NULL,
+            uploads_today INTEGER NOT NULL,
+            uploads_required INTEGER NOT NULL,
+            is_unlocked INTEGER NOT NULL,
+            has_claimed_today INTEGER NOT NULL,
+            last_claim_date TEXT,
+            last_synced_at INTEGER NOT NULL,
+            cached_at INTEGER NOT NULL
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS upload_queue (
+            id TEXT PRIMARY KEY,
+            payload TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            retry_count INTEGER DEFAULT 0,
+            last_error TEXT,
+            next_retry_at INTEGER
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS app_state (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+          )
+        ''');
+
+        debugPrint('Database upgraded successfully to v2');
+      } catch (e) {
+        debugPrint('Error upgrading database: $e');
+      }
+    }
+  }
+
+  // ========== CONTRIBUTIONS ==========
 
   /// Insert a contribution record
   Future<void> insertContribution({
@@ -54,14 +180,18 @@ class DatabaseHelper {
     required bool success,
   }) async {
     final db = await database;
-    await db.insert('contributions', {
-      'id': id,
-      'timestamp': timestamp.millisecondsSinceEpoch,
-      'samples_count': samplesCount,
-      'geohash': geohash,
-      'success': success ? 1 : 0,
-      'created_at': DateTime.now().millisecondsSinceEpoch,
-    });
+    await db.insert(
+      'contributions',
+      {
+        'id': id,
+        'timestamp': timestamp.millisecondsSinceEpoch,
+        'samples_count': samplesCount,
+        'geohash': geohash,
+        'success': success ? 1 : 0,
+        'created_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   /// Get total successful uploads count
@@ -166,5 +296,351 @@ class DatabaseHelper {
     }
 
     return streak;
+  }
+
+  // ========== TRACKING SESSIONS ==========
+
+  /// Start a new tracking session
+  Future<int> startTrackingSession() async {
+    final db = await database;
+    final id = await db.insert('tracking_sessions', {
+      'started_at': DateTime.now().millisecondsSinceEpoch,
+    });
+    debugPrint('Started tracking session: $id');
+    return id;
+  }
+
+  /// Stop the active tracking session
+  Future<void> stopTrackingSession({
+    String? endedReason,
+  }) async {
+    final db = await database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    // Use transaction for atomicity
+    await db.transaction((txn) async {
+      // Find the most recent session without a stopped_at time
+      final results = await txn.query(
+        'tracking_sessions',
+        where: 'stopped_at IS NULL',
+        orderBy: 'started_at DESC',
+        limit: 1,
+      );
+
+      if (results.isEmpty) {
+        debugPrint('No active tracking session to stop');
+        return;
+      }
+
+      final session = results.first;
+      final sessionId = session['id'] as int;
+      final startedAt = session['started_at'] as int;
+      final duration = now - startedAt;
+
+      await txn.update(
+        'tracking_sessions',
+        {
+          'stopped_at': now,
+          'duration_ms': duration,
+          'ended_reason': endedReason,
+        },
+        where: 'id = ?',
+        whereArgs: [sessionId],
+      );
+
+      debugPrint('Stopped tracking session $sessionId (duration: ${duration ~/ 1000}s, reason: $endedReason)');
+    });
+  }
+
+  /// Update stats for the current tracking session
+  Future<void> updateTrackingSessionStats({
+    int? samplesCollected,
+    int? uploadsCompleted,
+  }) async {
+    final db = await database;
+
+    // Use transaction for atomicity
+    await db.transaction((txn) async {
+      // Find active session
+      final results = await txn.query(
+        'tracking_sessions',
+        where: 'stopped_at IS NULL',
+        orderBy: 'started_at DESC',
+        limit: 1,
+      );
+
+      if (results.isEmpty) return;
+
+      final sessionId = results.first['id'] as int;
+      final updates = <String, dynamic>{};
+
+      if (samplesCollected != null) {
+        updates['samples_collected'] = samplesCollected;
+      }
+      if (uploadsCompleted != null) {
+        updates['uploads_completed'] = uploadsCompleted;
+      }
+
+      if (updates.isNotEmpty) {
+        await txn.update(
+          'tracking_sessions',
+          updates,
+          where: 'id = ?',
+          whereArgs: [sessionId],
+        );
+      }
+    });
+  }
+
+  /// Get the active tracking session (if any)
+  Future<Map<String, dynamic>?> getActiveTrackingSession() async {
+    final db = await database;
+    final results = await db.query(
+      'tracking_sessions',
+      where: 'stopped_at IS NULL',
+      orderBy: 'started_at DESC',
+      limit: 1,
+    );
+
+    return results.isEmpty ? null : results.first;
+  }
+
+  /// Get tracking session history
+  Future<List<Map<String, dynamic>>> getTrackingHistory({
+    int limit = 10,
+  }) async {
+    final db = await database;
+    return await db.query(
+      'tracking_sessions',
+      orderBy: 'started_at DESC',
+      limit: limit,
+    );
+  }
+
+  // ========== DAILY POT CACHE ==========
+
+  /// Save daily pot state to local cache (offline-first)
+  Future<void> cacheDailyPot(DailyPot pot) async {
+    final db = await database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    await db.insert(
+      'daily_pot_cache',
+      {
+        'user_id': pot.userId,
+        'total_credits': pot.totalCredits,
+        'uploads_today': pot.uploadsToday,
+        'uploads_required': pot.uploadsRequired,
+        'is_unlocked': pot.isUnlocked ? 1 : 0,
+        'has_claimed_today': pot.hasClaimedToday ? 1 : 0,
+        'last_claim_date': pot.lastClaimDate?.toIso8601String(),
+        'last_synced_at': now,
+        'cached_at': now,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
+    debugPrint('Cached daily pot for user ${pot.userId}');
+  }
+
+  /// Get cached daily pot state
+  Future<DailyPot?> getCachedDailyPot(String userId) async {
+    final db = await database;
+    final results = await db.query(
+      'daily_pot_cache',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+    );
+
+    if (results.isEmpty) return null;
+
+    final row = results.first;
+    return DailyPot(
+      userId: row['user_id'] as String,
+      totalCredits: row['total_credits'] as int,
+      uploadsToday: row['uploads_today'] as int,
+      uploadsRequired: row['uploads_required'] as int,
+      isUnlocked: (row['is_unlocked'] as int) == 1,
+      hasClaimedToday: (row['has_claimed_today'] as int) == 1,
+      lastClaimDate: row['last_claim_date'] != null
+          ? DateTime.parse(row['last_claim_date'] as String)
+          : null,
+    );
+  }
+
+  /// Clear daily pot cache (e.g., on sign out)
+  Future<void> clearDailyPotCache() async {
+    final db = await database;
+    await db.delete('daily_pot_cache');
+    debugPrint('Cleared daily pot cache');
+  }
+
+  // ========== UPLOAD QUEUE ==========
+
+  /// Add an upload to the retry queue
+  Future<void> queueUpload({
+    required String id,
+    required String payload,
+  }) async {
+    final db = await database;
+    await db.insert(
+      'upload_queue',
+      {
+        'id': id,
+        'payload': payload,
+        'created_at': DateTime.now().millisecondsSinceEpoch,
+        'retry_count': 0,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Get pending uploads from queue
+  Future<List<Map<String, dynamic>>> getPendingUploads() async {
+    final db = await database;
+    return await db.query(
+      'upload_queue',
+      orderBy: 'created_at ASC',
+    );
+  }
+
+  /// Remove upload from queue
+  Future<void> removeFromQueue(String id) async {
+    final db = await database;
+    await db.delete(
+      'upload_queue',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Update retry info for failed upload
+  Future<void> updateUploadRetry({
+    required String id,
+    required String error,
+    required int nextRetryAt,
+  }) async {
+    final db = await database;
+    final current = await db.query(
+      'upload_queue',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (current.isEmpty) return;
+
+    final retryCount = (current.first['retry_count'] as int? ?? 0) + 1;
+
+    await db.update(
+      'upload_queue',
+      {
+        'retry_count': retryCount,
+        'last_error': error,
+        'next_retry_at': nextRetryAt,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // ========== APP STATE (Key-Value) ==========
+
+  /// Set a state value
+  Future<void> setState(String key, String value) async {
+    final db = await database;
+    await db.insert(
+      'app_state',
+      {
+        'key': key,
+        'value': value,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Get a state value
+  Future<String?> getState(String key) async {
+    final db = await database;
+    final results = await db.query(
+      'app_state',
+      where: 'key = ?',
+      whereArgs: [key],
+    );
+
+    return results.isEmpty ? null : results.first['value'] as String;
+  }
+
+  /// Delete a state value
+  Future<void> deleteState(String key) async {
+    final db = await database;
+    await db.delete(
+      'app_state',
+      where: 'key = ?',
+      whereArgs: [key],
+    );
+  }
+
+  /// Get all state values
+  Future<Map<String, String>> getAllState() async {
+    final db = await database;
+    final results = await db.query('app_state');
+
+    return Map.fromEntries(
+      results.map((row) => MapEntry(
+        row['key'] as String,
+        row['value'] as String,
+      )),
+    );
+  }
+
+  // ========== MAINTENANCE ==========
+
+  /// Clean old data (contributions older than 90 days)
+  Future<void> cleanOldData({int daysToKeep = 90}) async {
+    final db = await database;
+    final cutoff = DateTime.now()
+        .subtract(Duration(days: daysToKeep))
+        .millisecondsSinceEpoch;
+
+    final deleted = await db.delete(
+      'contributions',
+      where: 'timestamp < ?',
+      whereArgs: [cutoff],
+    );
+
+    if (deleted > 0) {
+      debugPrint('Cleaned $deleted old contributions (older than $daysToKeep days)');
+    }
+  }
+
+  /// Get database statistics
+  Future<Map<String, int>> getDatabaseStats() async {
+    final db = await database;
+
+    final contributions = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM contributions'),
+    ) ?? 0;
+
+    final sessions = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM tracking_sessions'),
+    ) ?? 0;
+
+    final queuedUploads = Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) FROM upload_queue'),
+    ) ?? 0;
+
+    return {
+      'contributions': contributions,
+      'tracking_sessions': sessions,
+      'queued_uploads': queuedUploads,
+    };
+  }
+
+  /// Close the database
+  Future<void> close() async {
+    final db = await database;
+    await db.close();
+    _database = null;
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../core/app_preferences.dart';
 import '../../core/events/app_events.dart';
 import '../daily_pot_service.dart';
+import '../tracking/tracking_session_manager.dart';
 
 /// Model for location data received from the native foreground service
 class LocationData {
@@ -207,6 +208,8 @@ class ForegroundLocationService {
   // Native upload status exposed to the UI
   final NativeUploadStatus uploadStatus = NativeUploadStatus();
 
+  final _sessionManager = TrackingSessionManager.instance;
+
   ForegroundLocationService._() {
     _setupMethodCallHandler();
     unawaited(_bootstrapUploadStatus());
@@ -252,6 +255,8 @@ class ForegroundLocationService {
         case 'onServiceStopped':
           _isRunningNotifier.value = false;
           uploadStatus.reset();
+          // Stop tracking session (service was killed)
+          await _sessionManager.stopSession(reason: 'service_stopped');
           debugPrint('Foreground service reported stopped');
           break;
       }
@@ -268,6 +273,8 @@ class ForegroundLocationService {
       final result = await _fgChannel.invokeMethod<bool>('startForegroundService');
       if (result == true) {
         _isRunningNotifier.value = true;
+        // Start tracking session in database
+        await _sessionManager.startSession();
         debugPrint('Foreground location service started');
       }
       return result ?? false;
@@ -297,6 +304,8 @@ class ForegroundLocationService {
         _isRunningNotifier.value = false;
         _lastLocation = null;
         uploadStatus.reset();
+        // Stop tracking session in database
+        await _sessionManager.stopSession(reason: 'user_stopped');
         debugPrint('Foreground location service stopped');
       }
       return result ?? false;
@@ -368,6 +377,11 @@ class ForegroundLocationService {
         // Record upload for daily pot progress (non-blocking)
         DailyPotService.instance.recordUpload().catchError((e) {
           debugPrint('Daily pot record upload failed (non-critical): $e');
+        });
+
+        // Record upload in tracking session (non-blocking)
+        _sessionManager.recordUploadCompleted().catchError((e) {
+          debugPrint('Session upload record failed (non-critical): $e');
         });
         break;
       case 'failure':

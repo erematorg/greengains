@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 import 'screens/profile_screen.dart';
+import 'core/services/time_ago_service.dart';
 
 /// Main navigation shell with bottom navigation bar
 class AppShell extends StatefulWidget {
@@ -23,6 +24,9 @@ class _AppShellState extends State<AppShell> {
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: _currentIndex);
+
+    // Start centralized time ago service
+    TimeAgoService.instance.start();
   }
 
   @override

@@ -192,6 +192,10 @@ class NativeBackendUploader(
             val payload = buildPayload(deviceId, readings, shareLocation)
             val jsonPayload = gson.toJson(payload)
 
+            // Debug: Log first 500 chars of JSON to see if pressure is included
+            Log.d(TAG, "JSON payload (first 500 chars): ${jsonPayload.take(500)}")
+            Log.d(TAG, "JSON contains 'pressure': ${jsonPayload.contains("\"pressure\"")}")
+
             val request = Request.Builder()
                 .url("$baseUrl/upload")
                 .addHeader("Content-Type", "application/json")
@@ -319,7 +323,12 @@ class NativeBackendUploader(
             }
         }
 
-        val batch = readings.map { reading ->
+        val batch = readings.mapIndexed { index, reading ->
+            // Debug: Log first 3 readings to see pressure values
+            if (index < 3) {
+                Log.d(TAG, "Building payload for reading #$index: pressure=${reading.pressure}, light=${reading.light}")
+            }
+
             mapOf(
                 "t" to reading.timestamp,
                 "light" to reading.light,
@@ -391,10 +400,11 @@ class NativeBackendUploader(
                 return
             }
 
+            // Open with WAL mode to match Flutter's sqflite (prevents corruption)
             val db = SQLiteDatabase.openDatabase(
                 dbPath.absolutePath,
                 null,
-                SQLiteDatabase.OPEN_READWRITE
+                SQLiteDatabase.OPEN_READWRITE or SQLiteDatabase.ENABLE_WRITE_AHEAD_LOGGING
             )
 
             db.use {
@@ -402,20 +412,27 @@ class NativeBackendUploader(
                 val contributionId = UUID.randomUUID().toString()
                 val now = System.currentTimeMillis()
 
-                val values = ContentValues().apply {
-                    put("id", contributionId)
-                    put("timestamp", timestamp)
-                    put("samples_count", samplesCount)
-                    put("geohash", geohash)
-                    put("success", 1)
-                    put("created_at", now)
-                }
+                // Use transaction for atomicity
+                db.beginTransaction()
+                try {
+                    val values = ContentValues().apply {
+                        put("id", contributionId)
+                        put("timestamp", timestamp)
+                        put("samples_count", samplesCount)
+                        put("geohash", geohash)
+                        put("success", 1)
+                        put("created_at", now)
+                    }
 
-                val rowId = db.insert("contributions", null, values)
-                if (rowId != -1L) {
-                    Log.d(TAG, "Contribution saved to database: id=$contributionId samples=$samplesCount geohash=$geohash")
-                } else {
-                    Log.e(TAG, "Failed to insert contribution to database")
+                    val rowId = db.insert("contributions", null, values)
+                    if (rowId != -1L) {
+                        db.setTransactionSuccessful()
+                        Log.d(TAG, "Contribution saved to database: id=$contributionId samples=$samplesCount geohash=$geohash")
+                    } else {
+                        Log.e(TAG, "Failed to insert contribution to database")
+                    }
+                } finally {
+                    db.endTransaction()
                 }
             }
         } catch (e: Exception) {

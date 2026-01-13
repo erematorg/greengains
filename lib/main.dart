@@ -11,6 +11,7 @@ import 'screens/onboarding_screen.dart';
 import 'services/network/backend_client.dart';
 import 'services/auth/auth_service.dart';
 import 'services/daily_pot_service.dart';
+import 'services/tracking/tracking_session_manager.dart';
 
 // MINIMAL main - start UI immediately
 void main() {
@@ -56,6 +57,9 @@ class _MyAppState extends State<MyApp> {
 
       // Load theme
       await ThemeController.instance.load();
+
+      // Initialize tracking session manager (restore state from database)
+      await TrackingSessionManager.instance.initialize();
 
       // Initialize daily pot service (non-blocking)
       DailyPotService.instance.initialize().catchError((e) {

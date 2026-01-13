@@ -35,9 +35,9 @@ abstract class BaseSensor<T>(
     fun start() {
         sensor?.let {
             // SENSOR_DELAY_NORMAL (~200ms) instead of UI (~67ms) - saves battery with zero data loss
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
-            Log.d(tag, "Listener registered")
-        }
+            val success = sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+            Log.d(tag, "Listener registered: success=$success, sensor=${it.name}, type=${it.type}")
+        } ?: Log.w(tag, "Cannot start: sensor is null")
     }
 
     fun stop() {
@@ -53,6 +53,9 @@ abstract class BaseSensor<T>(
 
     override fun onSensorChanged(event: SensorEvent?) {
         if (event?.sensor?.type == sensorType) {
+            if (tag == "GreenGainsBarometer") {
+                Log.d(tag, "onSensorChanged called, values: ${event.values.joinToString()}")
+            }
             processEvent(event)
         }
     }

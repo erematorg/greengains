@@ -5,6 +5,7 @@ import '../data/repositories/contribution_repository.dart';
 import '../services/location/foreground_location_service.dart';
 import '../core/events/app_events.dart';
 import '../core/themes.dart';
+import 'time_ago_text.dart';
 
 /// Compact horizontal contribution stats bar
 /// Optimized for fast rendering and clean code
@@ -73,6 +74,9 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
           _stats = stats;
           _loading = false;
         });
+
+        // Emit stats updated event so other parts of the app can react
+        AppEventBus.instance.emit(StatsUpdatedEvent(stats));
       }
     } catch (e) {
       if (mounted) {
@@ -325,31 +329,47 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
 
           // Stats in horizontal row
           Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildCompactStat(
-                  theme,
-                  isDark,
-                  label: 'Total',
-                  value: '${_stats.totalUploads}',
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildCompactStat(
+                      theme,
+                      isDark,
+                      label: 'Total',
+                      value: '${_stats.totalUploads}',
+                    ),
+                    _buildDivider(isDark),
+                    _buildCompactStat(
+                      theme,
+                      isDark,
+                      label: 'Today',
+                      value: '${_stats.uploadsToday}',
+                    ),
+                    if (_stats.currentStreak > 0) ...[
+                      _buildDivider(isDark),
+                      _buildCompactStat(
+                        theme,
+                        isDark,
+                        label: 'Streak',
+                        value: '${_stats.currentStreak}d',
+                        icon: Icons.local_fire_department,
+                        iconColor: hasStreak ? AppColors.warning : (AppColors.textSecondary(isDark)),
+                      ),
+                    ],
+                  ],
                 ),
-                _buildDivider(isDark),
-                _buildCompactStat(
-                  theme,
-                  isDark,
-                  label: 'Today',
-                  value: '${_stats.uploadsToday}',
-                ),
-                if (_stats.currentStreak > 0) ...[
-                  _buildDivider(isDark),
-                  _buildCompactStat(
-                    theme,
-                    isDark,
-                    label: 'Streak',
-                    value: '${_stats.currentStreak}d',
-                    icon: Icons.local_fire_department,
-                    iconColor: hasStreak ? AppColors.warning : (AppColors.textSecondary(isDark)),
+                if (_stats.loadedAt != null) ...[
+                  const SizedBox(height: 6),
+                  TimeAgoText(
+                    timestamp: _stats.loadedAt!,
+                    prefix: 'Updated ',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary(isDark).withValues(alpha: 0.7),
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ],

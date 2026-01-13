@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../core/themes.dart';
 import '../data/models/contribution_stats.dart';
 import '../data/repositories/contribution_repository.dart';
+import '../core/events/app_events.dart';
+import '../widgets/time_ago_text.dart';
 
 /// Comprehensive statistics screen showing detailed contribution metrics,
 /// environmental insights, achievements, and future earnings
@@ -17,11 +20,46 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   final _contributionRepo = ContributionRepository();
   ContributionStats? _stats;
   bool _isLoading = true;
+  StreamSubscription<UploadSuccessEvent>? _uploadSuccessSub;
+  StreamSubscription<StatsUpdatedEvent>? _statsUpdatedSub;
 
   @override
   void initState() {
     super.initState();
     _loadStats();
+
+    // Listen to upload success events for automatic refresh
+    _uploadSuccessSub = AppEventBus.instance
+        .on<UploadSuccessEvent>()
+        .listen(_onUploadSuccess);
+
+    // Listen to stats updated events (in case stats are refreshed elsewhere)
+    _statsUpdatedSub = AppEventBus.instance
+        .on<StatsUpdatedEvent>()
+        .listen(_onStatsUpdated);
+  }
+
+  @override
+  void dispose() {
+    _uploadSuccessSub?.cancel();
+    _statsUpdatedSub?.cancel();
+    super.dispose();
+  }
+
+  void _onUploadSuccess(UploadSuccessEvent event) {
+    if (mounted) {
+      // Reload stats when a new upload completes
+      _loadStats();
+    }
+  }
+
+  void _onStatsUpdated(StatsUpdatedEvent event) {
+    if (mounted) {
+      setState(() {
+        _stats = event.stats;
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _loadStats() async {
@@ -141,6 +179,17 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               color: AppColors.textSecondary(isDark),
             ),
           ),
+          if (_stats!.loadedAt != null) ...[
+            const SizedBox(height: 4),
+            TimeAgoText(
+              timestamp: _stats!.loadedAt!,
+              prefix: 'Updated ',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.textSecondary(isDark).withValues(alpha: 0.6),
+                fontSize: 11,
+              ),
+            ),
+          ],
           const SizedBox(height: AppTheme.spaceMd),
           if (weeklyChange > 0)
             Row(
