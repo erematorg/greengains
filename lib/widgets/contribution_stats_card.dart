@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/models/contribution_stats.dart';
 import '../data/repositories/contribution_repository.dart';
 import '../services/location/foreground_location_service.dart';
+import '../core/events/app_events.dart';
 import '../core/themes.dart';
 
 /// Compact horizontal contribution stats bar
@@ -21,6 +23,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
   String? _error;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  StreamSubscription<UploadSuccessEvent>? _uploadSuccessSub;
 
   @override
   void initState() {
@@ -33,18 +36,21 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
     _loadStats();
-    // Listen to stats refresh trigger from service
-    ForegroundLocationService.instance.statsRefreshTrigger.addListener(_onStatsRefreshTriggered);
+
+    // Listen to upload success events for automatic refresh
+    _uploadSuccessSub = AppEventBus.instance
+        .on<UploadSuccessEvent>()
+        .listen(_onUploadSuccess);
   }
 
   @override
   void dispose() {
-    ForegroundLocationService.instance.statsRefreshTrigger.removeListener(_onStatsRefreshTriggered);
+    _uploadSuccessSub?.cancel();
     _pulseController.dispose();
     super.dispose();
   }
 
-  void _onStatsRefreshTriggered() {
+  void _onUploadSuccess(UploadSuccessEvent event) {
     if (mounted) {
       _loadStats();
       // Subtle pulse animation to indicate update

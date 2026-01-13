@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/app_preferences.dart';
+import '../../core/events/app_events.dart';
 import '../daily_pot_service.dart';
 
 /// Model for location data received from the native foreground service
@@ -342,18 +343,28 @@ class ForegroundLocationService {
         break;
       case 'success':
         uploadStatus.uploading.value = false;
+        final timestamp = timestampMs != null
+            ? DateTime.fromMillisecondsSinceEpoch(timestampMs)
+            : DateTime.now();
+
         if (timestampMs != null) {
-          final ts = DateTime.fromMillisecondsSinceEpoch(timestampMs);
-          uploadStatus.lastUpload.value = ts;
+          uploadStatus.lastUpload.value = timestamp;
           // Note: Native code already saved timestamp to SharedPreferences
         }
         uploadStatus.uploadSuccess.value++;
         // Clear any previous errors on successful upload
         uploadStatus.lastError.value = null;
         uploadStatus.lastErrorTime.value = null;
+
+        // Emit event for reactive UI updates (replaces _statsRefreshTrigger)
+        final samplesCount = (data['batchSize'] as num?)?.toInt() ?? 0;
+        AppEventBus.instance.emit(UploadSuccessEvent(
+          samplesCount: samplesCount,
+          timestamp: timestamp,
+          geohash: null, // Can be added later if needed
+        ));
+
         // Note: Native code already saved contribution to SQLite database
-        // Trigger stats refresh in UI
-        _statsRefreshTrigger.value++;
         // Record upload for daily pot progress (non-blocking)
         DailyPotService.instance.recordUpload().catchError((e) {
           debugPrint('Daily pot record upload failed (non-critical): $e');
@@ -362,8 +373,16 @@ class ForegroundLocationService {
       case 'failure':
         uploadStatus.uploading.value = false;
         final error = data['error'] as String? ?? 'Unknown error';
+        final failTimestamp = DateTime.now();
         uploadStatus.lastError.value = error;
-        uploadStatus.lastErrorTime.value = DateTime.now();
+        uploadStatus.lastErrorTime.value = failTimestamp;
+
+        // Emit event for UI to react to failures
+        AppEventBus.instance.emit(UploadFailedEvent(
+          reason: error,
+          timestamp: failTimestamp,
+        ));
+
         debugPrint('Native upload failed: $error');
         break;
       default:

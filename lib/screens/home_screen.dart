@@ -76,17 +76,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       const platform = MethodChannel('greengains/foreground');
       final bool isIgnoring = await platform.invokeMethod('isIgnoringBatteryOptimizations');
-      
+
       if (!isIgnoring && mounted) {
         _batteryPromptOpen = true;
         await _prefs.setBatteryOptimizationPromptLastShown(DateTime.now());
-        showDialog(
-          context: context,
-          barrierDismissible: true,
-          builder: (context) => const BatteryOptimizationDialog(),
-        ).whenComplete(() {
+        // Directly open Android's native battery optimization settings
+        try {
+          await platform.invokeMethod('requestIgnoreBatteryOptimizations');
+        } catch (e) {
+          print("Failed to request battery optimization: $e");
+        } finally {
           _batteryPromptOpen = false;
-        });
+        }
       }
     } on PlatformException catch (e) {
       print("Failed to check battery optimization: '${e.message}'.");
@@ -459,7 +460,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
         // Floating daily pot icon (top-right corner)
         const Positioned(
-          top: 16,
+          top: 70,
           right: 16,
           child: DailyPotIcon(),
         ),
