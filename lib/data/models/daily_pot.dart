@@ -36,14 +36,14 @@ class DailyPot {
 
   factory DailyPot.fromJson(Map<String, dynamic> json) {
     return DailyPot(
-      userId: json['user_id'] as String,
-      totalCredits: json['total_credits'] as int,
-      uploadsToday: json['uploads_today'] as int,
-      uploadsRequired: json['uploads_required'] as int,
-      isUnlocked: json['is_unlocked'] as bool,
-      hasClaimedToday: json['has_claimed_today'] as bool,
-      lastClaimDate: json['last_claim_date'] != null
-          ? DateTime.parse(json['last_claim_date'] as String)
+      userId: json['userId'] as String, // Backend sends camelCase
+      totalCredits: json['totalCredits'] as int,
+      uploadsToday: json['uploadsToday'] as int,
+      uploadsRequired: json['uploadsRequired'] as int,
+      isUnlocked: json['isUnlocked'] as bool,
+      hasClaimedToday: json['hasClaimedToday'] as bool,
+      lastClaimDate: json['lastClaimDate'] != null
+          ? DateTime.parse(json['lastClaimDate'] as String)
           : null,
     );
   }

@@ -37,6 +37,7 @@ export const SensorReadingSchema = z.object({
   accel: z.array(z.number()).length(3).optional(),
   gyro: z.array(z.number()).length(3).optional(),
   magnet: z.array(z.number()).length(3).optional(),
+  pressure: z.number().optional(),
   quality: QualityMetadataSchema.optional(),
 });
 

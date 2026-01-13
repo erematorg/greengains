@@ -14,6 +14,7 @@ interface Summary {
   light: { avg: number; min: number; max: number };
   accel_rms: number;
   gyro_rms: number;
+  pressure?: { avg: number; min: number; max: number };
 }
 
 function vectorMagnitude(vector: number[]): number {
@@ -43,6 +44,16 @@ function summarizeBatch(readings: SensorReading[]): Summary {
   const periodStart = new Date(Math.min(...readings.map(r => r.t.getTime())));
   const periodEnd = new Date(Math.max(...readings.map(r => r.t.getTime())));
 
+  // Handle optional pressure data
+  const pressureReadings = readings.filter(r => r.pressure !== undefined).map(r => r.pressure!);
+  const pressureSummary = pressureReadings.length > 0
+    ? {
+        avg: pressureReadings.reduce((a, b) => a + b, 0) / pressureReadings.length,
+        min: Math.min(...pressureReadings),
+        max: Math.max(...pressureReadings),
+      }
+    : undefined;
+
   return {
     count: readings.length,
     period_start: periodStart,
@@ -54,6 +65,7 @@ function summarizeBatch(readings: SensorReading[]): Summary {
     gyro_rms: gyroMagnitudes.length > 0
       ? gyroMagnitudes.reduce((a, b) => a + b, 0) / gyroMagnitudes.length
       : 0,
+    pressure: pressureSummary,
   };
 }
 

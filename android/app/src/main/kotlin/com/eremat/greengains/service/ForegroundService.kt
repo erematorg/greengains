@@ -269,11 +269,11 @@ class ForegroundService : Service() {
 
         nativeSamplerJob = coroutineScope.launch(Dispatchers.Default) {
             while (isActive) {
+                delay(NATIVE_SAMPLE_INTERVAL_MS) // Wait first, then snapshot
                 val snapshot = captureSensorSnapshot()
                 if (snapshot != null) {
                     nativeUploader?.addReading(snapshot)
                 }
-                delay(NATIVE_SAMPLE_INTERVAL_MS)
             }
         }
     }
@@ -291,6 +291,9 @@ class ForegroundService : Service() {
         val gyroValues = _gyroscopeFlow.value
         val pressure = _pressureFlow.value
         val location = _locationFlow.value
+
+        // Debug: Log what we're capturing
+        Log.d(TAG, "Snapshot captured: light=$light, pressure=$pressure, accel=${accelValues != null}, gyro=${gyroValues != null}")
 
         val accel = accelValues?.takeIf { it.size >= 3 }?.let {
             AccelData(it[0], it[1], it[2])
@@ -311,7 +314,7 @@ class ForegroundService : Service() {
             return null
         }
 
-        return SensorReading(
+        val reading = SensorReading(
             timestamp = System.currentTimeMillis(),
             light = light,
             accelerometer = accel,
@@ -320,6 +323,11 @@ class ForegroundService : Service() {
             location = locationData,
             quality = quality
         )
+
+        // Debug: Verify SensorReading was created with pressure
+        Log.d(TAG, "SensorReading created: pressure=${reading.pressure}, light=${reading.light}")
+
+        return reading
     }
 
     private fun handleNativeUploadStatus(event: NativeUploadStatusEvent) {
