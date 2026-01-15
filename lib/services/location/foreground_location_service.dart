@@ -294,6 +294,19 @@ class ForegroundLocationService {
     }
   }
 
+  /// Flush sensor FIFO buffers to get immediate data delivery
+  /// Useful when user opens the app to show fresh sensor readings
+  Future<bool> flushSensorBuffers() async {
+    try {
+      final result = await _fgChannel.invokeMethod<bool>('flushSensorBuffers');
+      debugPrint('Sensor FIFO buffers flushed: ${result == true ? 'success' : 'failed'}');
+      return result ?? false;
+    } catch (e) {
+      debugPrint('Error flushing sensor buffers: $e');
+      return false;
+    }
+  }
+
   /// Stop the foreground service
   Future<bool> stop() async {
     if (_isChangingState) return false;

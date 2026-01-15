@@ -138,6 +138,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      // Flush FIFO buffers to get fresh sensor readings
+      _locationService.flushSensorBuffers();
       // Sync service status with native
       _checkServiceStatus();
       // Reload last upload time from preferences
@@ -171,6 +173,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _refreshData() async {
     HapticFeedback.lightImpact();
+    // Flush FIFO buffers to get fresh sensor readings
+    _locationService.flushSensorBuffers();
     // Refresh contribution stats
     await _statsKey.currentState?.refresh();
     await _loadTileCoverage();
