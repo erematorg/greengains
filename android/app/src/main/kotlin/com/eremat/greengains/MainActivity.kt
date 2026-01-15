@@ -74,6 +74,18 @@ class MainActivity : FlutterActivity() {
                         }
                         result.success(ignoring)
                     }
+                    "flushSensorBuffers" -> {
+                        // Flush FIFO buffers to get fresh data in UI
+                        val serviceIntent = Intent(this, ForegroundService::class.java).apply {
+                            action = "com.eremat.greengains.action.FLUSH_FIFO"
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(serviceIntent)
+                        } else {
+                            startService(serviceIntent)
+                        }
+                        result.success(true)
+                    }
                     else -> result.notImplemented()
                 }
             }

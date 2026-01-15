@@ -11,7 +11,10 @@ import android.util.Log
  * Monitors battery state and provides information about battery level and charging status.
  * Used to implement battery-friendly behavior (pause uploads when battery is low).
  */
-class BatteryStateMonitor(private val context: Context) {
+class BatteryStateMonitor(
+    private val context: Context,
+    private val onBatteryLow: (() -> Unit)? = null
+) {
     companion object {
         private const val TAG = "BatteryStateMonitor"
         private const val LOW_BATTERY_THRESHOLD = 15 // Pause when battery < 15%
@@ -20,6 +23,7 @@ class BatteryStateMonitor(private val context: Context) {
     private var isRegistered = false
     private var currentBatteryLevel = 100
     private var isCharging = false
+    private var wasLowBattery = false
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -38,12 +42,25 @@ class BatteryStateMonitor(private val context: Context) {
                                 status == BatteryManager.BATTERY_STATUS_FULL
 
                     Log.d(TAG, "Battery: ${currentBatteryLevel}%, Charging: $isCharging")
+
+                    // Detect transition to low battery (avoid repeated callbacks)
+                    val isNowLowBattery = currentBatteryLevel < LOW_BATTERY_THRESHOLD && !isCharging
+                    if (isNowLowBattery && !wasLowBattery) {
+                        Log.w(TAG, "Battery dropped below ${LOW_BATTERY_THRESHOLD}% - triggering callback")
+                        onBatteryLow?.invoke()
+                    }
+                    wasLowBattery = isNowLowBattery
                 }
                 Intent.ACTION_BATTERY_LOW -> {
-                    Log.w(TAG, "Battery low warning received")
+                    Log.w(TAG, "Battery low warning received (system broadcast)")
+                    if (!wasLowBattery) {
+                        onBatteryLow?.invoke()
+                        wasLowBattery = true
+                    }
                 }
                 Intent.ACTION_BATTERY_OKAY -> {
                     Log.i(TAG, "Battery okay again")
+                    wasLowBattery = false
                 }
             }
         }

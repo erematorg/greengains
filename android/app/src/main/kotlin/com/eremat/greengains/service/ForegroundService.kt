@@ -99,7 +99,11 @@ class ForegroundService : Service() {
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
 
         // Initialize Monitors
-        batteryMonitor = BatteryStateMonitor(this)
+        batteryMonitor = BatteryStateMonitor(this) {
+            // Flush FIFO buffers when battery drops low to avoid data loss
+            Log.i(TAG, "Battery low - flushing FIFO buffers before pausing")
+            flushSensorBuffers()
+        }
         networkMonitor = NetworkStateMonitor(this)
 
         // Initialize Sensors
@@ -171,6 +175,13 @@ class ForegroundService : Service() {
             return START_NOT_STICKY
         }
 
+        // Handle FIFO flush request
+        if (intent?.action == ACTION_FLUSH_FIFO) {
+            Log.i(TAG, "Received FIFO flush request from MainActivity")
+            flushSensorBuffers()
+            return START_STICKY
+        }
+
         // Handle null intent (service restarted by system after being killed)
         if (intent == null) {
             Log.i(TAG, "Service restarted by system (null intent). Recreating state...")
@@ -231,12 +242,15 @@ class ForegroundService : Service() {
         running = false
         setServiceEnabledPref(false)
 
+        // Flush FIFO buffers before stopping to avoid losing last 60s of data
+        flushSensorBuffers()
+
         lightSensor.stop()
         barometer.stop()
         motionSensors.stop()
         stopLocationUpdates()
         stopNativeUploader()
-        
+
         batteryMonitor.stopMonitoring()
         networkMonitor.stopMonitoring()
 
@@ -623,6 +637,7 @@ class ForegroundService : Service() {
         private val LOCATION_UPDATES_INTERVAL_MS = 10.seconds.inWholeMilliseconds
         private const val NATIVE_SAMPLE_INTERVAL_MS = 10_000L
         const val ACTION_STOP_SERVICE = "com.eremat.greengains.action.STOP_SERVICE"
+        const val ACTION_FLUSH_FIFO = "com.eremat.greengains.action.FLUSH_FIFO"
         private const val PREFS_NAME = "FlutterSharedPreferences"
         private const val PREF_FOREGROUND_ENABLED = "flutter.foreground_service_enabled"
 
