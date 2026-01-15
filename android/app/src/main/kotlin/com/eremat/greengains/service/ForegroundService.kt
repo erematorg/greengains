@@ -90,6 +90,10 @@ class ForegroundService : Service() {
     private val _gyroscopeFlow = MutableStateFlow<FloatArray?>(null)
     private val _locationFlow = MutableStateFlow<Location?>(null)
 
+    // Adaptive GPS optimization
+    private var currentMotionState = MotionState.UNKNOWN
+    private var currentGpsPriority = LocationRequest.PRIORITY_HIGH_ACCURACY
+
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "onCreate")
@@ -259,7 +263,7 @@ class ForegroundService : Service() {
     }
 
     @SuppressLint("MissingPermission")
-    private fun startLocationUpdates() {
+    private fun startLocationUpdates(priority: Int = LocationRequest.PRIORITY_HIGH_ACCURACY) {
         val hasFine = PermissionChecker.checkSelfPermission(this, ACCESS_FINE_LOCATION) == PermissionChecker.PERMISSION_GRANTED
         val hasCoarse = PermissionChecker.checkSelfPermission(this, ACCESS_COARSE_LOCATION) == PermissionChecker.PERMISSION_GRANTED
 
@@ -268,13 +272,55 @@ class ForegroundService : Service() {
             return
         }
 
+        currentGpsPriority = priority
+
         val request = LocationRequest.create().apply {
             interval = LOCATION_UPDATES_INTERVAL_MS
             fastestInterval = LOCATION_UPDATES_INTERVAL_MS
-            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+            this.priority = priority
         }
 
         fusedLocationClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
+        Log.d(TAG, "GPS location updates started with priority: ${getPriorityName(priority)}")
+    }
+
+    /**
+     * Update GPS priority based on motion state for battery optimization.
+     * - STATIONARY: Use balanced power/accuracy (~50% battery savings)
+     * - LIGHT/ACTIVE: Use high accuracy for better location tracking
+     */
+    @SuppressLint("MissingPermission")
+    private fun updateGpsPriority(motionState: MotionState) {
+        // Don't update if motion state hasn't changed
+        if (motionState == currentMotionState) return
+
+        val newPriority = when (motionState) {
+            MotionState.STATIONARY -> LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY
+            MotionState.LIGHT, MotionState.ACTIVE -> LocationRequest.PRIORITY_HIGH_ACCURACY
+            MotionState.UNKNOWN -> currentGpsPriority // Keep current priority if unknown
+        }
+
+        // Only restart location updates if priority actually changed
+        if (newPriority != currentGpsPriority) {
+            Log.i(TAG, "Motion state changed: ${currentMotionState.name} → ${motionState.name}")
+            Log.i(TAG, "Updating GPS priority: ${getPriorityName(currentGpsPriority)} → ${getPriorityName(newPriority)}")
+
+            currentMotionState = motionState
+
+            // Restart location updates with new priority
+            stopLocationUpdates()
+            startLocationUpdates(newPriority)
+        } else {
+            currentMotionState = motionState
+        }
+    }
+
+    private fun getPriorityName(priority: Int): String = when (priority) {
+        LocationRequest.PRIORITY_HIGH_ACCURACY -> "HIGH_ACCURACY"
+        LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY -> "BALANCED_POWER_ACCURACY"
+        LocationRequest.PRIORITY_LOW_POWER -> "LOW_POWER"
+        LocationRequest.PRIORITY_NO_POWER -> "NO_POWER"
+        else -> "UNKNOWN($priority)"
     }
 
     private fun stopLocationUpdates() {
@@ -346,6 +392,11 @@ class ForegroundService : Service() {
             )
         }
         val quality = qualityAnalyzer.buildMetadata(location)
+
+        // Adaptive GPS optimization: update GPS priority based on motion state
+        quality?.motionState?.let { motionState ->
+            updateGpsPriority(motionState)
+        }
 
         if (light == null && accel == null && gyro == null && locationData == null) {
             return null
