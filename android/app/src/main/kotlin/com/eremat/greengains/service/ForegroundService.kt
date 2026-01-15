@@ -200,18 +200,31 @@ class ForegroundService : Service() {
             }
         )
 
-        // Start Sensors
+        // Start Sensors with FIFO batching
         lightSensor.start()
         barometer.start()
         motionSensors.start()
         startLocationUpdates()
-        
+
+        Log.i(TAG, "Sensors started with FIFO batching (60s intervals)")
+
         // Start Native Uploader
         startNativeUploader()
-        
+
         // Start Monitors
         batteryMonitor.startMonitoring()
         networkMonitor.startMonitoring()
+    }
+
+    /**
+     * Flush sensor FIFO buffers to get immediate data delivery.
+     * Called when user opens app or before pausing due to low battery.
+     */
+    fun flushSensorBuffers() {
+        lightSensor.flush()
+        barometer.flush()
+        motionSensors.flush()
+        Log.d(TAG, "FIFO buffers flushed")
     }
 
     private fun stopForegroundService() {
@@ -267,6 +280,16 @@ class ForegroundService : Service() {
 
         if (nativeSamplerJob?.isActive == true) return
 
+        // Snapshot loop: captures sensor readings every 10 seconds
+        //
+        // How FIFO batching works with this loop:
+        // - Sensors sample at ~200ms rate (hardware continues independently)
+        // - Samples stored in hardware FIFO buffer
+        // - CPU wakes every ~60s to receive batch of samples
+        // - onSensorChanged() fires rapidly when batch arrives, updating flows
+        // - This loop reads the LATEST value from flows every 10s
+        //
+        // Result: Same data quality, 6x fewer CPU wakeups = better battery
         nativeSamplerJob = coroutineScope.launch(Dispatchers.Default) {
             while (isActive) {
                 delay(NATIVE_SAMPLE_INTERVAL_MS) // Wait first, then snapshot

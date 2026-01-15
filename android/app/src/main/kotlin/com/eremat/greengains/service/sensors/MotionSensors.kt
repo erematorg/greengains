@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 /**
  * Manages both Accelerometer and Gyroscope since they are often used together.
  * Does not inherit from BaseSensor because it manages two sensors.
+ *
+ * Uses hardware FIFO batching for battery optimization (60s intervals).
  */
 class MotionSensors(private val sensorManager: SensorManager) : SensorEventListener {
     private val tag = "GreenGainsMotion"
@@ -27,20 +29,57 @@ class MotionSensors(private val sensorManager: SensorManager) : SensorEventListe
     init {
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
-        
-        if (accelerometer == null) Log.w(tag, "Accelerometer not available")
-        if (gyroscope == null) Log.w(tag, "Gyroscope not available")
+
+        accelerometer?.let {
+            val fifoMax = it.fifoMaxEventCount
+            Log.d(tag, "Accelerometer: ${it.name}, FIFO: $fifoMax events")
+            if (fifoMax > 0) {
+                Log.i(tag, "✓ Accelerometer FIFO batching supported")
+            }
+        } ?: Log.w(tag, "Accelerometer not available")
+
+        gyroscope?.let {
+            val fifoMax = it.fifoMaxEventCount
+            Log.d(tag, "Gyroscope: ${it.name}, FIFO: $fifoMax events")
+            if (fifoMax > 0) {
+                Log.i(tag, "✓ Gyroscope FIFO batching supported")
+            }
+        } ?: Log.w(tag, "Gyroscope not available")
     }
 
     fun start() {
         accelerometer?.let {
-            // SENSOR_DELAY_NORMAL (~200ms) instead of UI (~67ms) - saves battery with zero data loss
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+            // Use FIFO batching: 60 second intervals
+            sensorManager.registerListener(
+                this,
+                it,
+                SensorManager.SENSOR_DELAY_NORMAL, // ~200ms sampling
+                FIFO_MAX_REPORT_LATENCY_US // 60s batching
+            )
         }
         gyroscope?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+            sensorManager.registerListener(
+                this,
+                it,
+                SensorManager.SENSOR_DELAY_NORMAL,
+                FIFO_MAX_REPORT_LATENCY_US
+            )
         }
-        Log.d(tag, "Motion listeners registered")
+        Log.d(tag, "Motion listeners registered with FIFO batching (60s)")
+    }
+
+    /**
+     * Flush both accelerometer and gyroscope FIFO buffers immediately.
+     */
+    fun flush() {
+        var flushed = 0
+        accelerometer?.let {
+            if (sensorManager.flush(this)) flushed++
+        }
+        gyroscope?.let {
+            if (sensorManager.flush(this)) flushed++
+        }
+        Log.d(tag, "FIFO flush: $flushed sensors flushed")
     }
 
     fun stop() {
@@ -62,5 +101,12 @@ class MotionSensors(private val sensorManager: SensorManager) : SensorEventListe
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
         // No-op
+    }
+
+    companion object {
+        /**
+         * FIFO batching interval: 60 seconds (in microseconds).
+         */
+        private const val FIFO_MAX_REPORT_LATENCY_US = 60_000_000 // 60 seconds (Int, not Long)
     }
 }
