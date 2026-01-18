@@ -163,15 +163,14 @@ export async function userRoutes(fastify: FastifyInstance) {
         const { hours = 24 } = request.query as { hours?: number };
         const pool = getPool();
 
-        // Extract H3 indices and location data from sensor_batches
-        // Note: H3 boundary calculation requires h3-js library on backend
-        // For now, we'll extract location data and let the client handle H3
+        // Extract location data and group by approximate location
+        // We'll use lat/lon rounded to ~100m precision as a simple tile grouping
+        // TODO: Install h3-js library and compute proper H3 indices
         const tilesResult = await pool.query(
           `SELECT
-            (batch_json->'location'->>'h3Index') as h3_index,
-            (batch_json->'location'->>'lat')::float as lat,
-            (batch_json->'location'->>'lon')::float as lon,
-            (batch_json->'location'->>'accuracy_m')::float as accuracy_m,
+            ROUND((batch_json->'location'->>'lat')::numeric, 3) as lat,
+            ROUND((batch_json->'location'->>'lon')::numeric, 3) as lon,
+            AVG((batch_json->'location'->>'accuracy_m')::float) as avg_accuracy_m,
             COUNT(*) as sample_count,
             MAX(timestamp_utc) as last_update,
             AVG((batch_json->'summary'->'light'->>'avg')::float) as avg_light,
@@ -179,28 +178,27 @@ export async function userRoutes(fastify: FastifyInstance) {
           FROM sensor_batches
           WHERE user_id = $1
           AND timestamp_utc > NOW() - ($2 || ' hours')::interval
-          AND batch_json->'location'->>'h3Index' IS NOT NULL
-          GROUP BY h3_index, lat, lon, accuracy_m
+          AND batch_json->'location' IS NOT NULL
+          GROUP BY ROUND((batch_json->'location'->>'lat')::numeric, 3),
+                   ROUND((batch_json->'location'->>'lon')::numeric, 3)
           ORDER BY last_update DESC`,
           [userId, hours]
         );
 
-        // Transform to H3Tile format
-        // TODO: Add H3 boundary calculation using h3-js library
-        // For now, client will need to compute boundaries or we return centroid only
+        // Transform to tile format
+        // Generate simple tile ID from rounded lat/lon until we add h3-js library
         const tiles = tilesResult.rows.map(row => ({
-          h3Index: row.h3_index,
+          h3Index: `tile_${row.lat}_${row.lon}`, // Temporary tile ID
           centroid: {
             lat: parseFloat(row.lat),
             lng: parseFloat(row.lon),
           },
-          confidence: Math.min(1.0, (parseInt(row.sample_count, 10) / 100)), // Simple confidence based on sample count
+          confidence: Math.min(1.0, (parseInt(row.sample_count, 10) / 100)),
           sampleCount: parseInt(row.sample_count, 10),
-          deviceCount: 1, // Per-user view, so always 1 device per tile
+          deviceCount: 1,
           lastUpdate: row.last_update,
           avgLight: row.avg_light ? parseFloat(row.avg_light) : null,
           avgAccelRms: row.avg_accel_rms ? parseFloat(row.avg_accel_rms) : null,
-          // boundary: null, // TODO: Add H3 boundary calculation
         }));
 
         return reply.send({ tiles });

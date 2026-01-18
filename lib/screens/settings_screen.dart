@@ -89,36 +89,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _SettingsSectionTitle(text: 'Data & Privacy'),
-                // TODO: Restore Share Location toggle if we reintroduce manual control.
-                /*
                 _SettingsToggleRow(
                   icon: Icons.location_on_outlined,
                   title: 'Share Location',
-                  subtitle: 'Allow anonymized location for smarter maps',
+                  subtitle: 'Enable location for coverage map and H3 tiles',
                   value: _prefs.shareLocation,
-                  onChanged: (value) async {
+                  onChanged: (value) {
                     HapticFeedback.selectionClick();
-                    if (value) {
-                      try {
-                        await _fgChannel.invokeMethod('requestLocationPermission');
-                        final isRunning =
-                            await _fgChannel.invokeMethod('isForegroundServiceRunning') as bool?;
-                        if (isRunning == true) {
-                          await _fgChannel.invokeMethod('stopForegroundService');
-                          await Future.delayed(const Duration(milliseconds: 500));
-                          await _fgChannel.invokeMethod('startForegroundService');
-                        }
-                      } catch (e) {
-                        debugPrint('Permission request error: $e');
-                      }
-                    }
                     setState(() {
                       _prefs.setShareLocation(value);
                     });
                   },
                 ),
                 const SizedBox(height: AppTheme.spaceSm),
-                */
                 _SettingsToggleRow(
                   icon: Icons.podcasts_outlined,
                   title: 'Use Mobile Data',

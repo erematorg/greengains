@@ -135,6 +135,7 @@ class ForegroundService : Service() {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 locationResult.lastLocation?.let { location ->
+                    Log.d(TAG, "Location received: lat=${location.latitude}, lon=${location.longitude}, accuracy=${location.accuracy}m, provider=${location.provider}")
                     _locationFlow.value = location
                 }
             }
@@ -464,7 +465,7 @@ class ForegroundService : Service() {
         val location = _locationFlow.value
 
         // Debug: Log what we're capturing
-        Log.d(TAG, "Snapshot captured: light=$light, pressure=$pressure, accel=${accelValues != null}, gyro=${gyroValues != null}")
+        Log.d(TAG, "Snapshot captured: light=$light, pressure=$pressure, accel=${accelValues != null}, gyro=${gyroValues != null}, location=${location != null}")
 
         val accel = accelValues?.takeIf { it.size >= 3 }?.let {
             AccelData(it[0], it[1], it[2])
