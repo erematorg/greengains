@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../core/extensions/context_extensions.dart';
 import '../core/themes.dart';
+import '../services/auth/auth_service.dart';
 import '../utils/app_snackbars.dart';
 import '../widgets/referral_invite_card.dart';
 import 'settings_screen.dart';
@@ -18,6 +20,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  bool _signingIn = false;
 
   @override
   Widget build(BuildContext context) {
@@ -45,41 +48,92 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Signed-out state (anonymous user)
-  /// Note: This state should rarely be seen since we auto-sign-in anonymously
+  /// Signed-out state - show Google Sign In option
+  /// Users should sign in to unlock daily pot rewards and sync data
   Widget _buildSignedOutState(ThemeData theme, bool isDark) {
     return Padding(
       padding: AppTheme.pagePadding,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(AppTheme.spaceLg),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.account_circle_outlined,
-                size: 80,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(height: AppTheme.spaceMd),
-              Text(
-                'Anonymous User',
-                style: theme.textTheme.titleLarge,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: AppTheme.spaceSm),
-              Text(
-                'Using app anonymously. To unlock daily pot rewards and sync data, restart the app and sign in during onboarding.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary(isDark),
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.account_circle_outlined,
+            size: 80,
+            color: theme.colorScheme.onSurfaceVariant,
           ),
-        ),
+          const SizedBox(height: AppTheme.spaceMd),
+          Text(
+            'Not Signed In',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: AppFontWeights.semibold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppTheme.spaceSm),
+          Text(
+            'Sign in with Google to unlock daily pot rewards and sync your data across devices.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppColors.textSecondary(isDark),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppTheme.spaceXl),
+
+          // Google Sign In Button
+          InkWell(
+            onTap: _signingIn ? null : _handleGoogleSignIn,
+            borderRadius: BorderRadius.circular(4),
+            child: _signingIn
+                ? Container(
+                    height: 56,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1F1F1F) : Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                      ),
+                    ),
+                  )
+                : SvgPicture.asset(
+                    AppTheme.googleButtonAsset(theme.brightness),
+                    height: 56,
+                    fit: BoxFit.contain,
+                  ),
+          ),
+        ],
       ),
     );
+  }
+
+  /// Handle Google Sign In - preserves existing tracking data
+  Future<void> _handleGoogleSignIn() async {
+    if (_signingIn) return;
+    setState(() => _signingIn = true);
+
+    try {
+      await AuthService.signInWithGoogleUniversal();
+      if (!mounted) return;
+      AppSnackbars.showSuccess(context, 'Signed in successfully');
+      setState(() {}); // Trigger rebuild to show signed-in state
+    } catch (e) {
+      print('❌ Sign-in error: $e');
+      if (!mounted) return;
+      setState(() => _signingIn = false);
+      AppSnackbars.showError(context, 'Sign-in cancelled or failed');
+    }
   }
 
   /// REDESIGNED: Compact signed-in state (no scrolling required)
@@ -179,7 +233,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     user.displayName ?? 'User',
                     style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: AppFontWeights.semibold,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -230,7 +284,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: Text(
           'View Statistics',
           style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
+            fontWeight: AppFontWeights.semibold,
           ),
         ),
         subtitle: Text(

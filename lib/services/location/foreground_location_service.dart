@@ -8,6 +8,42 @@ import '../../core/events/app_events.dart';
 import '../daily_pot_service.dart';
 import '../tracking/tracking_session_manager.dart';
 
+/// Location source type for tiered fallback system
+enum LocationSource {
+  gps,       // GPS on, accurate (5-20m)
+  network,   // WiFi/cell, coarse (50-500m)
+  lastKnown, // Cached, stale but battery-free
+  none;      // Nothing available
+
+  /// Get H3 resolution based on location source accuracy
+  int get recommendedH3Resolution {
+    switch (this) {
+      case LocationSource.gps:
+        return 10; // ~15m hexagons for accurate GPS
+      case LocationSource.network:
+        return 8;  // ~461m hexagons for coarse network location
+      case LocationSource.lastKnown:
+        return 7;  // ~1.2km hexagons for stale data
+      case LocationSource.none:
+        return 6;  // ~5km hexagons (fallback)
+    }
+  }
+
+  /// Parse from provider string
+  static LocationSource fromProvider(String? provider) {
+    if (provider == null) return LocationSource.none;
+    final lower = provider.toLowerCase();
+    if (lower.contains('gps') || lower.contains('fused')) {
+      return LocationSource.gps;
+    } else if (lower.contains('network') || lower.contains('wifi')) {
+      return LocationSource.network;
+    } else if (lower.contains('passive') || lower.contains('cached')) {
+      return LocationSource.lastKnown;
+    }
+    return LocationSource.none;
+  }
+}
+
 /// Model for location data received from the native foreground service
 class LocationData {
   final double latitude;
@@ -45,6 +81,19 @@ class LocationData {
 
   DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(timestamp);
 
+  /// Get location source type from provider
+  LocationSource get source => LocationSource.fromProvider(provider);
+
+  /// Get recommended H3 resolution based on accuracy
+  /// Uses actual accuracy value for more precise tile sizing
+  int get recommendedH3Resolution {
+    if (accuracy <= 20) return 10;  // Very accurate: ~15m hexagons
+    if (accuracy <= 50) return 9;   // Good: ~59m hexagons
+    if (accuracy <= 200) return 8;  // Moderate: ~461m hexagons
+    if (accuracy <= 500) return 7;  // Coarse: ~1.2km hexagons
+    return 6; // Poor: ~5km hexagons
+  }
+
   @override
   String toString() {
     return 'LocationData(lat: $latitude, lon: $longitude, accuracy: ${accuracy.toStringAsFixed(1)}m, provider: $provider)';
@@ -76,7 +125,7 @@ class LightData {
   }
 }
 
-/// Model for accelerometer data (acceleration in m/s²)
+/// Model for accelerometer data (acceleration in m/s^2)
 class AccelerometerData {
   final double x;
   final double y;
@@ -106,7 +155,7 @@ class AccelerometerData {
 
   @override
   String toString() {
-    return 'AccelerometerData(${magnitude.toStringAsFixed(1)} m/s²)';
+    return 'AccelerometerData(${magnitude.toStringAsFixed(1)} m/s^2)';
   }
 }
 
@@ -180,7 +229,7 @@ class ForegroundLocationService {
   final _gyroscopeController = StreamController<GyroscopeData>.broadcast();
   final _pressureController = StreamController<PressureData>.broadcast();
   final _isRunningNotifier = ValueNotifier<bool>(false);
-  final _statsRefreshTrigger = ValueNotifier<int>(0);
+  final _isPausedNotifier = ValueNotifier<bool>(false);
 
   Stream<LocationData> get locationStream => _locationController.stream;
   Stream<LightData> get lightStream => _lightController.stream;
@@ -188,7 +237,7 @@ class ForegroundLocationService {
   Stream<GyroscopeData> get gyroscopeStream => _gyroscopeController.stream;
   Stream<PressureData> get pressureStream => _pressureController.stream;
   ValueListenable<bool> get isRunning => _isRunningNotifier;
-  ValueListenable<int> get statsRefreshTrigger => _statsRefreshTrigger;
+  ValueListenable<bool> get isPaused => _isPausedNotifier;
 
   LocationData? _lastLocation;
   LocationData? get lastLocation => _lastLocation;
@@ -205,17 +254,42 @@ class ForegroundLocationService {
   PressureData? _lastPressure;
   PressureData? get lastPressure => _lastPressure;
 
-  // Native upload status exposed to the UI
-  final NativeUploadStatus uploadStatus = NativeUploadStatus();
+  // Consolidated upload status exposed to the UI
+  final ValueNotifier<UploadStatusSnapshot> uploadStatus =
+      ValueNotifier(const UploadStatusSnapshot());
 
   final _sessionManager = TrackingSessionManager.instance;
 
   ForegroundLocationService._() {
     _setupMethodCallHandler();
     unawaited(_bootstrapUploadStatus());
+    _loadPersistedSensorValues();
   }
 
   static final ForegroundLocationService instance = ForegroundLocationService._();
+
+  /// Load last known sensor values from storage for instant display
+  void _loadPersistedSensorValues() {
+    final prefs = AppPreferences.instance;
+
+    // Load last light reading
+    final light = prefs.getLastLight();
+    if (light != null) {
+      _lastLight = LightData(
+        lux: light['lux'] as double,
+        timestamp: light['timestamp'] as int,
+      );
+    }
+
+    // Load last pressure reading
+    final pressure = prefs.getLastPressure();
+    if (pressure != null) {
+      _lastPressure = PressureData(
+        hPa: pressure['hPa'] as double,
+        timestamp: pressure['timestamp'] as int,
+      );
+    }
+  }
 
   void _setupMethodCallHandler() {
     _sensorTriggerChannel.setMethodCallHandler((call) async {
@@ -229,6 +303,8 @@ class ForegroundLocationService {
           final light = LightData.fromMap(call.arguments as Map);
           _lastLight = light;
           _lightController.add(light);
+          // Persist for instant display on next app start
+          unawaited(AppPreferences.instance.saveLastLight(light.lux, light.timestamp));
           break;
         case 'onAccelerometerUpdate':
           final accel = AccelerometerData.fromMap(call.arguments as Map);
@@ -244,6 +320,8 @@ class ForegroundLocationService {
           final pressure = PressureData.fromMap(call.arguments as Map);
           _lastPressure = pressure;
           _pressureController.add(pressure);
+          // Persist for instant display on next app start
+          unawaited(AppPreferences.instance.saveLastPressure(pressure.hPa, pressure.timestamp));
           break;
         case 'collectSensors':
           // This is called periodically by the native service
@@ -252,9 +330,14 @@ class ForegroundLocationService {
         case 'onNativeUploadStatus':
           _handleNativeUploadStatus(call.arguments as Map);
           break;
+        case 'onTrackingPaused':
+          final paused = (call.arguments as bool?) ?? false;
+          _isPausedNotifier.value = paused;
+          break;
         case 'onServiceStopped':
           _isRunningNotifier.value = false;
-          uploadStatus.reset();
+          _isPausedNotifier.value = false;
+          uploadStatus.value = const UploadStatusSnapshot();
           // Stop tracking session (service was killed)
           await _sessionManager.stopSession(reason: 'service_stopped');
           debugPrint('Foreground service reported stopped');
@@ -273,6 +356,7 @@ class ForegroundLocationService {
       final result = await _fgChannel.invokeMethod<bool>('startForegroundService');
       if (result == true) {
         _isRunningNotifier.value = true;
+        _isPausedNotifier.value = false;
         // Start tracking session in database
         await _sessionManager.startSession();
         debugPrint('Foreground location service started');
@@ -315,8 +399,9 @@ class ForegroundLocationService {
       final result = await _fgChannel.invokeMethod<bool>('stopForegroundService');
       if (result == true) {
         _isRunningNotifier.value = false;
+        _isPausedNotifier.value = false;
         _lastLocation = null;
-        uploadStatus.reset();
+        uploadStatus.value = const UploadStatusSnapshot();
         // Stop tracking session in database
         await _sessionManager.stopSession(reason: 'user_stopped');
         debugPrint('Foreground location service stopped');
@@ -341,6 +426,8 @@ class ForegroundLocationService {
     try {
       final result = await _fgChannel.invokeMethod<bool>('isForegroundServiceRunning');
       _isRunningNotifier.value = result ?? false;
+      final paused = await _fgChannel.invokeMethod<bool>('isTrackingPaused');
+      _isPausedNotifier.value = paused ?? false;
       return result ?? false;
     } catch (e) {
       debugPrint('Error checking service status: $e');
@@ -350,9 +437,46 @@ class ForegroundLocationService {
 
   Future<void> _bootstrapUploadStatus() async {
     await AppPreferences.instance.ensureInitialized();
-    uploadStatus.lastUpload.value = AppPreferences.instance.lastUploadAt;
+    uploadStatus.value = uploadStatus.value.copyWith(
+      lastUpload: AppPreferences.instance.lastUploadAt,
+    );
     _isRunningNotifier.value =
         AppPreferences.instance.foregroundServiceEnabled;
+    _isPausedNotifier.value = AppPreferences.instance.trackingPaused;
+  }
+
+  Future<bool> pauseTracking() async {
+    if (_isChangingState) return false;
+    _isChangingState = true;
+    try {
+      final result = await _fgChannel.invokeMethod<bool>('pauseForegroundService');
+      if (result == true) {
+        _isPausedNotifier.value = true;
+      }
+      return result ?? false;
+    } catch (e) {
+      debugPrint('Error pausing foreground service: $e');
+      return false;
+    } finally {
+      _isChangingState = false;
+    }
+  }
+
+  Future<bool> resumeTracking() async {
+    if (_isChangingState) return false;
+    _isChangingState = true;
+    try {
+      final result = await _fgChannel.invokeMethod<bool>('resumeForegroundService');
+      if (result == true) {
+        _isPausedNotifier.value = false;
+      }
+      return result ?? false;
+    } catch (e) {
+      debugPrint('Error resuming foreground service: $e');
+      return false;
+    } finally {
+      _isChangingState = false;
+    }
   }
 
   void _handleNativeUploadStatus(Map<dynamic, dynamic> data) {
@@ -361,22 +485,33 @@ class ForegroundLocationService {
 
     switch (status) {
       case 'started':
-        uploadStatus.uploading.value = true;
+        uploadStatus.value = uploadStatus.value.copyWith(
+          isUploading: true,
+          lastError: null,
+          lastErrorTime: null,
+        );
         break;
       case 'success':
-        uploadStatus.uploading.value = false;
+        uploadStatus.value = uploadStatus.value.copyWith(
+          isUploading: false,
+        );
         final timestamp = timestampMs != null
             ? DateTime.fromMillisecondsSinceEpoch(timestampMs)
             : DateTime.now();
 
         if (timestampMs != null) {
-          uploadStatus.lastUpload.value = timestamp;
+          uploadStatus.value = uploadStatus.value.copyWith(
+            lastUpload: timestamp,
+          );
           // Note: Native code already saved timestamp to SharedPreferences
         }
-        uploadStatus.uploadSuccess.value++;
-        // Clear any previous errors on successful upload
-        uploadStatus.lastError.value = null;
-        uploadStatus.lastErrorTime.value = null;
+        // Keep shared prefs aligned with the latest upload timestamp.
+        unawaited(AppPreferences.instance.setLastUploadAt(timestamp));
+        // Clear any previous errors on successful upload.
+        uploadStatus.value = uploadStatus.value.copyWith(
+          lastError: null,
+          lastErrorTime: null,
+        );
 
         // Emit event for reactive UI updates (replaces _statsRefreshTrigger)
         final samplesCount = (data['batchSize'] as num?)?.toInt() ?? 0;
@@ -398,11 +533,13 @@ class ForegroundLocationService {
         });
         break;
       case 'failure':
-        uploadStatus.uploading.value = false;
+        uploadStatus.value = uploadStatus.value.copyWith(isUploading: false);
         final error = data['error'] as String? ?? 'Unknown error';
         final failTimestamp = DateTime.now();
-        uploadStatus.lastError.value = error;
-        uploadStatus.lastErrorTime.value = failTimestamp;
+        uploadStatus.value = uploadStatus.value.copyWith(
+          lastError: error,
+          lastErrorTime: failTimestamp,
+        );
 
         // Emit event for UI to react to failures
         AppEventBus.instance.emit(UploadFailedEvent(
@@ -425,25 +562,34 @@ class ForegroundLocationService {
     _pressureController.close();
     _isRunningNotifier.dispose();
     uploadStatus.dispose();
+    _isPausedNotifier.dispose();
   }
 }
 
-class NativeUploadStatus {
-  final ValueNotifier<bool> uploading = ValueNotifier<bool>(false);
-  final ValueNotifier<DateTime?> lastUpload = ValueNotifier<DateTime?>(null);
-  final ValueNotifier<int> uploadSuccess = ValueNotifier<int>(0);
-  final ValueNotifier<String?> lastError = ValueNotifier<String?>(null);
-  final ValueNotifier<DateTime?> lastErrorTime = ValueNotifier<DateTime?>(null);
+class UploadStatusSnapshot {
+  final bool isUploading;
+  final DateTime? lastUpload;
+  final String? lastError;
+  final DateTime? lastErrorTime;
 
-  void reset() {
-    uploading.value = false;
-  }
+  const UploadStatusSnapshot({
+    this.isUploading = false,
+    this.lastUpload,
+    this.lastError,
+    this.lastErrorTime,
+  });
 
-  void dispose() {
-    uploading.dispose();
-    lastUpload.dispose();
-    uploadSuccess.dispose();
-    lastError.dispose();
-    lastErrorTime.dispose();
+  UploadStatusSnapshot copyWith({
+    bool? isUploading,
+    DateTime? lastUpload,
+    String? lastError,
+    DateTime? lastErrorTime,
+  }) {
+    return UploadStatusSnapshot(
+      isUploading: isUploading ?? this.isUploading,
+      lastUpload: lastUpload ?? this.lastUpload,
+      lastError: lastError ?? this.lastError,
+      lastErrorTime: lastErrorTime ?? this.lastErrorTime,
+    );
   }
 }

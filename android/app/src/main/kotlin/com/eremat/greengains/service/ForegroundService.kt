@@ -82,6 +82,7 @@ class ForegroundService : Service() {
     // Native Uploader
     private var nativeUploader: NativeBackendUploader? = null
     private var nativeSamplerJob: Job? = null
+    private var trackingPausedState: Boolean = false
 
     // Data Flows
     private val _lightFlow = MutableStateFlow<Float?>(null)
@@ -90,7 +91,13 @@ class ForegroundService : Service() {
     private val _gyroscopeFlow = MutableStateFlow<FloatArray?>(null)
     private val _locationFlow = MutableStateFlow<Location?>(null)
 
-    // Adaptive GPS optimization
+    // Adaptive GPS optimization with interval-based battery savings:
+    // - Always uses PRIORITY_HIGH_ACCURACY for fresh GPS/network locations
+    // - Stationary: 60s interval (~50% battery savings, still fresh data)
+    // - Moving: 10s interval (better tracking)
+    // - FusedLocationProvider automatically falls back to network/WiFi when GPS unavailable
+    // - Dart side uses LocationData.recommendedH3Resolution to assign appropriate tile sizes
+    // - This approach prevents "stale" locations while maintaining battery efficiency
     private var currentMotionState = MotionState.UNKNOWN
     private var currentGpsPriority = LocationRequest.PRIORITY_HIGH_ACCURACY
 
@@ -118,6 +125,8 @@ class ForegroundService : Service() {
         // Create Notification Channel (Required for Android O+)
         NotificationsHelper.createNotificationChannel(this)
 
+        trackingPausedState = readTrackingPausedPref()
+        trackingPaused = trackingPausedState
         setupLocationCallback()
         setupSensorCollectors()
     }
@@ -173,10 +182,38 @@ class ForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // CRITICAL FIX: Must call startForeground() within 5 seconds to avoid crash
+        // Android 8+ requirement - call IMMEDIATELY before any other logic
+        if (!running) {
+            val lastUpload = NotificationsHelper.readLastUploadFromPrefs(this)
+            val notification = NotificationsHelper.buildNotification(this, lastUpload, trackingPausedState)
+            ServiceCompat.startForeground(
+                this,
+                NotificationsHelper.NOTIFICATION_ID_SERVICE,
+                notification,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+                } else {
+                    0
+                }
+            )
+            Log.d(TAG, "startForeground() called immediately in onStartCommand to prevent crash")
+        }
+
         // Handle explicit stop action
         if (intent?.action == ACTION_STOP_SERVICE) {
             stopForegroundService()
             return START_NOT_STICKY
+        }
+
+        // Handle pause/resume actions
+        if (intent?.action == ACTION_PAUSE_TRACKING) {
+            pauseTracking()
+            return START_STICKY
+        }
+        if (intent?.action == ACTION_RESUME_TRACKING) {
+            resumeTracking()
+            return START_STICKY
         }
 
         // Handle FIFO flush request
@@ -203,7 +240,8 @@ class ForegroundService : Service() {
         setServiceEnabledPref(true)
 
         // Start Notification
-        val notification = NotificationsHelper.buildNotification(this)
+        val lastUpload = NotificationsHelper.readLastUploadFromPrefs(this)
+        val notification = NotificationsHelper.buildNotification(this, lastUpload, trackingPausedState)
         ServiceCompat.startForeground(
             this,
             NotificationsHelper.NOTIFICATION_ID_SERVICE,
@@ -215,7 +253,14 @@ class ForegroundService : Service() {
             }
         )
 
-        // Start Sensors with FIFO batching
+        if (!trackingPausedState) {
+            startTracking()
+        } else {
+            Log.i(TAG, "Tracking paused - sensors will remain stopped")
+        }
+    }
+
+    private fun startTracking() {
         lightSensor.start()
         barometer.start()
         motionSensors.start()
@@ -231,6 +276,39 @@ class ForegroundService : Service() {
         networkMonitor.startMonitoring()
     }
 
+    private fun stopTracking() {
+        flushSensorBuffers()
+        lightSensor.stop()
+        barometer.stop()
+        motionSensors.stop()
+        stopLocationUpdates()
+        stopNativeUploader()
+        batteryMonitor.stopMonitoring()
+        networkMonitor.stopMonitoring()
+    }
+
+    private fun pauseTracking() {
+        if (!running || trackingPausedState) return
+        trackingPausedState = true
+        trackingPaused = true
+        setTrackingPausedPref(true)
+        stopTracking()
+        notifyTrackingState()
+        sendTrackingPausedToFlutter(true)
+        Log.i(TAG, "Tracking paused via notification")
+    }
+
+    private fun resumeTracking() {
+        if (!running || !trackingPausedState) return
+        trackingPausedState = false
+        trackingPaused = false
+        setTrackingPausedPref(false)
+        startTracking()
+        notifyTrackingState()
+        sendTrackingPausedToFlutter(false)
+        Log.i(TAG, "Tracking resumed via notification")
+    }
+
     /**
      * Flush sensor FIFO buffers to get immediate data delivery.
      * Called when user opens app or before pausing due to low battery.
@@ -244,26 +322,23 @@ class ForegroundService : Service() {
 
     private fun stopForegroundService() {
         running = false
+        trackingPausedState = false
+        trackingPaused = false
         setServiceEnabledPref(false)
+        setTrackingPausedPref(false)
 
         // Flush FIFO buffers before stopping to avoid losing last 60s of data
-        flushSensorBuffers()
-
-        lightSensor.stop()
-        barometer.stop()
-        motionSensors.stop()
-        stopLocationUpdates()
-        stopNativeUploader()
-
-        batteryMonitor.stopMonitoring()
-        networkMonitor.stopMonitoring()
+        stopTracking()
 
         stopForeground(true)
         stopSelf()
     }
 
     @SuppressLint("MissingPermission")
-    private fun startLocationUpdates(priority: Int = LocationRequest.PRIORITY_HIGH_ACCURACY) {
+    private fun startLocationUpdates(
+        priority: Int = LocationRequest.PRIORITY_HIGH_ACCURACY,
+        intervalMs: Long = LOCATION_UPDATES_INTERVAL_MS
+    ) {
         val hasFine = PermissionChecker.checkSelfPermission(this, ACCESS_FINE_LOCATION) == PermissionChecker.PERMISSION_GRANTED
         val hasCoarse = PermissionChecker.checkSelfPermission(this, ACCESS_COARSE_LOCATION) == PermissionChecker.PERMISSION_GRANTED
 
@@ -275,43 +350,56 @@ class ForegroundService : Service() {
         currentGpsPriority = priority
 
         val request = LocationRequest.create().apply {
-            interval = LOCATION_UPDATES_INTERVAL_MS
-            fastestInterval = LOCATION_UPDATES_INTERVAL_MS
+            interval = intervalMs
+            fastestInterval = intervalMs
             this.priority = priority
         }
 
         fusedLocationClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
-        Log.d(TAG, "GPS location updates started with priority: ${getPriorityName(priority)}")
+        Log.d(TAG, "GPS location updates started: priority=${getPriorityName(priority)}, interval=${intervalMs}ms")
     }
 
     /**
-     * Update GPS priority based on motion state for battery optimization.
-     * - STATIONARY: Use balanced power/accuracy (~50% battery savings)
-     * - LIGHT/ACTIVE: Use high accuracy for better location tracking
+     * Update GPS interval based on motion state for battery optimization.
+     * Always uses HIGH_ACCURACY to ensure fresh locations (not stale).
+     * - STATIONARY: 60s interval (~50% battery savings, still fresh data)
+     * - LIGHT/ACTIVE: 10s interval (better tracking when moving)
+     *
+     * Using intervals instead of priority changes ensures GPS gets fresh fixes
+     * and network fallback works properly. Prevents "stale" location quality.
      */
     @SuppressLint("MissingPermission")
     private fun updateGpsPriority(motionState: MotionState) {
         // Don't update if motion state hasn't changed
         if (motionState == currentMotionState) return
 
-        val newPriority = when (motionState) {
-            MotionState.STATIONARY -> LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY
-            MotionState.LIGHT, MotionState.ACTIVE -> LocationRequest.PRIORITY_HIGH_ACCURACY
-            MotionState.UNKNOWN -> currentGpsPriority // Keep current priority if unknown
+        val newInterval = when (motionState) {
+            MotionState.STATIONARY -> 60_000L // 60s for stationary (battery efficient)
+            MotionState.LIGHT, MotionState.ACTIVE -> 10_000L // 10s for moving (better tracking)
+            MotionState.UNKNOWN -> LOCATION_UPDATES_INTERVAL_MS // Default 10s
         }
 
-        // Only restart location updates if priority actually changed
-        if (newPriority != currentGpsPriority) {
-            Log.i(TAG, "Motion state changed: ${currentMotionState.name} → ${motionState.name}")
-            Log.i(TAG, "Updating GPS priority: ${getPriorityName(currentGpsPriority)} → ${getPriorityName(newPriority)}")
+        // Only restart location updates if interval actually changed
+        val currentInterval = getCurrentLocationInterval()
+        if (newInterval != currentInterval) {
+            Log.i(TAG, "Motion state changed: ${currentMotionState.name} -> ${motionState.name}")
+            Log.i(TAG, "Updating GPS interval: ${currentInterval}ms -> ${newInterval}ms (always HIGH_ACCURACY)")
 
             currentMotionState = motionState
 
-            // Restart location updates with new priority
+            // Restart location updates with new interval (always HIGH_ACCURACY)
             stopLocationUpdates()
-            startLocationUpdates(newPriority)
+            startLocationUpdates(LocationRequest.PRIORITY_HIGH_ACCURACY, newInterval)
         } else {
             currentMotionState = motionState
+        }
+    }
+
+    private fun getCurrentLocationInterval(): Long {
+        return when (currentMotionState) {
+            MotionState.STATIONARY -> 60_000L
+            MotionState.LIGHT, MotionState.ACTIVE -> 10_000L
+            MotionState.UNKNOWN -> LOCATION_UPDATES_INTERVAL_MS
         }
     }
 
@@ -422,7 +510,7 @@ class ForegroundService : Service() {
         Log.d(TAG, "Native upload: ${event.type}")
         sendNativeUploadStatusToFlutter(event)
         if (event.type == NativeUploadEventType.SUCCESS && ::notificationManager.isInitialized) {
-            NotificationsHelper.notifyUpdate(this, notificationManager, event.timestamp)
+            NotificationsHelper.notifyUpdate(this, notificationManager, event.timestamp, trackingPausedState)
         }
     }
 
@@ -493,6 +581,26 @@ class ForegroundService : Service() {
     private fun setServiceEnabledPref(enabled: Boolean) {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(PREF_FOREGROUND_ENABLED, enabled).apply()
+    }
+
+    private fun setTrackingPausedPref(paused: Boolean) {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(PREF_TRACKING_PAUSED, paused).apply()
+    }
+
+    private fun readTrackingPausedPref(): Boolean {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(PREF_TRACKING_PAUSED, false)
+    }
+
+    private fun notifyTrackingState() {
+        if (!::notificationManager.isInitialized) return
+        val lastUpload = NotificationsHelper.readLastUploadFromPrefs(this)
+        NotificationsHelper.notifyUpdate(this, notificationManager, lastUpload, trackingPausedState)
+    }
+
+    private fun sendTrackingPausedToFlutter(paused: Boolean) {
+        postToFlutter("tracking paused") { it.invokeMethod("onTrackingPaused", paused) }
     }
 
     override fun onDestroy() {
@@ -688,11 +796,15 @@ class ForegroundService : Service() {
         private val LOCATION_UPDATES_INTERVAL_MS = 10.seconds.inWholeMilliseconds
         private const val NATIVE_SAMPLE_INTERVAL_MS = 10_000L
         const val ACTION_STOP_SERVICE = "com.eremat.greengains.action.STOP_SERVICE"
+        const val ACTION_PAUSE_TRACKING = "com.eremat.greengains.action.PAUSE_TRACKING"
+        const val ACTION_RESUME_TRACKING = "com.eremat.greengains.action.RESUME_TRACKING"
         const val ACTION_FLUSH_FIFO = "com.eremat.greengains.action.FLUSH_FIFO"
         private const val PREFS_NAME = "FlutterSharedPreferences"
         private const val PREF_FOREGROUND_ENABLED = "flutter.foreground_service_enabled"
+        private const val PREF_TRACKING_PAUSED = "flutter.tracking_paused"
 
         @Volatile var running: Boolean = false
+        @Volatile var trackingPaused: Boolean = false
         @Volatile var methodChannel: MethodChannel? = null
     }
 }

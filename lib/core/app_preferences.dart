@@ -7,14 +7,27 @@ class PreferenceKeys {
   static const onboardingComplete = 'onboarding_complete';
   static const themeMode = 'theme_mode';
   static const useMobileUploads = 'use_mobile_data_uploads';
-  static const deviceId = 'device_id';
-  static const foregroundServiceEnabled = 'foreground_service_enabled';
-  static const shareLocation = 'share_location';
-  static const lastUploadAt = 'last_upload_at';
+  static const deviceId = 'flutter.device_id';
+  static const foregroundServiceEnabled = 'flutter.foreground_service_enabled';
+  static const trackingPaused = 'flutter.tracking_paused';
+  static const shareLocation = 'flutter.share_location';
+  static const lastUploadAt = 'flutter.last_upload_at';
   static const dismissedTips = 'dismissed_tips';
   static const batteryOptimizationPromptDismissed = 'battery_optimization_prompt_dismissed';
   static const batteryOptimizationPromptLastShown = 'battery_optimization_prompt_last_shown';
   static const postOnboardingAuthPrompted = 'post_onboarding_auth_prompted';
+
+  // Last known sensor values for instant display on app restart
+  static const lastLightLux = 'last_light_lux';
+  static const lastLightTimestamp = 'last_light_timestamp';
+  static const lastPressureHPa = 'last_pressure_hpa';
+  static const lastPressureTimestamp = 'last_pressure_timestamp';
+
+  static const _legacyDeviceId = 'device_id';
+  static const _legacyForegroundServiceEnabled = 'foreground_service_enabled';
+  static const _legacyTrackingPaused = 'tracking_paused';
+  static const _legacyShareLocation = 'share_location';
+  static const _legacyLastUploadAt = 'last_upload_at';
 }
 
 class AppPreferences {
@@ -27,6 +40,7 @@ class AppPreferences {
 
   Future<void> init() async {
     _prefs ??= await SharedPreferences.getInstance();
+    await _migrateLegacyKeys();
   }
 
   Future<void> ensureInitialized() => init();
@@ -37,6 +51,59 @@ class AppPreferences {
       throw StateError('AppPreferences not initialized. Call init() first.');
     }
     return prefs;
+  }
+
+  Future<void> _migrateLegacyKeys() async {
+    final prefs = _prefs;
+    if (prefs == null) return;
+
+    await _migrateStringKey(
+      prefs,
+      PreferenceKeys.deviceId,
+      PreferenceKeys._legacyDeviceId,
+    );
+    await _migrateBoolKey(
+      prefs,
+      PreferenceKeys.foregroundServiceEnabled,
+      PreferenceKeys._legacyForegroundServiceEnabled,
+    );
+    await _migrateBoolKey(
+      prefs,
+      PreferenceKeys.trackingPaused,
+      PreferenceKeys._legacyTrackingPaused,
+    );
+    await _migrateBoolKey(
+      prefs,
+      PreferenceKeys.shareLocation,
+      PreferenceKeys._legacyShareLocation,
+    );
+    await _migrateStringKey(
+      prefs,
+      PreferenceKeys.lastUploadAt,
+      PreferenceKeys._legacyLastUploadAt,
+    );
+  }
+
+  Future<void> _migrateBoolKey(
+    SharedPreferences prefs,
+    String newKey,
+    String legacyKey,
+  ) async {
+    if (prefs.containsKey(newKey)) return;
+    final legacyValue = prefs.getBool(legacyKey);
+    if (legacyValue == null) return;
+    await prefs.setBool(newKey, legacyValue);
+  }
+
+  Future<void> _migrateStringKey(
+    SharedPreferences prefs,
+    String newKey,
+    String legacyKey,
+  ) async {
+    if (prefs.containsKey(newKey)) return;
+    final legacyValue = prefs.getString(legacyKey);
+    if (legacyValue == null || legacyValue.isEmpty) return;
+    await prefs.setString(newKey, legacyValue);
   }
 
   bool get onboardingComplete =>
@@ -60,15 +127,29 @@ class AppPreferences {
   }
 
   bool get foregroundServiceEnabled =>
-      _sp.getBool(PreferenceKeys.foregroundServiceEnabled) ?? false;
+      _sp.getBool(PreferenceKeys.foregroundServiceEnabled) ??
+      _sp.getBool(PreferenceKeys._legacyForegroundServiceEnabled) ??
+      false;
 
   Future<void> setForegroundServiceEnabled(bool value) async {
     await _sp.setBool(PreferenceKeys.foregroundServiceEnabled, value);
   }
 
+  bool get trackingPaused =>
+      _sp.getBool(PreferenceKeys.trackingPaused) ??
+      _sp.getBool(PreferenceKeys._legacyTrackingPaused) ??
+      false;
+
+  Future<void> setTrackingPaused(bool value) async {
+    await _sp.setBool(PreferenceKeys.trackingPaused, value);
+  }
+
   /// Location sharing preference - defaults to FALSE, user must opt-in
   /// COARSE location (~200m) is privacy-friendly but requires explicit consent
-  bool get shareLocation => _sp.getBool(PreferenceKeys.shareLocation) ?? false;
+  bool get shareLocation =>
+      _sp.getBool(PreferenceKeys.shareLocation) ??
+      _sp.getBool(PreferenceKeys._legacyShareLocation) ??
+      false;
 
   Future<void> setShareLocation(bool value) async {
     await _sp.setBool(PreferenceKeys.shareLocation, value);
@@ -105,7 +186,8 @@ class AppPreferences {
 
 
   DateTime? get lastUploadAt {
-    final raw = _sp.getString(PreferenceKeys.lastUploadAt);
+    final raw = _sp.getString(PreferenceKeys.lastUploadAt) ??
+        _sp.getString(PreferenceKeys._legacyLastUploadAt);
     if (raw == null || raw.isEmpty) {
       return null;
     }
@@ -125,8 +207,13 @@ class AppPreferences {
     if (_deviceIdCache != null) {
       return _deviceIdCache!;
     }
-    final existing = _sp.getString(PreferenceKeys.deviceId);
+    final existing =
+        _sp.getString(PreferenceKeys.deviceId) ??
+        _sp.getString(PreferenceKeys._legacyDeviceId);
     if (existing != null && existing.isNotEmpty) {
+      if (_sp.getString(PreferenceKeys.deviceId) == null) {
+        await _sp.setString(PreferenceKeys.deviceId, existing);
+      }
       _deviceIdCache = existing;
       return existing;
     }
@@ -168,5 +255,35 @@ class AppPreferences {
       dismissed.add(tipId);
       await _sp.setStringList(PreferenceKeys.dismissedTips, dismissed);
     }
+  }
+
+  // Sensor value persistence for instant display on app restart
+
+  /// Save last known light sensor reading
+  Future<void> saveLastLight(double lux, int timestampMs) async {
+    await _sp.setDouble(PreferenceKeys.lastLightLux, lux);
+    await _sp.setInt(PreferenceKeys.lastLightTimestamp, timestampMs);
+  }
+
+  /// Get last known light sensor reading
+  Map<String, dynamic>? getLastLight() {
+    final lux = _sp.getDouble(PreferenceKeys.lastLightLux);
+    final timestamp = _sp.getInt(PreferenceKeys.lastLightTimestamp);
+    if (lux == null || timestamp == null) return null;
+    return {'lux': lux, 'timestamp': timestamp};
+  }
+
+  /// Save last known pressure sensor reading
+  Future<void> saveLastPressure(double hPa, int timestampMs) async {
+    await _sp.setDouble(PreferenceKeys.lastPressureHPa, hPa);
+    await _sp.setInt(PreferenceKeys.lastPressureTimestamp, timestampMs);
+  }
+
+  /// Get last known pressure sensor reading
+  Map<String, dynamic>? getLastPressure() {
+    final hPa = _sp.getDouble(PreferenceKeys.lastPressureHPa);
+    final timestamp = _sp.getInt(PreferenceKeys.lastPressureTimestamp);
+    if (hPa == null || timestamp == null) return null;
+    return {'hPa': hPa, 'timestamp': timestamp};
   }
 }

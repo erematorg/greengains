@@ -1,23 +1,32 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import '../data/models/contribution_stats.dart';
 import '../data/repositories/contribution_repository.dart';
 import '../core/extensions/context_extensions.dart';
 import '../core/themes.dart';
 import '../services/location/foreground_location_service.dart';
+import '../services/network/backend_client.dart';
+import '../core/events/app_events.dart';
 import '../utils/app_snackbars.dart';
 import '../core/app_preferences.dart';
 import '../widgets/contribution_stats_card.dart';
 import '../widgets/contextual_tip_card.dart';
-import '../widgets/sensor_data_card.dart';
 import '../widgets/service_control_button.dart';
 import '../widgets/battery_optimization_dialog.dart';
 import '../widgets/daily_pot_icon.dart';
+import '../widgets/tracking_status_banner.dart';
+import '../widgets/impact_summary_card.dart';
+import '../widgets/sensor_section.dart';
+import '../widgets/coverage_map_widget.dart';
+import 'coverage_map_screen.dart';
 
-import '../widgets/time_ago_text.dart';
-
-/// Home screen showing live sensor data and tracking status
+/// Home screen with Option B layout
+/// Clear visual hierarchy: Status -> Coverage Map (50%) -> Impact/Stats -> Technical Details
+/// Combines impact metrics with today's stats for space efficiency
 /// Optimized for fast performance with minimal animations
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -35,6 +44,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   TileCoverageStats? _tileCoverage;
   bool _tileCoverageLoading = true;
   bool _batteryPromptOpen = false;
+  ContributionStats? _stats;
+  StreamSubscription<UploadSuccessEvent>? _uploadSuccessSub;
+  List<H3Tile> _h3Tiles = [];
+  bool _h3TilesLoading = true;
+  LatLng? _userLocation;
 
   @override
   void initState() {
@@ -46,6 +60,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _loadDismissedTips();
     _checkBatteryOptimization();
     _loadTileCoverage();
+    _loadStats();
+    _loadH3Tiles();
+    _loadUserLocation();
   }
 
   void _handleServiceRunningChange() {
@@ -115,31 +132,37 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _setupUploadSuccessListener() {
-    _locationService.uploadStatus.uploadSuccess.addListener(_onUploadSuccess);
+    _uploadSuccessSub = AppEventBus.instance
+        .on<UploadSuccessEvent>()
+        .listen(_onUploadSuccess);
   }
 
-  void _onUploadSuccess() {
+  void _onUploadSuccess(UploadSuccessEvent event) {
     if (!mounted) return;
 
     AppSnackbars.showSuccess(context, 'Contribution uploaded successfully!');
     _loadTileCoverage();
+    _loadStats();
+    _loadH3Tiles();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     // Clean up upload success listener
-    _locationService.uploadStatus.uploadSuccess.removeListener(_onUploadSuccess);
+    _uploadSuccessSub?.cancel();
     _locationService.isRunning.removeListener(_handleServiceRunningChange);
 
     super.dispose();
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
     if (state == AppLifecycleState.resumed) {
-      // Flush FIFO buffers to get fresh sensor readings
-      _locationService.flushSensorBuffers();
+      // Flush FIFO buffers only if service is running (which means permissions granted)
+      if (_locationService.isRunning.value) {
+        await _locationService.flushSensorBuffers();
+      }
       // Sync service status with native
       _checkServiceStatus();
       // Reload last upload time from preferences
@@ -147,6 +170,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Auto-refresh stats when user returns to app
       _statsKey.currentState?.refresh();
       _loadTileCoverage();
+      _loadStats();
+      _loadH3Tiles();
     }
   }
 
@@ -154,10 +179,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await _prefs.ensureInitialized();
     final lastUpload = _prefs.lastUploadAt;
     if (lastUpload != null) {
-      debugPrint('✅ Reloaded last upload from SharedPreferences: $lastUpload');
-      _locationService.uploadStatus.lastUpload.value = lastUpload;
+      debugPrint('Reloaded last upload from SharedPreferences: $lastUpload');
+      _locationService.uploadStatus.value =
+          _locationService.uploadStatus.value.copyWith(lastUpload: lastUpload);
     } else {
-      debugPrint('⚠️ No last upload timestamp found in SharedPreferences');
+      debugPrint('No last upload timestamp found in SharedPreferences');
     }
   }
 
@@ -173,11 +199,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _refreshData() async {
     HapticFeedback.lightImpact();
-    // Flush FIFO buffers to get fresh sensor readings
-    _locationService.flushSensorBuffers();
+    // Flush FIFO buffers only if service is running (which means permissions granted)
+    if (_locationService.isRunning.value) {
+      await _locationService.flushSensorBuffers();
+    }
     // Refresh contribution stats
     await _statsKey.currentState?.refresh();
     await _loadTileCoverage();
+    await _loadStats();
+    await _loadH3Tiles();
     // Min duration for better UX feedback
     await Future.delayed(const Duration(milliseconds: 300));
   }
@@ -200,21 +230,106 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  String _getLightDescription(double lux) {
-    if (lux < 10) return 'Dark';
-    if (lux < 50) return 'Dim';
-    if (lux < 500) return 'Normal';
-    if (lux < 10000) return 'Bright';
-    return 'Very Bright';
+  Future<void> _loadStats() async {
+    try {
+      final stats = await _contributionRepo.getStats();
+      if (mounted) {
+        setState(() {
+          _stats = stats;
+        });
+      }
+    } catch (_) {
+      // Silently fail - stats card will handle empty state
+    }
   }
 
-  String _sensorStatus({
-    required bool isRunning,
-    required bool hasData,
-  }) {
-    if (!isRunning) return 'Paused';
-    if (!hasData) return 'Waiting';
-    return 'Live';
+  Future<void> _loadH3Tiles() async {
+    setState(() {
+      _h3TilesLoading = true;
+    });
+
+    try {
+      // Fetch tiles from backend API
+      final response = await BackendClient.get('/api/user/tiles?hours=72');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final tilesData = data['tiles'] as List<dynamic>?;
+
+        final tiles = tilesData?.map((tile) {
+          // Backend returns centroid; client needs to compute H3 boundaries
+          // For now, we'll just use centroid as a single point (map will show as marker)
+          // TODO: Add h3_dart boundary calculation here if needed
+          return H3Tile(
+            h3Index: tile['h3Index'] as String,
+            confidence: (tile['confidence'] as num?)?.toDouble() ?? 0.5,
+            sampleCount: tile['sampleCount'] as int? ?? 0,
+            deviceCount: tile['deviceCount'] as int? ?? 1,
+            boundary: null, // TODO: Calculate boundary using h3_dart
+          );
+        }).toList() ?? [];
+
+        if (mounted) {
+          setState(() {
+            _h3Tiles = tiles;
+            _h3TilesLoading = false;
+          });
+        }
+      } else if (response.statusCode == 401) {
+        // User not authenticated, show empty map
+        debugPrint('User not authenticated, showing empty map');
+        if (mounted) {
+          setState(() {
+            _h3Tiles = [];
+            _h3TilesLoading = false;
+          });
+        }
+      } else {
+        throw Exception('Failed to load tiles: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Failed to load H3 tiles: $e');
+      if (mounted) {
+        setState(() {
+          _h3Tiles = [];
+          _h3TilesLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadUserLocation() async {
+    try {
+      // Check permission first
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        debugPrint('Location permission not granted');
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 5),
+      );
+      if (mounted) {
+        setState(() {
+          _userLocation = LatLng(position.latitude, position.longitude);
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to get user location: $e');
+      // Keep _userLocation as null - map will show default bounds
+    }
+  }
+
+  void _navigateToCoverageMap() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const CoverageMapScreen(),
+      ),
+    );
   }
 
   @override
@@ -229,496 +344,96 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: overlayStyle,
       child: Scaffold(
-        appBar: AppBar(),
-        body: Stack(
-          children: [
-            // Main content
-            ListView(
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMd),
-              children: [
-                const SizedBox(height: AppTheme.spaceLg),
-                const ServiceControlButton(),
-
-            const SizedBox(height: AppTheme.spaceSm),
-            ListenableBuilder(
-              listenable: _locationService.isRunning,
-              builder: (context, _) => _buildUploadStatus(theme),
-            ),
-
-            const SizedBox(height: AppTheme.spaceLg),
-
-            // Contribution Statistics
-            ContributionStatsCard(key: _statsKey),
-            const SizedBox(height: AppTheme.spaceMd),
-
-            // Contextual Tips
-            if (_locationService.isRunning.value && _shouldShowTip('expand_sensors'))
-              ContextualTipCard(
-                tipId: 'expand_sensors',
-                icon: Icons.expand_more,
-                title: 'View live data',
-                message: 'Expand the sensor section below to verify data is streaming correctly',
-                onDismiss: () => _dismissTip('expand_sensors'),
-              ),
-
-            // Coverage Summary
-            _buildCoverageSummary(theme, isDark),
-            const SizedBox(height: AppTheme.spaceMd),
-
-            // Collapsible Sensor Details
-            ListenableBuilder(
-              listenable: _locationService.isRunning,
-              builder: (context, _) {
-                final isRunning = _locationService.isRunning.value;
-
-                return Card(
-                  child: ExpansionTile(
-                    onExpansionChanged: (expanded) {
-                      if (expanded) {
-                        HapticFeedback.lightImpact();
-                      }
-                    },
-                    title: Text(
-                      'Live sensor readings',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: Text(
-                      'Use these values to verify the device is streaming correctly',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    children: [
-                      if (!isRunning)
-                        Padding(
-                          padding: const EdgeInsets.all(AppTheme.spaceMd),
-                          child: Column(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(AppTheme.spaceMd),
-                                decoration: AppTheme.surfaceContainer(
-                                  isDark: isDark,
-                                  border: Border.all(
-                                    color: AppColors.primary.withValues(alpha: 0.3),
-                                    width: 1.5,
-                                  ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.sensors_off,
-                                      size: 48,
-                                      color: AppColors.textSecondary(isDark),
-                                    ),
-                                    const SizedBox(height: AppTheme.spaceSm),
-                                    Text(
-                                      'Sensors inactive',
-                                      style: theme.textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: AppTheme.spaceXs),
-                                    Text(
-                                      'Start tracking above to begin collecting data',
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: AppColors.textSecondary(isDark),
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      else
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(AppTheme.spaceMd, 0, AppTheme.spaceMd, AppTheme.spaceMd),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Environment Section
-                              Text(
-                                'Environment',
-                                style: theme.textTheme.labelLarge?.copyWith(
-                                  color: AppColors.textSecondary(isDark),
-                                ),
-                              ),
-                              const SizedBox(height: AppTheme.spaceXs),
-
-                              // Light Sensor
-                              StreamBuilder<LightData>(
-                                stream: _locationService.lightStream,
-                                builder: (context, snapshot) {
-                                  final light = snapshot.data;
-                                  final isRunning = _locationService.isRunning.value;
-                                  return SensorDataCard(
-                                    icon: Icons.light_mode,
-                                    title: 'Light',
-                                    value: light != null
-                                        ? '${light.lux.toStringAsFixed(0)} lux'
-                                        : null,
-                                    unit: light != null ? _getLightDescription(light.lux) : 'lux',
-                                    enabled: isRunning,
-                                    statusLabel: _sensorStatus(
-                                      isRunning: isRunning,
-                                      hasData: light != null,
-                                    ),
-                                    updatedAt: light?.dateTime,
-                                  );
-                                },
-                              ),
-
-                              const SizedBox(height: AppTheme.spaceMd),
-
-                              // Motion Section
-                              Text(
-                                'Motion',
-                                style: theme.textTheme.labelLarge?.copyWith(
-                                  color: AppColors.textSecondary(isDark),
-                                ),
-                              ),
-                              const SizedBox(height: AppTheme.spaceXs),
-
-                              // Accelerometer
-                              StreamBuilder<AccelerometerData>(
-                                stream: _locationService.accelerometerStream,
-                                builder: (context, snapshot) {
-                                  final accel = snapshot.data;
-                                  final isRunning = _locationService.isRunning.value;
-                                  return SensorDataCard(
-                                    icon: Icons.vibration,
-                                    title: 'Accelerometer',
-                                    value: accel != null
-                                        ? '${accel.magnitude.toStringAsFixed(1)} m/s^2'
-                                        : null,
-                                    unit: accel != null
-                                        ? '(${accel.x.toStringAsFixed(1)}, ${accel.y.toStringAsFixed(1)}, ${accel.z.toStringAsFixed(1)})'
-                                        : 'm/s^2',
-                                    enabled: isRunning,
-                                    statusLabel: _sensorStatus(
-                                      isRunning: isRunning,
-                                      hasData: accel != null,
-                                    ),
-                                    updatedAt: accel?.dateTime,
-                                  );
-                                },
-                              ),
-
-                              // Gyroscope
-                              StreamBuilder<GyroscopeData>(
-                                stream: _locationService.gyroscopeStream,
-                                builder: (context, snapshot) {
-                                  final gyro = snapshot.data;
-                                  final isRunning = _locationService.isRunning.value;
-                                  return SensorDataCard(
-                                    icon: Icons.rotate_90_degrees_ccw,
-                                    title: 'Gyroscope',
-                                    value: gyro != null
-                                        ? '${gyro.magnitude.toStringAsFixed(2)} rad/s'
-                                        : null,
-                                    unit: gyro != null
-                                        ? '(${gyro.x.toStringAsFixed(2)}, ${gyro.y.toStringAsFixed(2)}, ${gyro.z.toStringAsFixed(2)})'
-                                        : 'rad/s',
-                                    enabled: isRunning,
-                                    statusLabel: _sensorStatus(
-                                      isRunning: isRunning,
-                                      hasData: gyro != null,
-                                    ),
-                                    updatedAt: gyro?.dateTime,
-                                  );
-                                },
-                              ),
-
-                              // Barometer
-                              StreamBuilder<PressureData>(
-                                stream: _locationService.pressureStream,
-                                builder: (context, snapshot) {
-                                  final data = snapshot.data;
-                                  return SensorDataCard(
-                                    icon: Icons.compress,
-                                    title: 'Barometer',
-                                    value: data != null
-                                        ? '${data.hPa.toStringAsFixed(1)} hPa'
-                                        : null,
-                                    unit: 'Atmospheric Pressure',
-                                    enabled: isRunning,
-                                    statusLabel: _sensorStatus(
-                                      isRunning: isRunning,
-                                      hasData: data != null,
-                                    ),
-                                    updatedAt: data?.dateTime,
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-
-        // Floating daily pot icon (top-right corner)
-        const Positioned(
-          top: 70,
-          right: 16,
-          child: DailyPotIcon(),
-        ),
-      ],
-    ),
-    ),
-    );
-  }
-
-  Widget _buildCoverageSummary(ThemeData theme, bool isDark) {
-    final coverage = _tileCoverage;
-    final hasData = coverage != null;
-    final hasTiles = coverage != null && coverage.totalTiles > 0;
-
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spaceMd),
-      decoration: AppTheme.surfaceContainer(isDark: isDark),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.primaryAlpha(0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              Icons.map,
-              color: AppColors.primary,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: AppTheme.spaceMd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Coverage Today',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                if (_tileCoverageLoading)
-                  Text(
-                    'Loading tile stats...',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary(isDark),
-                    ),
-                  )
-                else if (!hasData)
-                  Text(
-                    'Coverage data is not available yet',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary(isDark),
-                    ),
-                  )
-                else if (!hasTiles)
-                  Text(
-                    'Start tracking to create your first tiles',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary(isDark),
-                    ),
-                  )
-                else
-                  Wrap(
-                    spacing: AppTheme.spaceSm,
-                    runSpacing: AppTheme.spaceXs,
-                    children: [
-                      _buildTileChip(
-                        label: 'Day',
-                        count: coverage!.dayTiles,
-                        color: AppColors.tileMediumCoverage,
-                        isDark: isDark,
-                      ),
-                      _buildTileChip(
-                        label: 'Night',
-                        count: coverage.nightTiles,
-                        color: AppColors.accentBlue,
-                        isDark: isDark,
-                      ),
-                    ],
-                  ),
-                const SizedBox(height: 6),
-                Text(
-                  'Map visualization coming soon',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.textTertiary(isDark),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(
-            Icons.location_on,
-            color: AppColors.textTertiary(isDark),
-            size: 20,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTileChip({
-    required String label,
-    required int count,
-    required Color color,
-    required bool isDark,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spaceSm,
-        vertical: 6,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: isDark ? 0.25 : 0.18),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: color.withValues(alpha: 0.45),
-        ),
-      ),
-      child: Text(
-        '$label $count',
-        style: TextStyle(
-          color: isDark ? Colors.white : color,
-          fontWeight: FontWeight.w600,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUploadStatus(ThemeData theme) {
-    final status = _locationService.uploadStatus;
-    final isServiceRunning = _locationService.isRunning.value;
-    final isDark = theme.brightness == Brightness.dark;
-
-    if (!isServiceRunning) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.sensors_off,
-            size: 14,
-            color: AppColors.textSecondary(isDark),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            'Tracking paused',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.textSecondary(isDark),
-            ),
-          ),
-        ],
-      );
-    }
-
-    // Check for errors first (highest priority)
-    return ValueListenableBuilder<String?>(
-      valueListenable: status.lastError,
-      builder: (context, lastError, _) {
-        if (lastError != null) {
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+        body: SafeArea(
+          child: Stack(
             children: [
-              Icon(
-                Icons.cloud_off,
-                size: 16,
-                color: theme.colorScheme.error,
-              ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  'Upload failed: $lastError',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
+              // Main content with improved hierarchy
+              RefreshIndicator(
+                onRefresh: _refreshData,
+                color: AppColors.primary,
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMd),
+                  children: [
+                    // 1. Service Control (Primary Action)
+                    const ServiceControlButton(),
+                    const SizedBox(height: AppTheme.spaceMd),
+
+                    // 2. Tracking Status Banner (Always visible - not buried)
+                    ListenableBuilder(
+                      listenable: Listenable.merge([
+                        _locationService.isRunning,
+                        _locationService.isPaused,
+                        _locationService.uploadStatus,
+                      ]),
+                      builder: (context, _) {
+                        final isRunning = _locationService.isRunning.value;
+                        final isPaused = _locationService.isPaused.value;
+                        final status = _locationService.uploadStatus.value;
+                        return TrackingStatusBanner(
+                          isTracking: isRunning && !isPaused,
+                          isPaused: isRunning && isPaused,
+                          lastUpload: status.lastUpload,
+                          errorMessage: status.lastError,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: AppTheme.spaceLg),
+
+                    // 3. Coverage Map (50% height - Option B)
+                    CoverageMapWidget(
+                      tiles: _h3Tiles,
+                      userLocation: _userLocation,
+                      heightFraction: 0.5,
+                      showControls: false,
+                    ),
+                    const SizedBox(height: AppTheme.spaceMd),
+
+                    // 4. Merged Impact Summary + Today Stats
+                    ImpactSummaryCard(
+                      stats: _stats,
+                      tileCoverage: _tileCoverage,
+                    ),
+                    const SizedBox(height: AppTheme.spaceMd),
+
+                    // 5. Contextual Tips
+                    if (_locationService.isRunning.value &&
+                        !_locationService.isPaused.value &&
+                        _shouldShowTip('expand_sensors'))
+                      ContextualTipCard(
+                        tipId: 'expand_sensors',
+                        icon: Icons.expand_more,
+                        title: 'View live data',
+                        message: 'Expand the sensor section below to verify data is streaming correctly',
+                        onDismiss: () => _dismissTip('expand_sensors'),
+                      ),
+
+                    // 6. Technical Details (Collapsible)
+                    SensorSection(
+                      locationService: _locationService,
+                      onExpansionChanged: () {
+                        // Dismiss tip when user expands sensors
+                        if (_shouldShowTip('expand_sensors')) {
+                          _dismissTip('expand_sensors');
+                        }
+                      },
+                    ),
+
+                    // Bottom padding for better scrolling experience
+                    const SizedBox(height: AppTheme.spaceLg),
+                  ],
                 ),
+              ),
+
+              // Floating daily pot icon (top-right corner)
+              const Positioned(
+                top: 70,
+                right: 16,
+                child: DailyPotIcon(),
               ),
             ],
-          );
-        }
-
-        // No error, check upload status
-        return ValueListenableBuilder<DateTime?>(
-          valueListenable: status.lastUpload,
-          builder: (context, lastUpload, _) {
-            if (lastUpload == null) {
-              return ValueListenableBuilder<bool>(
-                valueListenable: status.uploading,
-                builder: (context, uploading, _) {
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (uploading) ...[
-                        SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation(
-                              AppColors.primary,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                      ] else ...[
-                        Icon(
-                          Icons.cloud_queue,
-                          size: 14,
-                          color: AppColors.textSecondary(isDark),
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-                      Text(
-                        uploading
-                            ? 'Uploading data...'
-                            : 'Waiting for data...',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: uploading
-                              ? AppColors.primary
-                              : AppColors.textSecondary(isDark),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              );
-            }
-
-            return Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.cloud_done,
-                  size: 14,
-                  color: AppColors.success,
-                ),
-                const SizedBox(width: 6),
-                TimeAgoText(
-                  timestamp: lastUpload,
-                  prefix: 'Last upload: ',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.success,
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
+          ),
+        ),
+      ),
     );
   }
 }

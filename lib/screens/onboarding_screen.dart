@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../core/themes.dart';
 import '../services/auth/auth_service.dart';
 import '../utils/app_snackbars.dart';
@@ -371,7 +372,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       style: TextStyle(
                         color: AppColors.primary,
                         decoration: TextDecoration.underline,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: AppFontWeights.medium,
                       ),
                       recognizer: TapGestureRecognizer()
                         ..onTap = () {
@@ -391,7 +392,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       style: TextStyle(
                         color: AppColors.primary,
                         decoration: TextDecoration.underline,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: AppFontWeights.medium,
                       ),
                       recognizer: TapGestureRecognizer()
                         ..onTap = () {
@@ -413,49 +414,39 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
             const SizedBox(height: AppTheme.spaceLg),
 
-            // Sign in button
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                gradient: const LinearGradient(
-                  colors: AppColors.gradientGreen,
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: FilledButton.icon(
-                onPressed: _signingIn ? null : _handleGoogleSignIn,
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  minimumSize: const Size.fromHeight(AppTheme.authButtonHeight),
-                ),
-                icon: _signingIn
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
+            // Official Google Sign-In Button
+            InkWell(
+              onTap: _signingIn ? null : _handleGoogleSignIn,
+              borderRadius: BorderRadius.circular(4),
+              child: _signingIn
+                  ? Container(
+                      height: 56,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1F1F1F) : Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.15),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const SizedBox(
+                        width: 24,
+                        height: 24,
                         child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(Colors.white),
+                          strokeWidth: 3,
+                          valueColor: AlwaysStoppedAnimation(AppColors.primary),
                         ),
-                      )
-                    : const Icon(Icons.login),
-                label: Text(
-                  _signingIn ? 'Signing in...' : 'Sign in with Google',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
+                      ),
+                    )
+                  : SvgPicture.asset(
+                      AppTheme.googleButtonAsset(theme.brightness),
+                      height: 56,
+                      fit: BoxFit.contain,
+                    ),
             ),
 
             const SizedBox(height: AppTheme.spaceMd),
@@ -498,7 +489,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               Text(
                 title,
                 style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: AppFontWeights.semibold,
                 ),
               ),
               const SizedBox(height: 4),

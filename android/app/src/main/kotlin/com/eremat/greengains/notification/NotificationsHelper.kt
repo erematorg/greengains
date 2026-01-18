@@ -29,23 +29,36 @@ internal object NotificationsHelper {
         val channel = NotificationChannel(
             NOTIFICATION_CHANNEL_ID,
             "Location Tracking",
-            NotificationManager.IMPORTANCE_DEFAULT
-        )
+            NotificationManager.IMPORTANCE_LOW // Low importance = silent, no popup
+        ).apply {
+            enableVibration(false)
+            setSound(null, null)
+            setShowBadge(false)
+        }
         notificationManager.createNotificationChannel(channel)
     }
 
-    fun buildNotification(context: Context, lastUploadMillis: Long? = null): Notification {
-        val stopIntent = Intent(context, ForegroundService::class.java).apply {
-            action = ForegroundService.ACTION_STOP_SERVICE
+    fun buildNotification(context: Context, lastUploadMillis: Long? = null, isPaused: Boolean = false): Notification {
+        val actionIntent = Intent(context, ForegroundService::class.java).apply {
+            action = if (isPaused) {
+                ForegroundService.ACTION_RESUME_TRACKING
+            } else {
+                ForegroundService.ACTION_PAUSE_TRACKING
+            }
         }
-        val stopPendingIntent = PendingIntent.getService(
+        val actionPendingIntent = PendingIntent.getService(
             context,
             0,
-            stopIntent,
+            actionIntent,
             PendingIntent.FLAG_IMMUTABLE
         )
 
-        val (subtitle, expandedText) = buildSubtitle(context, lastUploadMillis)
+        val (subtitle, expandedText) = buildSubtitle(context, lastUploadMillis, isPaused)
+        val actionLabel = if (isPaused) {
+            context.getString(R.string.notification_action_resume)
+        } else {
+            context.getString(R.string.notification_action_pause)
+        }
 
         return NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
             .setContentTitle(context.getString(R.string.app_name))
@@ -56,8 +69,8 @@ internal object NotificationsHelper {
             .setOngoing(true)
             .addAction(
                 R.mipmap.ic_launcher,
-                context.getString(R.string.notification_action_stop, context.getString(R.string.app_name)),
-                stopPendingIntent
+                actionLabel,
+                actionPendingIntent
             )
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(Intent(context, MainActivity::class.java).let { notificationIntent ->
@@ -66,16 +79,29 @@ internal object NotificationsHelper {
             .build()
     }
 
-    private fun buildSubtitle(context: Context, lastUploadMillis: Long?): Pair<String, String> {
-        val status = context.getString(R.string.notification_status_collecting)
+    private fun buildSubtitle(context: Context, lastUploadMillis: Long?, isPaused: Boolean): Pair<String, String> {
+        val status = if (isPaused) {
+            context.getString(R.string.notification_status_paused)
+        } else {
+            context.getString(R.string.notification_status_collecting)
+        }
+
         val lastUploadText = lastUploadMillis?.let {
             val relative = DateUtils.getRelativeTimeSpanString(
                 it,
                 System.currentTimeMillis(),
                 DateUtils.MINUTE_IN_MILLIS
             ).toString()
-            context.getString(R.string.notification_last_upload, relative)
-        } ?: context.getString(R.string.notification_last_upload_unknown)
+            if (isPaused) {
+                context.getString(R.string.notification_last_upload_before_pause, relative)
+            } else {
+                context.getString(R.string.notification_last_upload, relative)
+            }
+        } ?: if (isPaused) {
+            context.getString(R.string.notification_last_upload_paused_unknown)
+        } else {
+            context.getString(R.string.notification_last_upload_unknown)
+        }
 
         return status to "$status\n$lastUploadText"
     }
@@ -86,8 +112,8 @@ internal object NotificationsHelper {
         return runCatching { Instant.parse(raw).toEpochMilli() }.getOrNull()
     }
 
-    fun notifyUpdate(context: Context, manager: NotificationManager, lastUpload: Long?) {
-        manager.notify(NOTIFICATION_ID_SERVICE, buildNotification(context, lastUpload))
+    fun notifyUpdate(context: Context, manager: NotificationManager, lastUpload: Long?, isPaused: Boolean) {
+        manager.notify(NOTIFICATION_ID_SERVICE, buildNotification(context, lastUpload, isPaused))
     }
 
     fun buildWorkerNotification(context: Context): Notification {

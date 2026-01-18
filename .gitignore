@@ -100,3 +100,18 @@ tmp/
 \!README.txt
 \!SECURITY*.txt
 \!NATIVE*.txt
+
+# Auto-generated documentation (keep important ones like README.md, SETUP.md)
+*.md
+!README.md
+!SETUP.md
+!SETUP_DEV.md
+!SECURITY_SETUP.md
+!TESTING_GUIDE.md
+
+# Temporary files
+upload_monitor.log
+screenshot_*.png
+android/hs_err_*.log
+android/replay_*.log
+nul
