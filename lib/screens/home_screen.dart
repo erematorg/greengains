@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
@@ -260,15 +261,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         final tilesData = data['tiles'] as List<dynamic>?;
 
         final tiles = tilesData?.map((tile) {
-          // Backend returns centroid; client needs to compute H3 boundaries
-          // For now, we'll just use centroid as a single point (map will show as marker)
-          // TODO: Add h3_dart boundary calculation here if needed
+          // Extract centroid from backend response
+          final centroid = tile['centroid'] as Map<String, dynamic>?;
+          final lat = (centroid?['lat'] as num?)?.toDouble();
+          final lng = (centroid?['lng'] as num?)?.toDouble();
+
+          // Create simple circular boundary around centroid (~100m radius = ~0.001 degrees)
+          List<LatLng>? boundary;
+          if (lat != null && lng != null) {
+            const radius = 0.001; // ~100m
+            boundary = [
+              for (var i = 0; i < 16; i++)
+                LatLng(
+                  lat + radius * cos(i * pi / 8),
+                  lng + radius * sin(i * pi / 8),
+                ),
+            ];
+          }
+
           return H3Tile(
             h3Index: tile['h3Index'] as String,
             confidence: (tile['confidence'] as num?)?.toDouble() ?? 0.5,
             sampleCount: tile['sampleCount'] as int? ?? 0,
             deviceCount: tile['deviceCount'] as int? ?? 1,
-            boundary: null, // TODO: Calculate boundary using h3_dart
+            boundary: boundary,
           );
         }).toList() ?? [];
 
@@ -388,7 +404,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       tiles: _h3Tiles,
                       userLocation: _userLocation,
                       heightFraction: 0.5,
-                      showControls: false,
+                      showControls: true, // Enable pan/zoom
                     ),
                     const SizedBox(height: AppTheme.spaceMd),
 
