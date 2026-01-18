@@ -76,7 +76,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                           Text(
                             widget.title!,
                             style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
+                              fontWeight: AppFontWeights.semibold,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,

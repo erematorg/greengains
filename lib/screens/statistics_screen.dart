@@ -167,7 +167,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           Text(
             totalContributions.toString(),
             style: theme.textTheme.displayLarge?.copyWith(
-              fontWeight: FontWeight.w700,
+              fontWeight: AppFontWeights.bold,
               color: AppColors.primary,
               height: 1.0,
             ),
@@ -204,7 +204,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                 Text(
                   '+$weeklyChange% this week',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: AppFontWeights.semibold,
                     color: AppColors.success,
                   ),
                 ),
@@ -275,7 +275,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           Text(
             value,
             style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
+              fontWeight: AppFontWeights.bold,
             ),
           ),
           Text(
@@ -332,7 +332,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               Text(
                 'Activity Trend',
                 style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: AppFontWeights.semibold,
                 ),
               ),
               Container(
@@ -348,7 +348,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                   'Last 7 days',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: AppFontWeights.semibold,
                   ),
                 ),
               ),
@@ -402,7 +402,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                                     : AppColors.textTertiary(isDark),
                                 fontSize: 11,
                                 fontWeight: value.toInt() == 6
-                                    ? FontWeight.w600
+                                    ? AppFontWeights.semibold
                                     : FontWeight.normal,
                               ),
                             ),
@@ -495,7 +495,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           Text(
             title,
             style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
+              fontWeight: AppFontWeights.semibold,
             ),
           ),
           const SizedBox(height: AppTheme.spaceXs),
@@ -546,7 +546,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         Text(
           title,
           style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w700,
+            fontWeight: AppFontWeights.bold,
           ),
         ),
       ],
@@ -576,7 +576,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             Text(
               'Start Contributing',
               style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w600,
+                fontWeight: AppFontWeights.semibold,
               ),
             ),
             const SizedBox(height: AppTheme.spaceXs),

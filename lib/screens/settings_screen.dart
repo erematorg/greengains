@@ -218,7 +218,7 @@ class _SettingsSectionTitle extends StatelessWidget {
       child: Text(
         text,
         style: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w700,
+          fontWeight: AppFontWeights.bold,
         ),
       ),
     );
@@ -280,7 +280,7 @@ class _SettingsToggleRow extends StatelessWidget {
               Text(
                 title,
                 style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: AppFontWeights.semibold,
                 ),
               ),
               const SizedBox(height: AppTheme.spaceXxs),
@@ -341,7 +341,7 @@ class _SettingsNavRow extends StatelessWidget {
                 Text(
                   title,
                   style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: AppFontWeights.semibold,
                   ),
                 ),
                 const SizedBox(height: AppTheme.spaceXxs),

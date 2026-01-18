@@ -26,11 +26,11 @@ class _DailyPotIconState extends State<DailyPotIcon>
   void initState() {
     super.initState();
     _jiggleController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: AppDurations.medium,
       vsync: this,
     )..repeat(reverse: true);
     _jiggleAnimation = Tween<double>(begin: -0.05, end: 0.05).animate(
-      CurvedAnimation(parent: _jiggleController, curve: Curves.easeInOut),
+      CurvedAnimation(parent: _jiggleController, curve: AppMotion.standard),
     );
   }
 
@@ -83,9 +83,20 @@ class _DailyPotIconState extends State<DailyPotIcon>
                 child: child,
               );
             },
-            child: SizedBox(
+            child: Container(
               width: 44,
               height: 44,
+              // Floating drop shadow for all states
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
               child: Stack(
                 alignment: Alignment.center,
                 children: [

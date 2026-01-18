@@ -51,11 +51,20 @@ class MainActivity : FlutterActivity() {
                         startForegroundService()
                         result.success(true)
                     }
+                    "pauseForegroundService" -> {
+                        result.success(sendServiceAction(ForegroundService.ACTION_PAUSE_TRACKING))
+                    }
+                    "resumeForegroundService" -> {
+                        result.success(sendServiceAction(ForegroundService.ACTION_RESUME_TRACKING))
+                    }
                     "stopForegroundService" -> {
                         result.success(stopFgService())
                     }
                     "isForegroundServiceRunning" -> {
                         result.success(ForegroundService.running)
+                    }
+                    "isTrackingPaused" -> {
+                        result.success(ForegroundService.trackingPaused)
                     }
                     "requestLocationPermission" -> {
                         requestLocationPermissions()
@@ -76,15 +85,7 @@ class MainActivity : FlutterActivity() {
                     }
                     "flushSensorBuffers" -> {
                         // Flush FIFO buffers to get fresh data in UI
-                        val serviceIntent = Intent(this, ForegroundService::class.java).apply {
-                            action = "com.eremat.greengains.action.FLUSH_FIFO"
-                        }
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            startForegroundService(serviceIntent)
-                        } else {
-                            startService(serviceIntent)
-                        }
-                        result.success(true)
+                        result.success(sendServiceAction(ForegroundService.ACTION_FLUSH_FIFO))
                     }
                     else -> result.notImplemented()
                 }
@@ -219,6 +220,22 @@ class MainActivity : FlutterActivity() {
         return try {
             val intent = Intent(this, ForegroundService::class.java)
             stopService(intent)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun sendServiceAction(action: String): Boolean {
+        return try {
+            val serviceIntent = Intent(this, ForegroundService::class.java).apply {
+                this.action = action
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
             true
         } catch (_: Exception) {
             false

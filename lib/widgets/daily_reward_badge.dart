@@ -146,7 +146,7 @@ class _DailyRewardBadgeState extends State<DailyRewardBadge>
                       '$credits',
                       style: theme.textTheme.labelLarge?.copyWith(
                         color: canClaim ? Colors.white : AppColors.primary,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: AppFontWeights.bold,
                       ),
                     ),
 
@@ -178,7 +178,7 @@ class _DailyRewardBadgeState extends State<DailyRewardBadge>
                             style: theme.textTheme.labelSmall?.copyWith(
                               color:
                                   canClaim ? Colors.white : AppColors.warning,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: AppFontWeights.semibold,
                               fontSize: 11,
                             ),
                           ),

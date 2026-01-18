@@ -61,7 +61,7 @@ class ContextualTipCard extends StatelessWidget {
                       child: Text(
                         title,
                         style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
+                          fontWeight: AppFontWeights.semibold,
                         ),
                       ),
                     ),

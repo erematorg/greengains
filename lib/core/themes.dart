@@ -7,8 +7,8 @@ class AppColors {
 
   // Primary brand color (green)
   static const Color primary = Color(0xFF4CAF50);
-  static const Color primaryLight = Color(0xFF66BB6A);
-  static const Color primaryDark = Color(0xFF388E3C);
+  static const Color primaryLight = Color(0xFF6AC27A);
+  static const Color primaryDark = Color(0xFF2F7D4A);
 
   // Semantic colors
   static const Color success = Color(0xFF4CAF50);
@@ -16,29 +16,29 @@ class AppColors {
   static const Color error = Color(0xFFE53935);
   static const Color errorDark = Color(0xFFD32F2F);
 
-  // Light mode neutrals (HSL-based)
-  static const Color lightBackground = Color(0xFFFFFFFF);
-  static const Color lightSurface = Color(0xFFFAFAFA);
-  static const Color lightSurfaceElevated = Color(0xFFF0F0F0);
-  static const Color lightSurfaceActive = Color(0xFFF1F8F4);
+  // Light mode neutrals (Calm Tech)
+  static const Color lightBackground = Color(0xFFF4F7F4);
+  static const Color lightSurface = Color(0xFFF9FBF8);
+  static const Color lightSurfaceElevated = Color(0xFFF0F4F1);
+  static const Color lightSurfaceActive = Color(0xFFE6F1EA);
 
-  static const Color lightTextPrimary = Color(0xFF212121);
-  static const Color lightTextSecondary = Color(0xFF757575);
-  static const Color lightTextTertiary = Color(0xFF8A8A8A); // Improved contrast: 3.8:1 ratio (WCAG AA compliant)
-  static const Color lightBorder = Color(0xFFE0E0E0);
-  static const Color lightDivider = Color(0xFFBDBDBD);
+  static const Color lightTextPrimary = Color(0xFF1F2422);
+  static const Color lightTextSecondary = Color(0xFF5F6A65);
+  static const Color lightTextTertiary = Color(0xFF7B8781);
+  static const Color lightBorder = Color(0xFFD8E0DB);
+  static const Color lightDivider = Color(0xFFC8D2CC);
 
-  // Dark mode neutrals (HSL-based)
-  static const Color darkBackground = Color(0xFF000000);
-  static const Color darkSurface = Color(0xFF0D0D0D);
-  static const Color darkSurfaceElevated = Color(0xFF1A1A1A);
-  static const Color darkSurfaceActive = Color(0xFF0D2015);
+  // Dark mode neutrals (Calm Tech)
+  static const Color darkBackground = Color(0xFF0B0F0E);
+  static const Color darkSurface = Color(0xFF111614);
+  static const Color darkSurfaceElevated = Color(0xFF1A221F);
+  static const Color darkSurfaceActive = Color(0xFF122019);
 
-  static const Color darkTextPrimary = Color(0xFFE0E0E0);
-  static const Color darkTextSecondary = Color(0xFF9E9E9E);
-  static const Color darkTextTertiary = Color(0xFF757575);
-  static const Color darkBorder = Color(0xFF424242);
-  static const Color darkDivider = Color(0xFF616161);
+  static const Color darkTextPrimary = Color(0xFFE6ECE8);
+  static const Color darkTextSecondary = Color(0xFF9AA7A1);
+  static const Color darkTextTertiary = Color(0xFF7E8A84);
+  static const Color darkBorder = Color(0xFF2E3A35);
+  static const Color darkDivider = Color(0xFF3E4A45);
 
   // Helpers
   static Color shadowLight(double opacity) =>
@@ -94,9 +94,9 @@ class AppColors {
         spreadRadius: 0,
       ),
       BoxShadow(
-        color: shadowDark(active ? 0.12 : 0.06),
+        color: shadowDark(active ? 0.1 : 0.04),
         offset: const Offset(0, 2),
-        blurRadius: active ? 10 : 6,
+        blurRadius: active ? 9 : 5,
         spreadRadius: 0,
       ),
     ];
@@ -111,9 +111,9 @@ class AppColors {
         spreadRadius: 0,
       ),
       BoxShadow(
-        color: shadowDark(active ? 0.4 : 0.3),
+        color: shadowDark(active ? 0.32 : 0.24),
         offset: const Offset(0, 2),
-        blurRadius: active ? 10 : 6,
+        blurRadius: active ? 9 : 5,
         spreadRadius: 0,
       ),
     ];
@@ -144,6 +144,141 @@ class AppColors {
       )
     ];
   }
+
+  // Shimmer colors for loading states
+  static Color shimmerBase(bool isDark) => isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF0F0F0);
+  static Color shimmerHighlight(bool isDark) => isDark ? const Color(0xFF2A2A2A) : const Color(0xFFFAFAFA);
+
+  // Accent colors for rewards and achievements (complementary to green)
+  static const Color accentMagenta = Color(0xFFE91E63); // Material pink 500
+  static const Color accentMagentaLight = Color(0xFFF06292); // Material pink 300
+
+  // Refined semantic colors
+  static const Color info = Color(0xFF29B6F6); // Material light blue 400
+
+  // Surface tint system (Material 3 pattern)
+  static Color surfaceTint(bool isDark) => isDark
+      ? primary.withValues(alpha: 0.05)
+      : primary.withValues(alpha: 0.02);
+}
+
+/// Animation duration constants for consistent timing across the app
+/// Inspired by Wonderous design system
+class AppDurations {
+  AppDurations._();
+
+  static const Duration instant = Duration(milliseconds: 100);
+  static const Duration fast = Duration(milliseconds: 300);
+  static const Duration medium = Duration(milliseconds: 600);
+  static const Duration slow = Duration(milliseconds: 900);
+  static const Duration pageTransition = Duration(milliseconds: 200);
+}
+
+/// Text shadow presets for premium look on floating elements
+/// Used for elevated UI elements, overlays, and emphasis
+class AppShadows {
+  AppShadows._();
+
+  /// Soft shadow for subtle depth (buttons, cards)
+  static const textSoft = [
+    Shadow(
+      color: Color(0x40000000), // black26
+      offset: Offset(0, 2),
+      blurRadius: 4,
+    ),
+  ];
+
+  /// Standard shadow for regular emphasis (titles, CTAs)
+  static const text = [
+    Shadow(
+      color: Color(0x99000000), // black54
+      offset: Offset(0, 2),
+      blurRadius: 2,
+    ),
+  ];
+
+  /// Strong shadow for maximum contrast (hero text, overlays)
+  static const textStrong = [
+    Shadow(
+      color: Color(0x99000000), // black54
+      offset: Offset(0, 4),
+      blurRadius: 6,
+    ),
+  ];
+}
+
+/// Reusable gradients for consistent visual effects
+/// Used for active states, backgrounds, and emphasis
+class AppGradients {
+  AppGradients._();
+
+  /// Green glow for active sensor cards and primary CTAs
+  static LinearGradient greenGlow = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      AppColors.primary.withValues(alpha: 0.15),
+      AppColors.primaryLight.withValues(alpha: 0.20),
+    ],
+  );
+
+  /// Subtle surface gradient for depth on elevated cards
+  static LinearGradient surfaceGlow(bool isDark) => LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: isDark
+        ? [
+            const Color(0xFF101614),
+            const Color(0xFF1B2420),
+          ]
+        : [
+            const Color(0xFFF9FBF8),
+            const Color(0xFFF2F6F3),
+          ],
+  );
+}
+
+/// Font weight scale for typography personality
+/// Clean, readable weights without extreme condensing
+class AppFontWeights {
+  AppFontWeights._();
+
+  static const thin = FontWeight.w300;
+  static const regular = FontWeight.w400;
+  static const medium = FontWeight.w500;
+  static const semibold = FontWeight.w600;
+  static const bold = FontWeight.w700;
+  // Note: w900 removed - too heavy and condensed looking
+}
+
+/// Motion personality - easing curves that define our animation character
+/// Consistent curves make animations feel intentional, not arbitrary
+class AppMotion {
+  AppMotion._();
+
+  /// Smooth, confident motion for most animations
+  static const standard = Curves.easeInOutCubic;
+
+  /// Slight bounce for positive events (upload success, achievements)
+  static const emphasized = Curves.easeOutBack;
+
+  /// Fast start, gentle end for appearing elements
+  static const decelerated = Curves.easeOut;
+
+  /// Gentle start, fast end for disappearing elements
+  static const accelerated = Curves.easeIn;
+}
+
+/// Icon size scale for consistency
+/// Prevents arbitrary icon sizes scattered through the app
+class AppIconSizes {
+  AppIconSizes._();
+
+  static const double xs = 16;
+  static const double sm = 20;
+  static const double md = 24;
+  static const double lg = 32;
+  static const double xl = 48;
 }
 
 class AppTheme {
@@ -187,6 +322,51 @@ class AppTheme {
   static String googleButtonAsset(Brightness b) => b == Brightness.dark
       ? 'assets/brands/google_button_dark.svg'
       : 'assets/brands/google_button_light.svg';
+
+  // Typography Helpers - Clean, readable styles using design tokens
+
+  /// Large numbers for statistics (clean, not condensed)
+  static TextStyle displayNumber(ThemeData theme) {
+    return theme.textTheme.displayMedium!.copyWith(
+      fontWeight: AppFontWeights.bold,
+      height: 1.1,
+      letterSpacing: -0.5, // Subtle tightening for large numbers
+    );
+  }
+
+  /// Section headers (Environment, Motion, etc.)
+  static TextStyle sectionHeader(ThemeData theme, bool isDark) {
+    return theme.textTheme.labelLarge!.copyWith(
+      fontWeight: AppFontWeights.semibold,
+      letterSpacing: 0.6,
+      color: AppColors.textSecondary(isDark).withValues(alpha: 0.85),
+    );
+  }
+
+  /// Card titles (readable, not heavy)
+  static TextStyle cardTitle(ThemeData theme) {
+    return theme.textTheme.titleLarge!.copyWith(
+      fontWeight: AppFontWeights.semibold,
+      letterSpacing: -0.2,
+    );
+  }
+
+  /// Small header with subtle shadow
+  static TextStyle smallHeader(ThemeData theme) {
+    return theme.textTheme.titleSmall!.copyWith(
+      fontWeight: AppFontWeights.semibold,
+      shadows: AppShadows.textSoft,
+    );
+  }
+
+  /// Badge/pill text styling
+  static TextStyle badge(bool isDark, Color color) {
+    return TextStyle(
+      color: isDark ? Colors.white : color,
+      fontWeight: AppFontWeights.semibold,
+      fontSize: 12,
+    );
+  }
 
   // Decoration Helpers - reduces ~150 lines of duplicate code
 
@@ -236,17 +416,73 @@ class AppTheme {
 
   static const _seed = Color(0xFF2F6D5F);
 
-  static ThemeData theme() {
-    final base = ThemeData(
-      useMaterial3: true,
-      fontFamily: GoogleFonts.inter().fontFamily,
+  static TextTheme _buildTextTheme(TextTheme base, {required bool isDark}) {
+    // Use Roboto for EVERYTHING - clean, readable, consistent
+    // Merriweather (serif) looks TERRIBLE for numbers and modern UI
+    final body = GoogleFonts.robotoTextTheme(base);
+    final textColor = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
+    final secondary = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+    return body.copyWith(
+      displayLarge: body.displayLarge?.copyWith(
+        fontWeight: AppFontWeights.bold,
+        letterSpacing: -0.5,
+        color: textColor,
+      ),
+      displayMedium: body.displayMedium?.copyWith(
+        fontWeight: AppFontWeights.bold,
+        letterSpacing: -0.5,
+        color: textColor,
+      ),
+      displaySmall: body.displaySmall?.copyWith(
+        fontWeight: AppFontWeights.semibold,
+        letterSpacing: 0,
+        color: textColor,
+      ),
+      headlineLarge: body.headlineLarge?.copyWith(
+        fontWeight: AppFontWeights.bold,
+        letterSpacing: 0,
+        color: textColor,
+      ),
+      headlineMedium: body.headlineMedium?.copyWith(
+        fontWeight: AppFontWeights.semibold,
+        letterSpacing: 0,
+        color: textColor,
+      ),
+      headlineSmall: body.headlineSmall?.copyWith(
+        fontWeight: AppFontWeights.semibold,
+        letterSpacing: 0,
+        color: textColor,
+      ),
+      titleLarge: body.titleLarge?.copyWith(
+        fontWeight: AppFontWeights.semibold,
+        letterSpacing: 0,
+        color: textColor,
+      ),
+      titleMedium: body.titleMedium?.copyWith(
+        fontWeight: AppFontWeights.semibold,
+        color: textColor,
+      ),
+      titleSmall: body.titleSmall?.copyWith(
+        fontWeight: AppFontWeights.semibold,
+        color: textColor,
+      ),
+      bodyLarge: body.bodyLarge?.copyWith(fontSize: 16, color: textColor),
+      bodyMedium: body.bodyMedium?.copyWith(fontSize: 16, color: textColor),
+      bodySmall: body.bodySmall?.copyWith(fontSize: 14, color: secondary),
+      labelLarge: body.labelLarge?.copyWith(fontWeight: AppFontWeights.semibold, color: textColor),
+      labelMedium: body.labelMedium?.copyWith(fontWeight: AppFontWeights.medium, color: textColor),
     );
+  }
+
+  static ThemeData theme() {
+    final base = ThemeData(useMaterial3: true);
     final scheme = ColorScheme.fromSeed(
       seedColor: _seed,
       brightness: Brightness.light,
     ).copyWith(
       onSurfaceVariant: const Color(0xFF4E5A55),
     );
+    final textTheme = _buildTextTheme(base.textTheme, isDark: false);
     return base.copyWith(
       colorScheme: scheme,
       pageTransitionsTheme: const PageTransitionsTheme(builders: {
@@ -257,36 +493,33 @@ class AppTheme {
         TargetPlatform.linux: ZoomPageTransitionsBuilder(),
       }),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: const Color(0xFFF7F9F8),
+        backgroundColor: AppColors.background(false),
         indicatorColor: scheme.primary.withValues(alpha: 0.12),
         elevation: 0,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         labelTextStyle: WidgetStatePropertyAll(
-          base.textTheme.labelMedium?.copyWith(
+          textTheme.labelMedium?.copyWith(
             fontWeight: FontWeight.w600,
             fontSize: 12,
             color: scheme.onSurface,
           ),
         ),
       ),
-      scaffoldBackgroundColor: const Color(0xFFF7F9F8),
+      scaffoldBackgroundColor: AppColors.background(false),
       appBarTheme: AppBarTheme(
-        backgroundColor: const Color(0xFFF7F9F8),
-        foregroundColor: Colors.black,
+        backgroundColor: AppColors.background(false),
+        foregroundColor: AppColors.lightTextPrimary,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleTextStyle: base.textTheme.titleLarge?.copyWith(
-          color: Colors.black,
-          fontWeight: FontWeight.w700,
-        ),
+        titleTextStyle: textTheme.titleLarge,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: scheme.surface,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: scheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
@@ -300,17 +533,14 @@ class AppTheme {
         behavior: SnackBarBehavior.floating,
         backgroundColor: scheme.inverseSurface,
         contentTextStyle:
-            base.textTheme.bodyMedium?.copyWith(color: scheme.onInverseSurface),
+            textTheme.bodyMedium?.copyWith(color: scheme.onInverseSurface),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       listTileTheme: ListTileThemeData(
         iconColor: scheme.onSurface,
         textColor: scheme.onSurface,
-        titleTextStyle: base.textTheme.titleMedium?.copyWith(
-          color: scheme.onSurface,
-          fontWeight: FontWeight.w600,
-        ),
-        subtitleTextStyle: base.textTheme.bodyMedium?.copyWith(
+        titleTextStyle: textTheme.titleMedium?.copyWith(color: scheme.onSurface),
+        subtitleTextStyle: textTheme.bodyMedium?.copyWith(
           color: scheme.onSurface.withValues(alpha: 0.75),
         ),
       ),
@@ -357,8 +587,8 @@ class AppTheme {
           minimumSize: const Size.fromHeight(48),
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           shape: const StadiumBorder(),
-          side: const BorderSide(color: Color(0xFFD9E1DE)),
-          foregroundColor: Colors.black87,
+          side: BorderSide(color: AppColors.lightBorder),
+          foregroundColor: AppColors.lightTextPrimary,
           backgroundColor: Colors.white,
         ),
       ),
@@ -368,27 +598,12 @@ class AppTheme {
           visualDensity: VisualDensity.standard,
         ),
       ),
-      textTheme: base.textTheme.copyWith(
-        headlineLarge: base.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.w700),
-        headlineMedium: base.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
-        headlineSmall: base.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-        titleLarge: base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-        titleMedium: base.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-        titleSmall: base.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-        bodyLarge: base.textTheme.bodyLarge?.copyWith(fontSize: 16),
-        bodyMedium: base.textTheme.bodyMedium?.copyWith(fontSize: 16),
-        bodySmall: base.textTheme.bodySmall?.copyWith(fontSize: 14),
-        labelLarge: base.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-        labelMedium: base.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w500),
-      ),
+      textTheme: textTheme,
     );
   }
 
   static ThemeData themeDark() {
-    final base = ThemeData(
-      useMaterial3: true,
-      fontFamily: GoogleFonts.inter().fontFamily,
-    );
+    final base = ThemeData(useMaterial3: true);
     final scheme = ColorScheme.fromSeed(seedColor: _seed, brightness: Brightness.dark)
         .copyWith(
       onSurfaceVariant: const Color(0xFF9DA7A2),
@@ -397,6 +612,7 @@ class AppTheme {
       onPrimary: Colors.white,
       onSecondary: Colors.white,
     );
+    final textTheme = _buildTextTheme(base.textTheme, isDark: true);
     return base.copyWith(
       colorScheme: scheme,
       pageTransitionsTheme: const PageTransitionsTheme(builders: {
@@ -407,36 +623,33 @@ class AppTheme {
         TargetPlatform.linux: ZoomPageTransitionsBuilder(),
       }),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: const Color(0xFF0F1115),
+        backgroundColor: AppColors.background(true),
         indicatorColor: scheme.primary.withValues(alpha: 0.18),
         elevation: 0,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         labelTextStyle: WidgetStatePropertyAll(
-          base.textTheme.labelMedium?.copyWith(
+          textTheme.labelMedium?.copyWith(
             fontWeight: FontWeight.w600,
             fontSize: 12,
             color: AppColors.darkTextPrimary,
           ),
         ),
       ),
-      scaffoldBackgroundColor: const Color(0xFF0B1412),
+      scaffoldBackgroundColor: AppColors.background(true),
       appBarTheme: AppBarTheme(
-        backgroundColor: const Color(0xFF0B1412),
+        backgroundColor: AppColors.background(true),
         foregroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleTextStyle: base.textTheme.titleLarge?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-        ),
+        titleTextStyle: textTheme.titleLarge,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: scheme.surface,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: scheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
@@ -450,19 +663,14 @@ class AppTheme {
         behavior: SnackBarBehavior.floating,
         backgroundColor: scheme.inverseSurface,
         contentTextStyle:
-            base.textTheme.bodyMedium?.copyWith(color: scheme.onInverseSurface),
+            textTheme.bodyMedium?.copyWith(color: scheme.onInverseSurface),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       listTileTheme: ListTileThemeData(
         iconColor: AppColors.darkTextPrimary,
         textColor: AppColors.darkTextPrimary,
-        titleTextStyle: base.textTheme.titleMedium?.copyWith(
-          color: AppColors.darkTextPrimary,
-          fontWeight: FontWeight.w600,
-        ),
-        subtitleTextStyle: base.textTheme.bodyMedium?.copyWith(
-          color: AppColors.darkTextSecondary,
-        ),
+        titleTextStyle: textTheme.titleMedium,
+        subtitleTextStyle: textTheme.bodyMedium?.copyWith(color: AppColors.darkTextSecondary),
       ),
       dividerTheme: DividerThemeData(
         color: scheme.outlineVariant,
@@ -518,53 +726,7 @@ class AppTheme {
           visualDensity: VisualDensity.standard,
         ),
       ),
-      textTheme: base.textTheme.copyWith(
-        // ALL text white/readable in dark mode
-        headlineLarge: base.textTheme.headlineLarge?.copyWith(
-          fontWeight: FontWeight.w700,
-          color: AppColors.darkTextPrimary,
-        ),
-        headlineMedium: base.textTheme.headlineMedium?.copyWith(
-          fontWeight: FontWeight.w700,
-          color: AppColors.darkTextPrimary,
-        ),
-        headlineSmall: base.textTheme.headlineSmall?.copyWith(
-          fontWeight: FontWeight.w700,
-          color: AppColors.darkTextPrimary,
-        ),
-        titleLarge: base.textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w700,
-          color: AppColors.darkTextPrimary,
-        ),
-        titleMedium: base.textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: AppColors.darkTextPrimary,
-        ),
-        titleSmall: base.textTheme.titleSmall?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: AppColors.darkTextPrimary,
-        ),
-        bodyLarge: base.textTheme.bodyLarge?.copyWith(
-          fontSize: 16,
-          color: AppColors.darkTextPrimary,
-        ),
-        bodyMedium: base.textTheme.bodyMedium?.copyWith(
-          fontSize: 16,
-          color: AppColors.darkTextPrimary,
-        ),
-        bodySmall: base.textTheme.bodySmall?.copyWith(
-          fontSize: 14,
-          color: AppColors.darkTextSecondary,
-        ),
-        labelLarge: base.textTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: AppColors.darkTextPrimary,
-        ),
-        labelMedium: base.textTheme.labelMedium?.copyWith(
-          fontWeight: FontWeight.w500,
-          color: AppColors.darkTextPrimary,
-        ),
-      ),
+      textTheme: textTheme,
       brightness: Brightness.dark,
     );
   }

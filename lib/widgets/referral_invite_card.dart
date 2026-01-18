@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/themes.dart';
+import '../services/referral/referral_service.dart';
 import '../utils/app_snackbars.dart';
 
 class ReferralInviteCard extends StatelessWidget {
@@ -17,6 +18,7 @@ class ReferralInviteCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final referralCode = _buildReferralCode();
+    // TODO: Replace with backend-issued codes and track opens/conversions.
     final referralLink = 'https://greengains.eremat.org/invite/$referralCode';
 
     return Card(
@@ -36,7 +38,7 @@ class ReferralInviteCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Invite a friend',
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: AppFontWeights.semibold),
                   ),
                 ),
               ],
@@ -65,6 +67,10 @@ class ReferralInviteCard extends StatelessWidget {
                   TextButton.icon(
                     onPressed: () async {
                       await Clipboard.setData(ClipboardData(text: referralLink));
+                      await ReferralService.instance.registerReferralInvite(
+                        referralCode: referralCode,
+                        inviterUid: user.uid,
+                      );
                       if (context.mounted) {
                         AppSnackbars.showInfo(context, 'Referral link copied');
                       }
@@ -82,6 +88,7 @@ class ReferralInviteCard extends StatelessWidget {
   }
 
   String _buildReferralCode() {
+    // TODO: Remove client-side generation once backend referral codes are live.
     final uid = user.uid;
     final seed = uid.hashCode.abs().toRadixString(36).toUpperCase();
     return 'GG-${seed.padLeft(5, '0').substring(0, 5)}';

@@ -1,7 +1,11 @@
 <resources>
     <string name="app_name">GreenGains</string>
-    <string name="notification_status_collecting">Sensors active — swipe down for controls</string>
+    <string name="notification_status_collecting">Sensors active - swipe down for controls</string>
+    <string name="notification_status_paused">Sensors paused</string>
     <string name="notification_last_upload">Last upload %1$s</string>
-    <string name="notification_last_upload_unknown">Last upload syncing…</string>
-    <string name="notification_action_stop">%1$s • Pause</string>
+    <string name="notification_last_upload_unknown">Last upload syncing...</string>
+    <string name="notification_last_upload_before_pause">Last upload before pause %1$s</string>
+    <string name="notification_last_upload_paused_unknown">No recent uploads while paused</string>
+    <string name="notification_action_pause">Pause</string>
+    <string name="notification_action_resume">Resume</string>
 </resources>

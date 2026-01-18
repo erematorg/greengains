@@ -30,11 +30,11 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
   void initState() {
     super.initState();
     _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
+      duration: AppDurations.slow,
       vsync: this,
     );
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.0).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
+      CurvedAnimation(parent: _pulseController, curve: AppMotion.emphasized), // Slight bounce!
     );
     _loadStats();
 
@@ -227,9 +227,7 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
                 children: [
                   Text(
                     'Ready to contribute?',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: AppTheme.smallHeader(theme),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -265,38 +263,37 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
         );
       },
       child: Container(
-      padding: const EdgeInsets.all(AppTheme.spaceMd),
-      decoration: BoxDecoration(
-        gradient: (isMilestone || isFirstUpload)
-            ? LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.primary.withValues(alpha: 0.08),
-                  AppColors.primaryLight.withValues(alpha: 0.12),
-                ],
-              )
-            : null,
-        color: (isMilestone || isFirstUpload) ? null : AppColors.surface(isDark),
-        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-        border: Border.all(
-          color: (isMilestone || isFirstUpload)
-              ? AppColors.primary.withValues(alpha: 0.3)
-              : AppColors.border(isDark),
-          width: (isMilestone || isFirstUpload) ? 2 : 1,
+        padding: const EdgeInsets.all(AppTheme.spaceMd),
+        decoration: BoxDecoration(
+          gradient: (isMilestone || isFirstUpload)
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.primary.withValues(alpha: 0.08),
+                    AppColors.primaryLight.withValues(alpha: 0.12),
+                  ],
+                )
+              : AppGradients.surfaceGlow(isDark),
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          border: Border.all(
+            color: (isMilestone || isFirstUpload)
+                ? AppColors.primary.withValues(alpha: 0.3)
+                : AppColors.border(isDark),
+            width: (isMilestone || isFirstUpload) ? 2 : 1,
+          ),
+          boxShadow: (isMilestone || isFirstUpload)
+              ? [
+                  ...AppColors.glowEffect(AppColors.primary, opacity: 0.12),
+                  ...(isDark
+                      ? AppColors.elevationDark(active: true)
+                      : AppColors.elevationLight(active: true)),
+                ]
+              : (isDark
+                  ? AppColors.elevationDark(active: false)
+                  : AppColors.elevationLight(active: false)),
         ),
-        boxShadow: (isMilestone || isFirstUpload)
-            ? [
-                ...AppColors.glowEffect(AppColors.primary, opacity: 0.2),
-                ...(isDark
-                    ? AppColors.elevationDark(active: true)
-                    : AppColors.elevationLight(active: true)),
-              ]
-            : (isDark
-                ? AppColors.elevationDark(active: false)
-                : AppColors.elevationLight(active: false)),
-      ),
-      child: Row(
+        child: Row(
         children: [
           // Icon with better visual treatment
           Container(
@@ -406,11 +403,10 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
         ],
         Text(
           value,
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w700,
+          style: AppTheme.displayNumber(theme).copyWith(
+            fontSize: theme.textTheme.headlineMedium?.fontSize,
             color: AppColors.textPrimary(isDark),
-            height: 1.2,
-            letterSpacing: -0.3,
+            letterSpacing: -0.2,
           ),
         ),
         const SizedBox(height: 2),
@@ -418,7 +414,8 @@ class ContributionStatsCardState extends State<ContributionStatsCard>
           label,
           style: theme.textTheme.bodySmall?.copyWith(
             color: AppColors.textSecondary(isDark),
-            fontSize: 11,
+            fontSize: 12,
+            fontWeight: AppFontWeights.medium,
           ),
         ),
       ],
