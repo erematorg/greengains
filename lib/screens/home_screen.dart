@@ -244,6 +244,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadH3Tiles() async {
+    print('🗺️ Loading H3 tiles from backend...');
     setState(() {
       _h3TilesLoading = true;
     });
@@ -251,6 +252,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       // Fetch tiles from backend API
       final response = await BackendClient.get('/api/user/tiles?hours=72');
+      print('📡 Tiles API response: ${response.statusCode}');
+      print('📡 Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -287,8 +290,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       } else {
         throw Exception('Failed to load tiles: ${response.statusCode}');
       }
-    } catch (e) {
-      debugPrint('Failed to load H3 tiles: $e');
+    } catch (e, stackTrace) {
+      print('❌ Failed to load H3 tiles: $e');
+      print('Stack trace: $stackTrace');
       if (mounted) {
         setState(() {
           _h3Tiles = [];
