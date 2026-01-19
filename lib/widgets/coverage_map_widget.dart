@@ -103,6 +103,12 @@ class _CoverageMapWidgetState extends State<CoverageMapWidget> {
     );
   }
 
+  void _recenterOnUser() {
+    if (widget.userLocation != null) {
+      _mapController.move(widget.userLocation!, 15.0);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -140,7 +146,6 @@ class _CoverageMapWidgetState extends State<CoverageMapWidget> {
                     ? InteractiveFlag.all
                     : InteractiveFlag.none,
               ),
-            ),
             children: [
               // Base map tiles (OpenStreetMap)
               TileLayer(
@@ -239,6 +244,25 @@ class _CoverageMapWidgetState extends State<CoverageMapWidget> {
                       ),
                     ),
                   ],
+                ),
+              ),
+            ),
+
+          // Recenter button (bottom-right) - Google Maps style
+          if (widget.showControls && widget.userLocation != null)
+            Positioned(
+              bottom: 16,
+              right: 16,
+              child: FloatingActionButton.small(
+                onPressed: _recenterOnUser,
+                backgroundColor: isDark
+                    ? Colors.grey[850]
+                    : Colors.white,
+                elevation: 4,
+                child: Icon(
+                  Icons.my_location,
+                  color: AppColors.primary,
+                  size: 20,
                 ),
               ),
             ),
