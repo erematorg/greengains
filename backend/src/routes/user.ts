@@ -2,6 +2,10 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { getPool } from '../database';
 import { verifyFirebaseToken } from '../utils/firebase-auth';
 
+// Constants for tile grouping (temporary until H3 implementation)
+const TILE_PRECISION_DECIMALS = 3; // ~100m precision at mid-latitudes
+const CONFIDENCE_SAMPLE_THRESHOLD = 100; // Samples needed for max confidence
+
 /**
  * User-specific endpoints (profile, H3 tiles, stats)
  * All endpoints require Firebase authentication
@@ -164,12 +168,11 @@ export async function userRoutes(fastify: FastifyInstance) {
         const pool = getPool();
 
         // Extract location data and group by approximate location
-        // We'll use lat/lon rounded to ~100m precision as a simple tile grouping
-        // TODO: Install h3-js library and compute proper H3 indices
+        // Temporary grouping until H3 implementation
         const tilesResult = await pool.query(
           `SELECT
-            ROUND((batch_json->'location'->>'lat')::numeric, 3) as lat,
-            ROUND((batch_json->'location'->>'lon')::numeric, 3) as lon,
+            ROUND((batch_json->'location'->>'lat')::numeric, $3) as lat,
+            ROUND((batch_json->'location'->>'lon')::numeric, $3) as lon,
             AVG((batch_json->'location'->>'accuracy_m')::float) as avg_accuracy_m,
             COUNT(*) as sample_count,
             MAX(timestamp_utc) as last_update,
@@ -179,10 +182,10 @@ export async function userRoutes(fastify: FastifyInstance) {
           WHERE user_id = $1
           AND timestamp_utc > NOW() - ($2 || ' hours')::interval
           AND batch_json->'location' IS NOT NULL
-          GROUP BY ROUND((batch_json->'location'->>'lat')::numeric, 3),
-                   ROUND((batch_json->'location'->>'lon')::numeric, 3)
+          GROUP BY ROUND((batch_json->'location'->>'lat')::numeric, $3),
+                   ROUND((batch_json->'location'->>'lon')::numeric, $3)
           ORDER BY last_update DESC`,
-          [userId, hours]
+          [userId, hours, TILE_PRECISION_DECIMALS]
         );
 
         // Transform to tile format
@@ -193,7 +196,7 @@ export async function userRoutes(fastify: FastifyInstance) {
             lat: parseFloat(row.lat),
             lng: parseFloat(row.lon),
           },
-          confidence: Math.min(1.0, (parseInt(row.sample_count, 10) / 100)),
+          confidence: Math.min(1.0, (parseInt(row.sample_count, 10) / CONFIDENCE_SAMPLE_THRESHOLD)),
           sampleCount: parseInt(row.sample_count, 10),
           deviceCount: 1,
           lastUpdate: row.last_update,

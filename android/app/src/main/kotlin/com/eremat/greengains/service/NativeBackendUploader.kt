@@ -189,15 +189,8 @@ class NativeBackendUploader(
                 .getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
                 .getBoolean("flutter.share_location", false)
 
-            Log.d(TAG, "Share location preference: $shareLocation")
-
             val payload = buildPayload(deviceId, readings, shareLocation)
             val jsonPayload = gson.toJson(payload)
-
-            // Debug: Log first 500 chars of JSON to see if pressure is included
-            Log.d(TAG, "JSON payload (first 500 chars): ${jsonPayload.take(500)}")
-            Log.d(TAG, "JSON contains 'pressure': ${jsonPayload.contains("\"pressure\"")}")
-            Log.d(TAG, "JSON contains 'location': ${jsonPayload.contains("\"location\"")}")
 
             val request = Request.Builder()
                 .url("$baseUrl/upload")

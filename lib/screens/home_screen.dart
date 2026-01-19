@@ -25,6 +25,9 @@ import '../widgets/sensor_section.dart';
 import '../widgets/coverage_map_widget.dart';
 import 'coverage_map_screen.dart';
 
+// Constants
+const double _kDefaultTileConfidence = 0.5;
+
 /// Home screen with Option B layout
 /// Clear visual hierarchy: Status -> Coverage Map (50%) -> Impact/Stats -> Technical Details
 /// Combines impact metrics with today's stats for space efficiency
@@ -245,16 +248,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadH3Tiles() async {
-    print('🗺️ Loading H3 tiles from backend...');
     setState(() {
       _h3TilesLoading = true;
     });
 
     try {
-      // Fetch tiles from backend API
       final response = await BackendClient.get('/api/user/tiles?hours=72');
-      print('📡 Tiles API response: ${response.statusCode}');
-      print('📡 Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -266,22 +265,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           final lat = (centroid?['lat'] as num?)?.toDouble();
           final lng = (centroid?['lng'] as num?)?.toDouble();
 
-          // Create simple circular boundary around centroid (~100m radius = ~0.001 degrees)
+          // Create simple circular boundary around centroid
           List<LatLng>? boundary;
           if (lat != null && lng != null) {
-            const radius = 0.001; // ~100m
+            const tileRadiusDegrees = 0.001; // ~100m at mid-latitudes
+            const circlePoints = 16; // Points to approximate circle
             boundary = [
-              for (var i = 0; i < 16; i++)
+              for (var i = 0; i < circlePoints; i++)
                 LatLng(
-                  lat + radius * cos(i * pi / 8),
-                  lng + radius * sin(i * pi / 8),
+                  lat + tileRadiusDegrees * cos(i * pi / 8),
+                  lng + tileRadiusDegrees * sin(i * pi / 8),
                 ),
             ];
           }
 
           return H3Tile(
             h3Index: tile['h3Index'] as String,
-            confidence: (tile['confidence'] as num?)?.toDouble() ?? 0.5,
+            confidence: (tile['confidence'] as num?)?.toDouble() ?? _kDefaultTileConfidence,
             sampleCount: tile['sampleCount'] as int? ?? 0,
             deviceCount: tile['deviceCount'] as int? ?? 1,
             boundary: boundary,
@@ -306,9 +306,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       } else {
         throw Exception('Failed to load tiles: ${response.statusCode}');
       }
-    } catch (e, stackTrace) {
-      print('❌ Failed to load H3 tiles: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
+      debugPrint('Failed to load H3 tiles: $e');
       if (mounted) {
         setState(() {
           _h3Tiles = [];
