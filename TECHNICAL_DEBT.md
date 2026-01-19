@@ -83,18 +83,23 @@ If keeping averaged (recommended):
 
 ## 🎯 **Daily Pot Interaction**
 
-### Current Issue
-- Daily pot doesn't respond to taps (you mentioned it doesn't work)
+### ✅ Fixed (2026-01-19)
+**Issue 1 - No feedback when locked:**
+- Tapping locked pot did nothing (felt broken)
+- **Fixed**: Added helpful feedback messages:
+  - "Need X more uploads to unlock"
+  - "Already claimed today! Come back tomorrow"
 
-### Investigation Needed
-- Check `lib/widgets/daily_pot_icon.dart` for tap handlers
-- Verify backend `/api/daily-pot/claim` endpoint
-- Test claiming flow end-to-end
+**Issue 2 - Uploads not counting properly (CRITICAL BUG):**
+- Upload counter didn't reset on new days
+- Continued incrementing from previous day's count
+- Caused pot to never unlock at expected 5 uploads
+- **Root cause**: Backend logic used `last_claim_date` to determine new day, but this doesn't work if user never claims
+- **Fixed**: Proper daily reset logic using `updated_at` timestamp to detect new days
 
-**Files to check:**
-- `lib/widgets/daily_pot_icon.dart`
-- `lib/screens/home_screen.dart`
-- `backend/src/routes/daily-pot.ts`
+**Files fixed:**
+- `lib/widgets/daily_pot_icon.dart` - Added tap feedback
+- `backend/src/routes/daily-pot.ts` - Fixed daily reset logic
 
 ---
 
@@ -229,7 +234,7 @@ buildscript {
    - [ ] Add H3 library and compute proper hexagons
    - [ ] Set up API keys properly
    - [x] Add database indexes for performance
-   - [ ] Fix daily pot interaction
+   - [x] Fix daily pot interaction
 
 2. **MEDIUM - Important for Scale**
    - [ ] Add pagination to tiles endpoint
