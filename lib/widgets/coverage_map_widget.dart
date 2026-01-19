@@ -146,6 +146,7 @@ class _CoverageMapWidgetState extends State<CoverageMapWidget> {
                     ? InteractiveFlag.all
                     : InteractiveFlag.none,
               ),
+            ),
             children: [
               // Base map tiles (OpenStreetMap)
               TileLayer(
