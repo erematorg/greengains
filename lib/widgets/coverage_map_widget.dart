@@ -105,7 +105,7 @@ class _CoverageMapWidgetState extends State<CoverageMapWidget> {
 
   void _recenterOnUser() {
     if (widget.userLocation != null) {
-      _mapController.move(widget.userLocation!, 15.0);
+      _mapController.move(widget.userLocation!, _mapController.camera.zoom);
     }
   }
 
