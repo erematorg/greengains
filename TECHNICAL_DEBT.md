@@ -119,32 +119,15 @@ If keeping averaged (recommended):
 
 ## 📊 **Database Schema & Indexing**
 
-### Current Band-Aid
-- Querying JSON fields without proper indexing
-- `batch_json->'location'->>'lat'` in every query
+### ✅ Fixed (2026-01-19)
+- **Created migration**: `backend/db/20260119_add_user_query_indexes.sql`
+- **Composite index**: `idx_sensor_batches_user_time` on (user_id, timestamp_utc DESC)
+- **Location GIN index**: `idx_sensor_batches_location` for JSON location queries
+- These indexes optimize the tiles endpoint and coverage map queries
 
-### Proper Fix Needed
-1. **Create PostgreSQL GIN index** on batch_json
-   ```sql
-   CREATE INDEX idx_sensor_batches_location_gin
-   ON sensor_batches USING GIN (batch_json);
-   ```
-2. **Consider extracting** commonly-queried fields to columns:
-   ```sql
-   ALTER TABLE sensor_batches
-   ADD COLUMN h3_index TEXT GENERATED ALWAYS AS
-     (batch_json->'location'->>'h3Index') STORED;
-
-   CREATE INDEX idx_sensor_batches_h3 ON sensor_batches(h3_index);
-   ```
-3. **Add composite index** for user + timestamp queries
-   ```sql
-   CREATE INDEX idx_sensor_batches_user_time
-   ON sensor_batches(user_id, timestamp_utc DESC);
-   ```
-
-**Migration needed:**
-- Create new migration in `backend/migrations/`
+### Future Considerations (if implementing H3)
+- Consider extracting h3_index to a stored generated column when implementing proper H3
+- For now, rounded lat/lon grouping with GIN indexes is sufficient
 
 ---
 
@@ -245,7 +228,7 @@ buildscript {
 1. **HIGH - Production Critical**
    - [ ] Add H3 library and compute proper hexagons
    - [ ] Set up API keys properly
-   - [ ] Add database indexes for performance
+   - [x] Add database indexes for performance
    - [ ] Fix daily pot interaction
 
 2. **MEDIUM - Important for Scale**
@@ -262,5 +245,5 @@ buildscript {
 
 ---
 
-**Last Updated**: 2026-01-18
-**Session**: GPS Fix + Coverage Map Implementation
+**Last Updated**: 2026-01-19
+**Session**: Code Cleanup + Database Performance Optimization

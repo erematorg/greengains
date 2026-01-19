@@ -61,6 +61,26 @@ class _DailyPotIconState extends State<DailyPotIcon>
     }
   }
 
+  void _showLockedFeedback() {
+    final pot = _service.pot.value;
+    if (pot == null) return;
+
+    HapticFeedback.lightImpact();
+
+    if (pot.hasClaimedToday) {
+      AppSnackbars.showInfo(
+        context,
+        'Already claimed today! Come back tomorrow',
+      );
+    } else if (!pot.isUnlocked) {
+      final remaining = pot.uploadsRequired - pot.uploadsToday;
+      AppSnackbars.showInfo(
+        context,
+        'Need $remaining more upload${remaining == 1 ? '' : 's'} to unlock',
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -73,7 +93,7 @@ class _DailyPotIconState extends State<DailyPotIcon>
         }
 
         return GestureDetector(
-          onTap: pot.canClaim ? _claimPot : null,
+          onTap: pot.canClaim ? _claimPot : _showLockedFeedback,
           child: AnimatedBuilder(
             animation: _jiggleAnimation,
             builder: (context, child) {
