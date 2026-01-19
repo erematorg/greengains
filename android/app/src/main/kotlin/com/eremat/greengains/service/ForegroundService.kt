@@ -180,6 +180,14 @@ class ForegroundService : Service() {
                 }
             }
         }
+
+        coroutineScope.launch {
+            _locationFlow.collect { location ->
+                location?.let {
+                    sendLocationToFlutter(it)
+                }
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -559,11 +567,26 @@ class ForegroundService : Service() {
     }
 
     private fun sendPressureToFlutter(hPa: Float) {
-        postToFlutter("pressure") { 
+        postToFlutter("pressure") {
             it.invokeMethod("onPressureUpdate", mapOf(
                 "hPa" to hPa,
                 "timestamp" to System.currentTimeMillis()
-            )) 
+            ))
+        }
+    }
+
+    private fun sendLocationToFlutter(location: Location) {
+        postToFlutter("location") {
+            it.invokeMethod("onLocationUpdate", mapOf(
+                "latitude" to location.latitude,
+                "longitude" to location.longitude,
+                "accuracy" to if (location.hasAccuracy()) location.accuracy.toDouble() else null,
+                "altitude" to if (location.hasAltitude()) location.altitude else null,
+                "speed" to if (location.hasSpeed()) location.speed.toDouble() else null,
+                "bearing" to if (location.hasBearing()) location.bearing.toDouble() else null,
+                "timestamp" to System.currentTimeMillis(),
+                "provider" to location.provider
+            ))
         }
     }
 

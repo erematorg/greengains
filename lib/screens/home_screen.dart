@@ -50,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _batteryPromptOpen = false;
   ContributionStats? _stats;
   StreamSubscription<UploadSuccessEvent>? _uploadSuccessSub;
+  StreamSubscription<LocationData>? _locationStreamSub;
   List<H3Tile> _h3Tiles = [];
   bool _h3TilesLoading = true;
   LatLng? _userLocation;
@@ -67,6 +68,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _loadStats();
     _loadH3Tiles();
     _loadUserLocation();
+    _subscribeToLocationUpdates();
   }
 
   void _handleServiceRunningChange() {
@@ -153,7 +155,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    // Clean up upload success listener
+    // Clean up stream subscriptions
+    _locationStreamSub?.cancel();
     _uploadSuccessSub?.cancel();
     _locationService.isRunning.removeListener(_handleServiceRunningChange);
 
@@ -340,6 +343,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       debugPrint('Failed to get user location: $e');
       // Keep _userLocation as null - map will show default bounds
     }
+  }
+
+  void _subscribeToLocationUpdates() {
+    _locationStreamSub = _locationService.locationStream.listen((locationData) {
+      if (mounted) {
+        setState(() {
+          _userLocation = LatLng(locationData.latitude, locationData.longitude);
+        });
+      }
+    });
   }
 
   void _navigateToCoverageMap() {
