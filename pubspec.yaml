@@ -30,6 +30,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
   # Aucune dépendance externe pour l'instant.
   # Prévisions (ne pas décommenter pour le moment):
   sensors_plus: ^6.0.0
@@ -77,6 +80,9 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+
+  # Internationalization support
+  generate: true
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
