@@ -19,6 +19,7 @@ import '../widgets/contextual_tip_card.dart';
 import '../widgets/service_control_button.dart';
 import '../widgets/battery_optimization_dialog.dart';
 import '../widgets/daily_pot_icon.dart';
+import '../widgets/credits_display.dart';
 import '../widgets/tracking_status_banner.dart';
 import '../widgets/impact_summary_card.dart';
 import '../widgets/sensor_section.dart';
@@ -461,6 +462,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 top: 70,
                 right: 16,
                 child: DailyPotIcon(),
+              ),
+
+              // Credits display (below daily pot)
+              const Positioned(
+                top: 135,
+                right: 16,
+                child: CreditsDisplay(),
               ),
             ],
           ),
