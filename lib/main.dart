@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'core/app_preferences.dart';
 import 'core/theme_controller.dart';
+import 'core/language_controller.dart';
 import 'core/themes.dart';
 import 'app_shell.dart';
 import 'screens/onboarding_screen.dart';
+import 'l10n/app_localizations.dart';
 import 'services/network/backend_client.dart';
 import 'services/auth/auth_service.dart';
 import 'services/daily_pot_service.dart';
@@ -57,6 +60,9 @@ class _MyAppState extends State<MyApp> {
 
       // Load theme
       await ThemeController.instance.load();
+
+      // Load language preference
+      await LanguageController.instance.load();
 
       // Initialize tracking session manager (restore state from database)
       await TrackingSessionManager.instance.initialize();
@@ -124,11 +130,27 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     // Show app immediately, even if not fully initialized
     return ListenableBuilder(
-      listenable: ThemeController.instance,
+      listenable: Listenable.merge([
+        ThemeController.instance,
+        LanguageController.instance,
+      ]),
       builder: (context, _) {
         return MaterialApp(
           title: 'GreenGains',
           debugShowCheckedModeBanner: false,
+          // Internationalization support
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('en'), // English
+            Locale('fr'), // French
+          ],
+          // Use selected language or fall back to system default
+          locale: LanguageController.instance.locale,
           theme: AppTheme.theme(),
           darkTheme: AppTheme.themeDark(),
           themeMode: ThemeController.instance.mode,

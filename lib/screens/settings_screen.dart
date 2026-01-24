@@ -4,7 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../core/themes.dart';
 import '../core/theme_controller.dart';
+import '../core/language_controller.dart';
 import '../core/app_preferences.dart';
+import '../l10n/app_localizations.dart';
 import 'webview_screen.dart';
 
 /// Settings screen for Data & Privacy, Themes, and Legal
@@ -18,6 +20,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _prefs = AppPreferences.instance;
   final _themeController = ThemeController.instance;
+  final _languageController = LanguageController.instance;
   String _version = 'Loading...';
 
   @override
@@ -74,6 +77,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onSelectionChanged: (Set<ThemeMode> newSelection) {
                         HapticFeedback.selectionClick();
                         _themeController.setMode(newSelection.first);
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: AppTheme.spaceLg),
+
+          _SettingsSectionContainer(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SettingsSectionTitle(text: AppLocalizations.of(context)!.settingsLanguage),
+                ListenableBuilder(
+                  listenable: _languageController,
+                  builder: (context, _) {
+                    final l10n = AppLocalizations.of(context)!;
+                    return SegmentedButton<String?>(
+                      segments: [
+                        ButtonSegment(
+                          value: null,
+                          icon: const Icon(Icons.auto_mode),
+                          label: Text(l10n.settingsLanguageSystem),
+                        ),
+                        ButtonSegment(
+                          value: 'en',
+                          icon: const Icon(Icons.language),
+                          label: Text(l10n.settingsLanguageEnglish),
+                        ),
+                        ButtonSegment(
+                          value: 'fr',
+                          icon: const Icon(Icons.language),
+                          label: Text(l10n.settingsLanguageFrench),
+                        ),
+                      ],
+                      selected: {_languageController.locale?.languageCode},
+                      onSelectionChanged: (Set<String?> newSelection) {
+                        HapticFeedback.selectionClick();
+                        final code = newSelection.first;
+                        _languageController.setLocale(
+                          code != null ? Locale(code) : null,
+                        );
                       },
                     );
                   },

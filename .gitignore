@@ -115,3 +115,8 @@ screenshot_*.png
 android/hs_err_*.log
 android/replay_*.log
 nul
+
+# Screenshots for design work (not for version control)
+screenshots/**/*.png
+screenshots/**/*.jpg
+screenshots/**/*.jpeg

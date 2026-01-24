@@ -9,322 +9,343 @@ class AppLocalizationsFr extends AppLocalizations {
   AppLocalizationsFr([String locale = 'fr']) : super(locale);
 
   @override
-  String get onboardingWelcomeTitle => 'TODO: Translate';
+  String get onboardingWelcomeTitle => 'Bienvenue sur GreenGains';
 
   @override
-  String get onboardingWelcomeSubtitle => 'TODO: Translate';
+  String get onboardingWelcomeSubtitle =>
+      'Aidez à créer des villes plus vertes en collectant passivement des données environnementales.';
 
   @override
-  String get onboardingFeature1Title => 'TODO: Translate';
+  String get onboardingFeature1Title => 'Collection passive';
 
   @override
-  String get onboardingFeature1Description => 'TODO: Translate';
+  String get onboardingFeature1Description =>
+      'Fonctionne en arrière-plan pendant vos activités. Aucune interaction nécessaire.';
 
   @override
-  String get onboardingFeature2Title => 'TODO: Translate';
+  String get onboardingFeature2Title => 'Confidentialité d\'abord';
 
   @override
-  String get onboardingFeature2Description => 'TODO: Translate';
+  String get onboardingFeature2Description =>
+      'Le partage de position est optionnel et utilise uniquement une localisation approximative.';
 
   @override
-  String get onboardingFeature3Title => 'TODO: Translate';
+  String get onboardingFeature3Title => 'Suivez votre impact';
 
   @override
-  String get onboardingFeature3Description => 'TODO: Translate';
+  String get onboardingFeature3Description =>
+      'Visualisez vos contributions et aidez à cartographier les données environnementales de votre ville.';
 
   @override
-  String get onboardingSignInTitle => 'TODO: Translate';
+  String get onboardingSignInTitle => 'Débloquez des récompenses';
 
   @override
-  String get onboardingSignInSubtitle => 'TODO: Translate';
+  String get onboardingSignInSubtitle =>
+      'Connectez-vous pour accéder aux récompenses quotidiennes et synchroniser vos données.';
 
   @override
-  String get onboardingDailyPotRewards => 'TODO: Translate';
+  String get onboardingDailyPotRewards => 'Pot quotidien';
 
   @override
-  String get onboardingDailyPotDescription => 'TODO: Translate';
+  String get onboardingDailyPotDescription =>
+      'Gagnez 10 à 100 crédits chaque jour';
 
   @override
-  String get onboardingCloudSync => 'TODO: Translate';
+  String get onboardingCloudSync => 'Synchronisation cloud';
 
   @override
-  String get onboardingCloudSyncDescription => 'TODO: Translate';
+  String get onboardingCloudSyncDescription =>
+      'Accédez à vos données depuis n\'importe quel appareil';
 
   @override
-  String get onboardingFutureFeatures => 'TODO: Translate';
+  String get onboardingFutureFeatures => 'Fonctionnalités futures';
 
   @override
-  String get onboardingFutureDescription => 'TODO: Translate';
+  String get onboardingFutureDescription => 'Classements et compétitions';
 
   @override
   String onboardingPrivacyNotice(String privacyPolicy, String termsOfService) {
-    return 'TODO: Translate';
+    return 'En continuant, vous acceptez notre $privacyPolicy et nos $termsOfService.';
   }
 
   @override
-  String get privacyPolicy => 'TODO: Translate';
+  String get privacyPolicy => 'Politique de confidentialité';
 
   @override
-  String get termsOfService => 'TODO: Translate';
+  String get termsOfService => 'Conditions d\'utilisation';
 
   @override
-  String get buttonPrevious => 'TODO: Translate';
+  String get buttonPrevious => 'Précédent';
 
   @override
-  String get buttonNext => 'TODO: Translate';
+  String get buttonNext => 'Suivant';
 
   @override
-  String get signInSuccess => 'TODO: Translate';
+  String get signInSuccess => 'Connexion réussie';
 
   @override
-  String get signInError => 'TODO: Translate';
+  String get signInError => 'Connexion annulée ou échouée';
 
   @override
-  String get navHome => 'TODO: Translate';
+  String get navHome => 'Accueil';
 
   @override
-  String get navProfile => 'TODO: Translate';
+  String get navProfile => 'Profil';
 
   @override
-  String get navSettings => 'TODO: Translate';
+  String get navSettings => 'Paramètres';
 
   @override
   String get homeTitle => 'GreenGains';
 
   @override
-  String get startTracking => 'TODO: Translate';
+  String get startTracking => 'Démarrer le suivi';
 
   @override
-  String get stopTracking => 'TODO: Translate';
+  String get stopTracking => 'Arrêter le suivi';
 
   @override
-  String get trackingActive => 'TODO: Translate';
+  String get trackingActive => 'Suivi actif';
 
   @override
-  String get trackingPaused => 'TODO: Translate';
+  String get trackingPaused => 'Suivi en pause';
 
   @override
-  String get trackingStopped => 'TODO: Translate';
+  String get trackingStopped => 'Suivi arrêté';
 
   @override
-  String get uploadSuccess => 'TODO: Translate';
+  String get uploadSuccess => 'Envoi réussi';
 
   @override
-  String get uploadFailed => 'TODO: Translate';
+  String get uploadFailed => 'Échec de l\'envoi';
 
   @override
   String lastUpload(String time) {
-    return 'TODO: Translate';
+    return 'Dernier envoi : $time';
   }
 
   @override
-  String get noUploadYet => 'TODO: Translate';
+  String get noUploadYet => 'Aucun envoi pour le moment';
 
   @override
-  String get dailyPotTitle => 'TODO: Translate';
+  String get dailyPotTitle => 'Pot quotidien';
 
   @override
   String dailyPotClaimButton(int amount) {
-    return 'TODO: Translate';
+    return 'Récupérer $amount crédits';
   }
 
   @override
   String dailyPotClaimed(int amount) {
-    return 'TODO: Translate';
+    return '+$amount crédits ! 🍯';
   }
 
   @override
-  String get dailyPotAlreadyClaimed => 'TODO: Translate';
+  String get dailyPotAlreadyClaimed =>
+      'Déjà récupéré aujourd\'hui ! Revenez demain';
 
   @override
   String dailyPotNeedMoreUploads(int count, String s) {
-    return 'TODO: Translate';
+    return 'Encore $count envoi$s pour débloquer';
   }
 
   @override
   String dailyPotProgress(int current, int required) {
-    return 'TODO: Translate';
+    return '$current / $required envois';
   }
 
   @override
   String credits(int count) {
-    return 'TODO: Translate';
+    return '$count crédits';
   }
 
   @override
-  String get totalCredits => 'TODO: Translate';
+  String get totalCredits => 'Total de crédits';
 
   @override
-  String get creditsEarned => 'TODO: Translate';
+  String get creditsEarned => 'Crédits gagnés';
 
   @override
-  String get statsTitle => 'TODO: Translate';
+  String get statsTitle => 'Votre impact';
 
   @override
-  String get totalUploads => 'TODO: Translate';
+  String get totalUploads => 'Total d\'envois';
 
   @override
-  String get todayUploads => 'TODO: Translate';
+  String get todayUploads => 'Envois du jour';
 
   @override
-  String get coverageTiles => 'TODO: Translate';
+  String get coverageTiles => 'Tuiles couvertes';
 
   @override
-  String get dataCollected => 'TODO: Translate';
+  String get dataCollected => 'Données collectées';
 
   @override
   String timesContributed(int count) {
-    return 'TODO: Translate';
+    return '$count contributions';
   }
 
   @override
-  String get mapTitle => 'TODO: Translate';
+  String get mapTitle => 'Carte de couverture';
 
   @override
-  String get mapRecenter => 'TODO: Translate';
+  String get mapRecenter => 'Recentrer';
 
   @override
-  String get mapZoomIn => 'TODO: Translate';
+  String get mapZoomIn => 'Zoomer';
 
   @override
-  String get mapZoomOut => 'TODO: Translate';
+  String get mapZoomOut => 'Dézoomer';
 
   @override
-  String get mapYourLocation => 'TODO: Translate';
+  String get mapYourLocation => 'Votre position';
 
   @override
-  String get mapCoverageLegend => 'TODO: Translate';
+  String get mapCoverageLegend => 'Couverture';
 
   @override
-  String get profileTitle => 'TODO: Translate';
+  String get profileTitle => 'Profil';
 
   @override
-  String get profileSignOut => 'TODO: Translate';
+  String get profileSignOut => 'Se déconnecter';
 
   @override
-  String get profileSignedInAs => 'TODO: Translate';
+  String get profileSignedInAs => 'Connecté en tant que';
 
   @override
   String profileMemberSince(String date) {
-    return 'TODO: Translate';
+    return 'Membre depuis le $date';
   }
 
   @override
-  String get profileDeleteAccount => 'TODO: Translate';
+  String get profileDeleteAccount => 'Supprimer le compte';
 
   @override
-  String get profileDeleteConfirm => 'TODO: Translate';
+  String get profileDeleteConfirm =>
+      'Êtes-vous sûr ? Cette action est irréversible.';
 
   @override
-  String get settingsTitle => 'TODO: Translate';
+  String get settingsTitle => 'Paramètres';
 
   @override
-  String get settingsGeneral => 'TODO: Translate';
+  String get settingsGeneral => 'Général';
 
   @override
-  String get settingsPrivacy => 'TODO: Translate';
+  String get settingsPrivacy => 'Confidentialité et données';
 
   @override
-  String get settingsAbout => 'TODO: Translate';
+  String get settingsAbout => 'À propos';
 
   @override
-  String get settingsLanguage => 'TODO: Translate';
+  String get settingsLanguage => 'Langue';
 
   @override
-  String get settingsTheme => 'TODO: Translate';
+  String get settingsLanguageSystem => 'Système';
 
   @override
-  String get settingsNotifications => 'TODO: Translate';
+  String get settingsLanguageEnglish => 'English';
 
   @override
-  String get settingsLocationSharing => 'TODO: Translate';
+  String get settingsLanguageFrench => 'Français';
 
   @override
-  String get settingsLocationEnabled => 'TODO: Translate';
+  String get settingsTheme => 'Thème';
 
   @override
-  String get settingsLocationDisabled => 'TODO: Translate';
+  String get settingsNotifications => 'Notifications';
 
   @override
-  String get settingsMobileData => 'TODO: Translate';
+  String get settingsLocationSharing => 'Partage de position';
 
   @override
-  String get settingsMobileDataEnabled => 'TODO: Translate';
+  String get settingsLocationEnabled => 'Partage de position activé';
 
   @override
-  String get settingsMobileDataDisabled => 'TODO: Translate';
+  String get settingsLocationDisabled => 'Partage de position désactivé';
+
+  @override
+  String get settingsMobileData => 'Envoi sur données mobiles';
+
+  @override
+  String get settingsMobileDataEnabled => 'Envoyer sur données mobiles';
+
+  @override
+  String get settingsMobileDataDisabled => 'Envoyer uniquement en WiFi';
 
   @override
   String settingsVersion(String version) {
-    return 'TODO: Translate';
+    return 'Version $version';
   }
 
   @override
-  String get permissionLocationTitle => 'TODO: Translate';
+  String get permissionLocationTitle => 'Autorisation de localisation';
 
   @override
-  String get permissionLocationMessage => 'TODO: Translate';
+  String get permissionLocationMessage =>
+      'GreenGains a besoin d\'accéder à votre position pour collecter des données environnementales.';
 
   @override
-  String get permissionLocationButton => 'TODO: Translate';
+  String get permissionLocationButton => 'Autoriser';
 
   @override
-  String get permissionBatteryTitle => 'TODO: Translate';
+  String get permissionBatteryTitle => 'Optimisation de la batterie';
 
   @override
-  String get permissionBatteryMessage => 'TODO: Translate';
+  String get permissionBatteryMessage =>
+      'Veuillez désactiver l\'optimisation de la batterie pour un suivi en arrière-plan fiable.';
 
   @override
-  String get permissionBatteryButton => 'TODO: Translate';
+  String get permissionBatteryButton => 'Ouvrir les paramètres';
 
   @override
-  String get errorGeneric => 'TODO: Translate';
+  String get errorGeneric => 'Une erreur s\'est produite. Veuillez réessayer.';
 
   @override
-  String get errorNetwork => 'TODO: Translate';
+  String get errorNetwork => 'Pas de connexion internet';
 
   @override
-  String get errorLocationUnavailable => 'TODO: Translate';
+  String get errorLocationUnavailable => 'Position indisponible';
 
   @override
-  String get errorUploadFailed => 'TODO: Translate';
+  String get errorUploadFailed =>
+      'Échec de l\'envoi. Nouvelle tentative plus tard.';
 
   @override
-  String get errorSignInRequired => 'TODO: Translate';
+  String get errorSignInRequired => 'Veuillez vous connecter pour continuer';
 
   @override
-  String get buttonOk => 'TODO: Translate';
+  String get buttonOk => 'OK';
 
   @override
-  String get buttonCancel => 'TODO: Translate';
+  String get buttonCancel => 'Annuler';
 
   @override
-  String get buttonYes => 'TODO: Translate';
+  String get buttonYes => 'Oui';
 
   @override
-  String get buttonNo => 'TODO: Translate';
+  String get buttonNo => 'Non';
 
   @override
-  String get buttonSave => 'TODO: Translate';
+  String get buttonSave => 'Enregistrer';
 
   @override
-  String get buttonDelete => 'TODO: Translate';
+  String get buttonDelete => 'Supprimer';
 
   @override
-  String get buttonClose => 'TODO: Translate';
+  String get buttonClose => 'Fermer';
 
   @override
-  String get buttonRetry => 'TODO: Translate';
+  String get buttonRetry => 'Réessayer';
 
   @override
-  String get loading => 'TODO: Translate';
+  String get loading => 'Chargement...';
 
   @override
-  String get saving => 'TODO: Translate';
+  String get saving => 'Enregistrement...';
 
   @override
-  String get success => 'TODO: Translate';
+  String get success => 'Succès';
 
   @override
-  String get error => 'TODO: Translate';
+  String get error => 'Erreur';
 }
