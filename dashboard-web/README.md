@@ -1,55 +1,39 @@
 # GreenGains Analytics Dashboard
 
-Modern, professional analytics dashboard for GreenGains Smart Cities platform.
+Modern React dashboard for GreenGains Smart Cities platform.
 
-## Stack
+## 🚀 Deploy to Hostinger
 
-- **Next.js 14** - React framework with App Router
-- **TypeScript** - Type safety
-- **Tailwind CSS** - Utility-first styling
-- **shadcn/ui** - Beautiful, accessible components (modular - you own the code!)
+### 1. Build
+Double-click: **`BUILD-FOR-HOSTINGER.bat`**
 
-## Getting Started
+### 2. Upload
+Upload everything from `out/` folder to Hostinger:
+- File Manager → `public_html/dashboard/`
+- Or via FTP
 
-1. Install dependencies:
-```bash
-npm install
-```
+### 3. Done!
+Access at: `https://yourdomain.com/dashboard/`
 
-2. Run development server:
-```bash
-npm run dev
-```
+---
 
-3. Open [http://localhost:3000](http://localhost:3000)
-
-## Features
-
-- ✅ Clean, professional design matching shadcn/ui aesthetic
-- ✅ Fully responsive
-- ✅ Dark mode (default)
-- ✅ Real-time data display
-- 🚧 Barometer data integration (coming soon)
-- 🚧 API integration with greengains.onrender.com
-- 🚧 WebSocket real-time updates
-
-## Project Structure
+## 📁 Files
 
 ```
 dashboard-web/
-├── app/                 # Next.js App Router
-│   ├── layout.tsx      # Root layout
-│   ├── page.tsx        # Dashboard page
-│   └── globals.css     # Global styles
-├── components/         # React components (add here)
-├── lib/               # Utilities
-└── public/            # Static assets
+├── app/page.tsx       # Main dashboard
+├── lib/api.ts         # API client
+└── out/              # Built files (upload this!)
 ```
 
-## Next Steps
+## 🛠️ Stack
 
-1. Add shadcn/ui components as needed
-2. Create API client for backend
-3. Build data fetching hooks
-4. Add real-time updates
-5. Deploy to Vercel
+- Next.js 14 + TypeScript
+- Tailwind CSS + shadcn/ui
+- Static export (works on any host)
+
+## 📝 To Update
+
+1. Edit `app/page.tsx`
+2. Run `BUILD-FOR-HOSTINGER.bat`
+3. Re-upload `out/` folder
