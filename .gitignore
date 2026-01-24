@@ -120,3 +120,12 @@ nul
 screenshots/**/*.png
 screenshots/**/*.jpg
 screenshots/**/*.jpeg
+
+# Archive folders
+.archive/
+docs/archive/
+
+# Dashboard build output
+dashboard-web/out/
+dashboard-web/node_modules/
+dashboard-web/.next/
