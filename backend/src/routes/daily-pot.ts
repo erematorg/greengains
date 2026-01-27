@@ -89,17 +89,26 @@ export async function dailyPotRoutes(fastify: FastifyInstance) {
         return reply.code(401).send({ error: 'Unauthorized' });
       }
 
-      // Increment upload count (only if not already unlocked today)
+      // Increment upload count with proper daily reset logic
       const result = await pool.query<DailyPotState>(
         `
         INSERT INTO daily_pots (user_id, total_credits, uploads_today, uploads_required, last_claim_date)
         VALUES ($1, 0, 1, 5, NULL)
         ON CONFLICT (user_id) DO UPDATE SET
           uploads_today = CASE
-            WHEN daily_pots.last_claim_date < CURRENT_DATE OR daily_pots.last_claim_date IS NULL
-            THEN daily_pots.uploads_today + 1
+            -- New day since last claim: reset to 1
+            WHEN daily_pots.last_claim_date < CURRENT_DATE
+            THEN 1
+            -- Same day as claim, increment if not yet at required amount
             WHEN daily_pots.last_claim_date = CURRENT_DATE AND daily_pots.uploads_today < daily_pots.uploads_required
             THEN daily_pots.uploads_today + 1
+            -- Never claimed before: check if new day since last update
+            WHEN daily_pots.last_claim_date IS NULL AND DATE(daily_pots.updated_at) < CURRENT_DATE
+            THEN 1
+            -- Never claimed and same day: increment
+            WHEN daily_pots.last_claim_date IS NULL
+            THEN daily_pots.uploads_today + 1
+            -- Default: keep current value (shouldn't happen)
             ELSE daily_pots.uploads_today
           END
         RETURNING

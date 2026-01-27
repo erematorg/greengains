@@ -6,6 +6,7 @@ class PreferenceKeys {
   const PreferenceKeys._();
   static const onboardingComplete = 'onboarding_complete';
   static const themeMode = 'theme_mode';
+  static const languageCode = 'language_code'; // 'en', 'fr', or null for system default
   static const useMobileUploads = 'use_mobile_data_uploads';
   static const deviceId = 'flutter.device_id';
   static const foregroundServiceEnabled = 'flutter.foreground_service_enabled';
@@ -117,6 +118,17 @@ class AppPreferences {
 
   Future<void> setThemeModeRaw(String value) async {
     await _sp.setString(PreferenceKeys.themeMode, value);
+  }
+
+  /// Get selected language code ('en', 'fr', or null for system default)
+  String? get languageCode => _sp.getString(PreferenceKeys.languageCode);
+
+  Future<void> setLanguageCode(String? value) async {
+    if (value == null) {
+      await _sp.remove(PreferenceKeys.languageCode);
+    } else {
+      await _sp.setString(PreferenceKeys.languageCode, value);
+    }
   }
 
   bool get useMobileUploads =>

@@ -103,6 +103,12 @@ class _CoverageMapWidgetState extends State<CoverageMapWidget> {
     );
   }
 
+  void _recenterOnUser() {
+    if (widget.userLocation != null) {
+      _mapController.move(widget.userLocation!, _mapController.camera.zoom);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -175,26 +181,29 @@ class _CoverageMapWidgetState extends State<CoverageMapWidget> {
                       point: widget.userLocation!,
                       width: 40,
                       height: 40,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.primary,
-                          border: Border.all(
-                            color: Colors.white,
-                            width: 3,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              spreadRadius: 1,
+                      child: GestureDetector(
+                        onTap: widget.showControls ? _recenterOnUser : null,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.primary,
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 3,
                             ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.person,
-                          color: Colors.white,
-                          size: 20,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.3),
+                                blurRadius: 8,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ),
@@ -239,6 +248,25 @@ class _CoverageMapWidgetState extends State<CoverageMapWidget> {
                       ),
                     ),
                   ],
+                ),
+              ),
+            ),
+
+          // Recenter button (bottom-right) - Google Maps style
+          if (widget.showControls && widget.userLocation != null)
+            Positioned(
+              bottom: 16,
+              right: 16,
+              child: FloatingActionButton.small(
+                onPressed: _recenterOnUser,
+                backgroundColor: isDark
+                    ? Colors.grey[850]
+                    : Colors.white,
+                elevation: 4,
+                child: Icon(
+                  Icons.my_location,
+                  color: AppColors.primary,
+                  size: 20,
                 ),
               ),
             ),

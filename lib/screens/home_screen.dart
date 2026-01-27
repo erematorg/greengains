@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
@@ -18,11 +19,15 @@ import '../widgets/contextual_tip_card.dart';
 import '../widgets/service_control_button.dart';
 import '../widgets/battery_optimization_dialog.dart';
 import '../widgets/daily_pot_icon.dart';
+import '../widgets/credits_display.dart';
 import '../widgets/tracking_status_banner.dart';
 import '../widgets/impact_summary_card.dart';
 import '../widgets/sensor_section.dart';
 import '../widgets/coverage_map_widget.dart';
 import 'coverage_map_screen.dart';
+
+// Constants
+const double _kDefaultTileConfidence = 0.5;
 
 /// Home screen with Option B layout
 /// Clear visual hierarchy: Status -> Coverage Map (50%) -> Impact/Stats -> Technical Details
@@ -46,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _batteryPromptOpen = false;
   ContributionStats? _stats;
   StreamSubscription<UploadSuccessEvent>? _uploadSuccessSub;
+  StreamSubscription<LocationData>? _locationStreamSub;
   List<H3Tile> _h3Tiles = [];
   bool _h3TilesLoading = true;
   LatLng? _userLocation;
@@ -63,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _loadStats();
     _loadH3Tiles();
     _loadUserLocation();
+    _subscribeToLocationUpdates();
   }
 
   void _handleServiceRunningChange() {
@@ -149,7 +156,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    // Clean up upload success listener
+    // Clean up stream subscriptions
+    _locationStreamSub?.cancel();
     _uploadSuccessSub?.cancel();
     _locationService.isRunning.removeListener(_handleServiceRunningChange);
 
@@ -244,31 +252,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadH3Tiles() async {
-    print('🗺️ Loading H3 tiles from backend...');
     setState(() {
       _h3TilesLoading = true;
     });
 
     try {
-      // Fetch tiles from backend API
       final response = await BackendClient.get('/api/user/tiles?hours=72');
-      print('📡 Tiles API response: ${response.statusCode}');
-      print('📡 Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final tilesData = data['tiles'] as List<dynamic>?;
 
         final tiles = tilesData?.map((tile) {
-          // Backend returns centroid; client needs to compute H3 boundaries
-          // For now, we'll just use centroid as a single point (map will show as marker)
-          // TODO: Add h3_dart boundary calculation here if needed
+          // Extract centroid from backend response
+          final centroid = tile['centroid'] as Map<String, dynamic>?;
+          final lat = (centroid?['lat'] as num?)?.toDouble();
+          final lng = (centroid?['lng'] as num?)?.toDouble();
+
+          // Create simple circular boundary around centroid
+          List<LatLng>? boundary;
+          if (lat != null && lng != null) {
+            const tileRadiusDegrees = 0.001; // ~100m at mid-latitudes
+            const circlePoints = 16; // Points to approximate circle
+            boundary = [
+              for (var i = 0; i < circlePoints; i++)
+                LatLng(
+                  lat + tileRadiusDegrees * cos(i * pi / 8),
+                  lng + tileRadiusDegrees * sin(i * pi / 8),
+                ),
+            ];
+          }
+
           return H3Tile(
             h3Index: tile['h3Index'] as String,
-            confidence: (tile['confidence'] as num?)?.toDouble() ?? 0.5,
+            confidence: (tile['confidence'] as num?)?.toDouble() ?? _kDefaultTileConfidence,
             sampleCount: tile['sampleCount'] as int? ?? 0,
             deviceCount: tile['deviceCount'] as int? ?? 1,
-            boundary: null, // TODO: Calculate boundary using h3_dart
+            boundary: boundary,
           );
         }).toList() ?? [];
 
@@ -290,9 +310,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       } else {
         throw Exception('Failed to load tiles: ${response.statusCode}');
       }
-    } catch (e, stackTrace) {
-      print('❌ Failed to load H3 tiles: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
+      debugPrint('Failed to load H3 tiles: $e');
       if (mounted) {
         setState(() {
           _h3Tiles = [];
@@ -325,6 +344,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       debugPrint('Failed to get user location: $e');
       // Keep _userLocation as null - map will show default bounds
     }
+  }
+
+  void _subscribeToLocationUpdates() {
+    _locationStreamSub = _locationService.locationStream.listen((locationData) {
+      if (mounted) {
+        setState(() {
+          _userLocation = LatLng(locationData.latitude, locationData.longitude);
+        });
+      }
+    });
   }
 
   void _navigateToCoverageMap() {
@@ -388,7 +417,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       tiles: _h3Tiles,
                       userLocation: _userLocation,
                       heightFraction: 0.5,
-                      showControls: false,
+                      showControls: true, // Enable pan/zoom
                     ),
                     const SizedBox(height: AppTheme.spaceMd),
 
@@ -433,6 +462,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 top: 70,
                 right: 16,
                 child: DailyPotIcon(),
+              ),
+
+              // Credits display (below daily pot)
+              const Positioned(
+                top: 135,
+                right: 16,
+                child: CreditsDisplay(),
               ),
             ],
           ),

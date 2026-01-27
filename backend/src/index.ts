@@ -1,4 +1,19 @@
+// Initialize Sentry FIRST (before anything else!)
+import * as Sentry from '@sentry/node';
+import { nodeProfilingIntegration } from '@sentry/profiling-node';
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN || 'https://d0e924903d56b78ed1d576a92fc51826@o4510780171747328.ingest.de.sentry.io/4510780175941712',
+  environment: process.env.NODE_ENV || 'development',
+  integrations: [
+    nodeProfilingIntegration(),
+  ],
+  tracesSampleRate: 0.1, // 10% of requests (free tier friendly)
+  profilesSampleRate: 0.1,
+});
+
 import Fastify from 'fastify';
+import crypto from 'crypto';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { config, getAllowedOrigins } from './config';
@@ -12,12 +27,53 @@ import { analyticsRoutes } from './routes/analytics';
 import { dailyPotRoutes } from './routes/daily-pot';
 import { userRoutes } from './routes/user';
 import { startAggregationJob, stopAggregationJob } from './jobs/aggregator';
+import { ErrorCodes, createErrorResponse } from './utils/errors';
 
 const fastify = Fastify({
   logger: {
     level: config.nodeEnv === 'production' ? 'info' : 'debug',
+    // Add request IDs for tracing
+    genReqId: () => crypto.randomUUID(),
   },
   bodyLimit: 1048576 * 10, // 10MB limit for uploads
+  // Disable Fastify's default error handler so Sentry can catch errors
+  disableRequestLogging: false,
+});
+
+// Add Sentry error handler - catches all uncaught errors
+fastify.setErrorHandler((error, request, reply) => {
+  // Log to Sentry
+  Sentry.captureException(error, {
+    contexts: {
+      request: {
+        method: request.method,
+        url: request.url,
+        headers: request.headers,
+      },
+    },
+    user: {
+      id: (request as any).user?.uid,
+    },
+  });
+
+  // Log to console (for Render logs)
+  fastify.log.error({
+    err: error,
+    req: request,
+    requestId: request.id,
+  }, 'Unhandled error');
+
+  // Return standardized error to client
+  const statusCode = error.statusCode || 500;
+  const errorResponse = createErrorResponse(
+    ErrorCodes.INTERNAL_SERVER_ERROR,
+    config.nodeEnv === 'production'
+      ? 'An unexpected error occurred'
+      : error.message,
+    request.id
+  );
+
+  reply.status(statusCode).send(errorResponse);
 });
 
 // Configure raw body parser for upload endpoint - MOVED to upload.ts
@@ -39,9 +95,42 @@ fastify.register(rateLimit, {
   cache: config.rateLimitCacheSize,
 });
 
-// Health check endpoint
-fastify.get('/health', async () => {
-  return { status: 'ok', timestamp: new Date().toISOString() };
+// Health check endpoint - tests database connectivity
+fastify.get('/health', async (request, reply) => {
+  const health: any = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    checks: {},
+  };
+
+  // Test database connection
+  try {
+    const { getPool } = await import('./database');
+    const pool = getPool();
+    const start = Date.now();
+    await pool.query('SELECT 1');
+    const latency = Date.now() - start;
+
+    health.checks.database = {
+      status: 'up',
+      latency_ms: latency,
+    };
+  } catch (error) {
+    health.status = 'unhealthy';
+    health.checks.database = {
+      status: 'down',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+    // Return 503 Service Unavailable if DB is down
+    reply.status(503);
+  }
+
+  // Check Firebase (non-critical)
+  health.checks.firebase = {
+    status: isFirebaseInitialized() ? 'enabled' : 'disabled',
+  };
+
+  return health;
 });
 
 // Register routes

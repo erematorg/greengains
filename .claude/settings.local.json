@@ -117,7 +117,14 @@
       "Bash(\"C:\\\\Users\\\\mathi\\\\flutter\\\\bin\\\\flutter.bat\" clean)",
       "Bash(\"C:\\\\Users\\\\mathi\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" logcat -v time -s GreenGainsFGService:* -t 200)",
       "Bash(\"C:\\\\Users\\\\mathi\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install -r build/app/outputs/flutter-apk/app-release.apk)",
-      "Bash(\"C:\\\\Users\\\\mathi\\\\flutter\\\\bin\\\\flutter.bat\" pub get)"
+      "Bash(\"C:\\\\Users\\\\mathi\\\\flutter\\\\bin\\\\flutter.bat\" pub get)",
+      "Bash(C:Usersmathiflutterbinflutter.bat build apk --release)",
+      "Bash(\"C:\\\\Users\\\\mathi\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install -r \"build\\\\app\\\\outputs\\\\flutter-apk\\\\app-release.apk\")",
+      "Bash(\"C:\\\\Users\\\\mathi\\\\flutter\\\\bin\\\\flutter.bat\" run --release)",
+      "Bash(\"C:\\\\Users\\\\mathi\\\\flutter\\\\bin\\\\flutter.bat\" run)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd launch readiness assessment and Play Store materials\n\n- Fix recenter to maintain current zoom level instead of resetting to 15\n- Document critical issues before beta launch\n- Create Play Store description and asset guidance\n- Identify 5-7 critical fixes needed in next 3-5 days\n\nKey findings: Credits tracked but not displayed, rate limiting missing,\nlegal docs need accuracy updates.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(keytool:*)",
+      "Bash(pwsh:*)"
     ],
     "deny": [],
     "ask": []

@@ -35,10 +35,34 @@ flutter build apk --dart-define-from-file=dart_defines.json
 
 ## How It Works
 
-- **Passive Collection**: Runs in background collecting sensor data (light, accelerometer, gyroscope)
-- **Privacy First**: Optional coarse location (~200m accuracy)
-- **Low Impact**: Minimal battery usage, uploads every 2 minutes
-- **Track Impact**: See your contributions in the app
+- **Passive Collection**: Runs in background collecting sensor data (light, accelerometer, gyroscope, pressure, GPS)
+- **Privacy First**: Location data for environmental correlation
+- **Low Impact**: Minimal battery usage, adaptive upload intervals
+- **Track Impact**: See your contributions and coverage map
+- **Daily Rewards**: Earn credits for contributing data
+
+---
+
+## Internationalization (i18n)
+
+**Supported Languages:** English, French
+
+The app automatically detects your device language and displays the appropriate translation.
+
+### Adding/Editing Translations
+
+1. **English**: Edit `lib/l10n/app_en.arb`
+2. **French**: Edit `lib/l10n/app_fr.arb`
+3. Run `flutter pub get` to regenerate localization code
+4. The app won't compile if translations are missing (failsafe!)
+
+**Adding a new language:**
+1. Create `lib/l10n/app_XX.arb` (XX = language code)
+2. Copy all strings from `app_en.arb`
+3. Translate each value
+4. Add `Locale('XX')` to `supportedLocales` in `main.dart`
+
+See `I18N_GUIDE.md` for detailed documentation.
 
 ---
 

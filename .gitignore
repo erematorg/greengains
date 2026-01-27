@@ -111,7 +111,10 @@ tmp/
 
 # Temporary files
 upload_monitor.log
-screenshot_*.png
 android/hs_err_*.log
 android/replay_*.log
 nul
+
+# Archive folders
+.archive/
+docs/archive/

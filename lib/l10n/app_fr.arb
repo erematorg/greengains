@@ -1,0 +1,171 @@
+{
+  "@@locale": "fr",
+
+  "onboardingWelcomeTitle": "Bienvenue sur GreenGains",
+  "onboardingWelcomeSubtitle": "Aidez à créer des villes plus vertes en collectant passivement des données environnementales.",
+  "onboardingFeature1Title": "Collection passive",
+  "onboardingFeature1Description": "Fonctionne en arrière-plan pendant vos activités. Aucune interaction nécessaire.",
+  "onboardingFeature2Title": "Confidentialité d'abord",
+  "onboardingFeature2Description": "Le partage de position est optionnel et utilise uniquement une localisation approximative.",
+  "onboardingFeature3Title": "Suivez votre impact",
+  "onboardingFeature3Description": "Visualisez vos contributions et aidez à cartographier les données environnementales de votre ville.",
+  "onboardingSignInTitle": "Débloquez des récompenses",
+  "onboardingSignInSubtitle": "Connectez-vous pour accéder aux récompenses quotidiennes et synchroniser vos données.",
+  "onboardingDailyPotRewards": "Pot quotidien",
+  "onboardingDailyPotDescription": "Gagnez 10 à 100 crédits chaque jour",
+  "onboardingCloudSync": "Synchronisation cloud",
+  "onboardingCloudSyncDescription": "Accédez à vos données depuis n'importe quel appareil",
+  "onboardingFutureFeatures": "Fonctionnalités futures",
+  "onboardingFutureDescription": "Classements et compétitions",
+  "onboardingPrivacyNotice": "En continuant, vous acceptez notre {privacyPolicy} et nos {termsOfService}.",
+  "@onboardingPrivacyNotice": {
+    "placeholders": {
+      "privacyPolicy": {"type": "String"},
+      "termsOfService": {"type": "String"}
+    }
+  },
+  "privacyPolicy": "Politique de confidentialité",
+  "termsOfService": "Conditions d'utilisation",
+  "buttonPrevious": "Précédent",
+  "buttonNext": "Suivant",
+  "signInSuccess": "Connexion réussie",
+  "signInError": "Connexion annulée ou échouée",
+
+  "navHome": "Accueil",
+  "navProfile": "Profil",
+  "navSettings": "Paramètres",
+
+  "homeTitle": "GreenGains",
+  "startTracking": "Démarrer le suivi",
+  "stopTracking": "Arrêter le suivi",
+  "trackingActive": "Suivi actif",
+  "trackingPaused": "Suivi en pause",
+  "trackingStopped": "Suivi arrêté",
+  "uploadSuccess": "Envoi réussi",
+  "uploadFailed": "Échec de l'envoi",
+  "lastUpload": "Dernier envoi : {time}",
+  "@lastUpload": {
+    "placeholders": {
+      "time": {"type": "String"}
+    }
+  },
+  "noUploadYet": "Aucun envoi pour le moment",
+
+  "dailyPotTitle": "Pot quotidien",
+  "dailyPotClaimButton": "Récupérer {amount} crédits",
+  "@dailyPotClaimButton": {
+    "placeholders": {
+      "amount": {"type": "int"}
+    }
+  },
+  "dailyPotClaimed": "+{amount} crédits ! 🍯",
+  "@dailyPotClaimed": {
+    "placeholders": {
+      "amount": {"type": "int"}
+    }
+  },
+  "dailyPotAlreadyClaimed": "Déjà récupéré aujourd'hui ! Revenez demain",
+  "dailyPotNeedMoreUploads": "Encore {count} envoi{s} pour débloquer",
+  "@dailyPotNeedMoreUploads": {
+    "placeholders": {
+      "count": {"type": "int"},
+      "s": {"type": "String"}
+    }
+  },
+  "dailyPotProgress": "{current} / {required} envois",
+  "@dailyPotProgress": {
+    "placeholders": {
+      "current": {"type": "int"},
+      "required": {"type": "int"}
+    }
+  },
+
+  "credits": "{count} crédits",
+  "@credits": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "totalCredits": "Total de crédits",
+  "creditsEarned": "Crédits gagnés",
+
+  "statsTitle": "Votre impact",
+  "totalUploads": "Total d'envois",
+  "todayUploads": "Envois du jour",
+  "coverageTiles": "Tuiles couvertes",
+  "dataCollected": "Données collectées",
+  "timesContributed": "{count} contributions",
+  "@timesContributed": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+
+  "mapTitle": "Carte de couverture",
+  "mapRecenter": "Recentrer",
+  "mapZoomIn": "Zoomer",
+  "mapZoomOut": "Dézoomer",
+  "mapYourLocation": "Votre position",
+  "mapCoverageLegend": "Couverture",
+
+  "profileTitle": "Profil",
+  "profileSignOut": "Se déconnecter",
+  "profileSignedInAs": "Connecté en tant que",
+  "profileMemberSince": "Membre depuis le {date}",
+  "@profileMemberSince": {
+    "placeholders": {
+      "date": {"type": "String"}
+    }
+  },
+  "profileDeleteAccount": "Supprimer le compte",
+  "profileDeleteConfirm": "Êtes-vous sûr ? Cette action est irréversible.",
+
+  "settingsTitle": "Paramètres",
+  "settingsGeneral": "Général",
+  "settingsPrivacy": "Confidentialité et données",
+  "settingsAbout": "À propos",
+  "settingsLanguage": "Langue",
+  "settingsLanguageSystem": "Système",
+  "settingsLanguageEnglish": "English",
+  "settingsLanguageFrench": "Français",
+  "settingsTheme": "Thème",
+  "settingsNotifications": "Notifications",
+  "settingsLocationSharing": "Partage de position",
+  "settingsLocationEnabled": "Partage de position activé",
+  "settingsLocationDisabled": "Partage de position désactivé",
+  "settingsMobileData": "Envoi sur données mobiles",
+  "settingsMobileDataEnabled": "Envoyer sur données mobiles",
+  "settingsMobileDataDisabled": "Envoyer uniquement en WiFi",
+  "settingsVersion": "Version {version}",
+  "@settingsVersion": {
+    "placeholders": {
+      "version": {"type": "String"}
+    }
+  },
+
+  "permissionLocationTitle": "Autorisation de localisation",
+  "permissionLocationMessage": "GreenGains a besoin d'accéder à votre position pour collecter des données environnementales.",
+  "permissionLocationButton": "Autoriser",
+  "permissionBatteryTitle": "Optimisation de la batterie",
+  "permissionBatteryMessage": "Veuillez désactiver l'optimisation de la batterie pour un suivi en arrière-plan fiable.",
+  "permissionBatteryButton": "Ouvrir les paramètres",
+
+  "errorGeneric": "Une erreur s'est produite. Veuillez réessayer.",
+  "errorNetwork": "Pas de connexion internet",
+  "errorLocationUnavailable": "Position indisponible",
+  "errorUploadFailed": "Échec de l'envoi. Nouvelle tentative plus tard.",
+  "errorSignInRequired": "Veuillez vous connecter pour continuer",
+
+  "buttonOk": "OK",
+  "buttonCancel": "Annuler",
+  "buttonYes": "Oui",
+  "buttonNo": "Non",
+  "buttonSave": "Enregistrer",
+  "buttonDelete": "Supprimer",
+  "buttonClose": "Fermer",
+  "buttonRetry": "Réessayer",
+  "loading": "Chargement...",
+  "saving": "Enregistrement...",
+  "success": "Succès",
+  "error": "Erreur"
+}
